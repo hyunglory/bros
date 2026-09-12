@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint apps packages --max-warnings 0",
-    "test": "pnpm run build:packages && node --test packages/core/test/config.test.mjs packages/contracts/test/contract.test.mjs",
+    "test": "pnpm run build:packages && node --test packages/core/test/config.test.mjs packages/core/test/security.test.mjs packages/contracts/test/contract.test.mjs",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
