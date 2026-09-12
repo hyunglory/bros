@@ -11,6 +11,7 @@
     "@bros/contracts": "workspace:*",
     "@bros/core": "workspace:*",
     "@bros/db": "workspace:*",
-    "@bros/queue": "workspace:*"
+    "@bros/queue": "workspace:*",
+    "fastify": "5.12.4"
   }
 }

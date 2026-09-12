@@ -35,6 +35,13 @@ export function createDatabaseClient(
     statement_timeout: config.statementTimeoutMs,
     application_name: options.applicationName,
   });
+  // A socket failure while checked out can emit on Client as well as reject its query.
+  // Pool only installs its own error listener while a connection is idle.
+  pool.on("connect", (client) => {
+    client.on("error", () =>
+      logger.error({ code: "DB_CONNECTION_ERROR" }, "Database connection failed"),
+    );
+  });
   // pg emits idle-connection errors outside a query promise. Consume them without raw DSNs/SQL.
   pool.on("error", () =>
     logger.error({ code: "DB_IDLE_CONNECTION_ERROR" }, "Database idle connection failed"),

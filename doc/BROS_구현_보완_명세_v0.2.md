@@ -132,7 +132,7 @@ Basic Auth도 브라우저가 자격증명을 자동 첨부하므로 상태 변�
 - 리소스 ID는 UUID public_id만 입출력한다. 경로 `:candidateId`는 `:candidatePublicId`로 통일한다.
 - 비동기 요청은 202 + `{publicId,status,statusUrl}`; 완료 전 성공 결과를 반환하지 않는다.
 - 오류는 `{error:{code,message,requestId,details?}}`; details는 민감정보 제거 후 허용 필드만 반환한다.
-- 400 형식 오류, 401 미인증, 403 금지, 404 미존재, 409 상태/버전 충돌, 413 크기 초과, 429 한도 초과, 503 준비 안 됨을 구분한다.
+- 400 형식 오류, 401 미인증, 403 금지, 404 미존재, 409 상태/버전 충돌, 413 크기 초과, 429 한도 초과, 500 예기치 않은 내부 오류, 503 준비 안 됨을 구분한다. 500은 P1-07에서 공통 envelope로 구체화했으며 원문 오류는 노출하지 않는다(DEC-20260912-013).
 - 목록 기본 limit=50, 최대 100. `(created_at,public_id)` 기반 cursor와 정렬/필터 allowlist를 사용한다. 해당 정렬을 쓰는 테이블은 created_at을 필수로 보유한다.
 - PATCH/검수에는 expectedVersion을 요구한다. 성공 시 version 증가, 불일치 409. Thumbnail 검수는 job 잠금 후 최신 review 기준으로 검사한다.
 - Thumbnail 검수의 expectedVersion은 API가 반환한 최신 review 순번이다. thumbnail_review에 version_no INTEGER NOT NULL >= 1을 두고 `(thumbnail_job_id,version_no)` UNIQUE를 적용한다. 최초 검수 전 expectedVersion=0이며 job 잠금 내에서 순번을 증가시킨다. candidate 감사 변경도 evidence_json에 원결정·새결정·actor·시각을 보존한다.

@@ -71,10 +71,22 @@ export const HttpErrorStatusSchema = Type.Union([
   Type.Literal(409),
   Type.Literal(413),
   Type.Literal(429),
+  Type.Literal(500),
   Type.Literal(503),
 ]);
 
 export type HttpErrorStatus = Static<typeof HttpErrorStatusSchema>;
+
+export const HealthResponseSchema = Type.Object(
+  { status: Type.Literal("ok") },
+  { additionalProperties: false },
+);
+export const ReadyResponseSchema = Type.Object(
+  { status: Type.Literal("ready") },
+  { additionalProperties: false },
+);
+export type HealthResponse = Static<typeof HealthResponseSchema>;
+export type ReadyResponse = Static<typeof ReadyResponseSchema>;
 
 export const ErrorDetailsSchema = Type.Object(
   {

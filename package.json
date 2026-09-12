@@ -9,6 +9,7 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
+    "api:start": "pnpm build && node --env-file-if-exists=.env apps/api/dist/main.js",
     "build": "pnpm -r --if-present run build",
     "build:packages": "pnpm --filter ./packages/** -r --if-present run build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",

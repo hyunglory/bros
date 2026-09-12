@@ -99,6 +99,23 @@ typed schema는 `app.platform`처럼 schema-qualified table을 사용한다. BIG
 
 idle 연결 오류는 `DB_IDLE_CONNECTION_ERROR`와 고정 메시지만 기록한다. query 오류는 호출자에게 전파되므로 후속 API error handler는 원문 SQL/row/DSN을 응답에 노출하지 않아야 한다. 런타임 client를 생성하거나 import해도 migration은 실행되지 않는다.
 
+## API 실행·상태 확인·종료 — P1-07
+
+루트 `.env` 설정과 PostgreSQL 준비 후 `pnpm api:start`로 빌드와 실행을 진행한다. 이미 빌드한 배포 환경에서는 `node --env-file-if-exists=.env apps/api/dist/main.js`를 직접 실행한다. API_HOST/API_PORT를 사용하며 개발 기본 주소는 `127.0.0.1:3000`이다. app import는 listen·signal 등록·migration을 실행하지 않는다.
+
+| 경로 | 성공 | 실패 |
+|---|---|---|
+| GET /health | 200, `{ "status": "ok" }` | DB를 조회하지 않음 |
+| GET /ready | 200, `{ "status": "ready" }` | DB query 실패/시간 초과 시 503 공통 오류 envelope |
+
+상태 응답에는 `Cache-Control: no-store`가 붙는다. readiness는 migration 상태·업무 테이블 정합성까지 검사하지 않는다. DB 연결이 안 되어도 API listen은 가능하며 readiness가 이를 표시한다. `API_READINESS_TIMEOUT_MS` 기본 1000, 허용 1~30000ms다. HTTP probe의 대기 시간을 제한하고 아직 실행 중인 DB probe를 공유하여 대기열 누적을 막는다. HTTP 시간 초과가 SQL을 즉시 취소하지는 않으며 기존 DB 연결/statement timeout이 내부 작업을 제한한다.
+
+`SIGTERM`/`SIGINT`는 새 요청 수락 차단 → 진행 중 HTTP 응답 완료 → DB pool 종료 순으로 처리한다. 종료 중 응답은 `Connection: close`를 사용한다. `API_SHUTDOWN_TIMEOUT_MS` 기본 10000, 허용 1~300000ms 내 완료되면 정상 종료하며 제한 초과 또는 종료 실패는 exit code 1이다. 강제 종료된 작업은 완료된 것으로 취급하지 않는다. 운영 프로세스 관리자의 종료 유예 시간을 이 값보다 길게 설정한다.
+
+Windows에서는 콘솔 Ctrl+C(SIGINT)를 사용한다. Windows의 child.kill(SIGTERM)은 POSIX처럼 graceful signal을 전달하지 않으므로 테스트는 IPC로 등록된 SIGTERM handler를 호출한다. Linux CI에서는 같은 테스트가 실제 SIGTERM을 보낸다. 원격 Linux 실행 증거는 BLK-001 해소 시 확인한다.
+
+오류는 형식/JSON/지원하지 않는 content type 400, 크기 초과 413, 없는 경로 404, 예기치 않은 예외 500, readiness/종료 중 503으로 고정 메시지를 반환한다. 요청마다 서버가 새 requestId를 생성하고 `x-request-id`로 반환하며 외부 입력 requestId를 신뢰하지 않는다. 완료 로그에는 requestId·statusCode·elapsedMs만 남기며 raw URL/body/header/SQL/DB 오류를 기록하지 않는다. 현재 공개 route는 두 probe뿐이며 업무 route의 인증·인가는 후속 구현 범위다.
+
 ## 공통 API 계약
 
 - 외부 리소스 ID는 UUIDv7 `publicId`만 사용한다. 내부 BIGINT ID를 요청·응답에 넣지 않는다.

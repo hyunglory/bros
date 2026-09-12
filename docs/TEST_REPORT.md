@@ -160,3 +160,17 @@
 - 종료 전 잔여 bros_test_ DB 0개, 기존 app 테이블 18개 확인. BROS postgres만 중지하고 volume 보존. baseline migration 변경 없음.
 - P1-06 fresh clone 검사는 별도 실행하지 않았다. 이번 변경에는 dependency/lockfile 변경이 없다. P1-05 clean clone 증거를 P1-06의 실행 결과로 간주하지 않는다.
 - 미검증: HTTP signal/drain은 P1-07, Worker bootstrap은 P1-10, 업무 CAS/잠금은 후속 업무 service. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-12 — P1-07 완료
+
+- 결과: PASS(로컬). Node 24.14.1, pnpm 11.19.0, Fastify 5.12.4, PostgreSQL 18.6.
+- 실행: `pnpm check` 전체 PASS — unit 16개, integration 35개(Node parent 포함), fail/skip 0개, lint/typecheck/format/build 통과. `pnpm install --frozen-lockfile` PASS. 새 clean clone 검사는 별도 실행하지 않았다.
+- HTTP: /health가 DB 연결 생성 없이 200, schema 기반 UUID 입력 거절 400, JSON 파싱 오류 400, body limit 413, 404/500 공통 envelope, 응답 serializer의 내부 필드 제거, 서버 requestId 및 오류·로그 민감정보 미노출 검증.
+- DB: disposable DB 앞 TCP proxy에서 기존 소켓 단절 및 신규 연결 거절 → /ready 503, /health 200 → 연결 허용 후 /ready 200. 다른 DB/컨테이너를 중지하지 않고 실제 네트워크 장애를 주입했다.
+- timeout: pool 1개를 transaction이 점유한 상태에서 8개 readiness 요청이 제한 시간에 503을 반환하고 DB 대기는 1개만 유지하며 연결 반환 후 200으로 복구했다.
+- HTTP drain: 실제 TCP 요청이 transaction 안에서 대기하는 중 close 시작, 요청을 해제하면 Connection: close와 정상 body를 수신하고 pool 0개·listen 종료·이후 연결 거절 확인.
+- 프로세스: 별도 Node child의 등록 SIGTERM handler, pool 정리 후 exit 0, 점유 transaction 미완료 시 종료 deadline으로 exit 1, CLI 설정 오류 시 안전한 출력과 exit 1을 검증했다. Windows에서는 IPC로 SIGTERM 이벤트를 dispatch했다. 실제 POSIX 신호 전달은 Linux CI 분기로 구현했지만 이번 환경에서는 실행하지 않았다.
+- 발견·수정: checked-out pg Client의 별도 error 이벤트가 uncaughtException을 발생시키던 경로를 고정 메시지 listener로 처리했다. drain 중 keep-alive 연결이 종료를 지연시키던 경로는 응답 Connection: close로 해결했다. 타입·lint 및 초기 payload fixture 오류를 수정한 후 전체 검사를 다시 통과했다.
+- 종료: 디버깅 강제 종료로 남은 두 고유 fixture DB는 소유자 bros·연결 0·업무 테이블 0을 확인하고 명시적인 이름으로 정리했다. 최종 잔여 bros_test_ DB 0개, 기존 app 테이블 18개. BROS postgres 중지, volume 보존.
+- 미검증: Linux 실제 SIGTERM·원격 CI/required check(BLK-001), 운영 배포 환경, 후속 인증·업무 API·Queue/Worker. 테스트용 contract/failure/held route는 배포 app에 등록하지 않는다.
+- 최종 정리 보완: 프로세스 테스트 실패 시에도 자식 종료를 DB 삭제보다 먼저 수행하도록 hook 순서를 보완했다. 해당 프로세스 테스트 2개 재실행 PASS, DB 재중지 완료.

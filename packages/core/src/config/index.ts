@@ -30,6 +30,8 @@ export interface AppConfig {
   api: {
     host: string;
     port: number;
+    readinessTimeoutMs: number;
+    shutdownTimeoutMs: number;
   };
   worker: {
     concurrency: number;
@@ -201,6 +203,16 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     }),
   };
 
+  const readinessTimeoutMs = readInteger(environment, "API_READINESS_TIMEOUT_MS", issues, {
+    defaultValue: 1000,
+    minimum: 1,
+    maximum: 30000,
+  });
+  const shutdownTimeoutMs = readInteger(environment, "API_SHUTDOWN_TIMEOUT_MS", issues, {
+    defaultValue: 10000,
+    minimum: 1,
+    maximum: 300000,
+  });
   if (issues.length > 0) {
     throw new ConfigValidationError(issues);
   }
@@ -211,6 +223,8 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     api: {
       host: apiHost,
       port: apiPort,
+      readinessTimeoutMs,
+      shutdownTimeoutMs,
     },
     worker: {
       concurrency: workerConcurrency,

@@ -20,6 +20,8 @@ test("loads development defaults from a valid environment", () => {
     api: {
       host: "127.0.0.1",
       port: 3000,
+      readinessTimeoutMs: 1000,
+      shutdownTimeoutMs: 10000,
     },
     worker: {
       concurrency: 1,
@@ -29,6 +31,28 @@ test("loads development defaults from a valid environment", () => {
       localRoot: "./storage",
     },
   });
+});
+
+test("validates API readiness and shutdown deadline bounds", () => {
+  const env = { DATABASE_URL: "postgresql://unused@localhost/unused" };
+  assert.equal(loadConfig({ ...env, API_READINESS_TIMEOUT_MS: "250" }).api.readinessTimeoutMs, 250);
+  assert.equal(loadConfig({ ...env, API_SHUTDOWN_TIMEOUT_MS: "2000" }).api.shutdownTimeoutMs, 2000);
+  for (const [key, invalid] of [
+    ["API_READINESS_TIMEOUT_MS", "30001"],
+    ["API_SHUTDOWN_TIMEOUT_MS", "300001"],
+    ["API_READINESS_TIMEOUT_MS", "0"],
+    ["API_SHUTDOWN_TIMEOUT_MS", "secret-marker"],
+  ]) {
+    assert.throws(
+      () => loadConfig({ ...env, [key]: invalid }),
+      (error) => {
+        assert.ok(error instanceof ConfigValidationError);
+        assert.match(error.message, new RegExp(key));
+        assert.doesNotMatch(error.message, /secret-marker/);
+        return true;
+      },
+    );
+  }
 });
 
 test("rejects a missing required database URL", () => {
@@ -85,6 +109,8 @@ test("loads explicit production settings without development defaults", () => {
     api: {
       host: "0.0.0.0",
       port: 8080,
+      readinessTimeoutMs: 1000,
+      shutdownTimeoutMs: 10000,
     },
     worker: {
       concurrency: 4,
