@@ -13,6 +13,7 @@
     "build:packages": "pnpm --filter ./packages/** -r --if-present run build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",
     "db:logs": "docker compose logs -f postgres",
+    "db:migrate": "pnpm run build:packages && node --env-file-if-exists=.env scripts/migrate.mjs",
     "db:stop": "docker compose stop postgres",
     "db:up": "docker compose up -d postgres",
     "format": "prettier --write .",
@@ -27,6 +28,7 @@
     "@eslint/js": "10.0.1",
     "@types/node": "24.13.4",
     "eslint": "10.10.0",
+    "pg": "8.23.0",
     "prettier": "3.9.6",
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.0"

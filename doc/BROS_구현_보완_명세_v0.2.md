@@ -1,6 +1,7 @@
 # BROS 구현 보완 명세
 
 > 개정: v0.2 / 2026-09-11
+> 추가 적용 결정: DEC-20260912-010 / 2026-09-12 — P1-05 다섯 미정 코드 필드의 저장 정책
 > 상태: 개발 착수용 명세. 구현·성능·외부 서비스 검증 완료를 의미하지 않는다.
 > 적용: 기존 설계서·WBS·개발 운영 지침·로컬 가이드·마스터 프롬프트의 v0.2 개정과 함께 사용한다.
 
@@ -44,6 +45,8 @@ Boolean 필드와 정체성 키 이외에 필수로 취급할 문자열은 platf
 브라우저 설정 max_retries는 INTEGER DEFAULT 2, cooldown_seconds DEFAULT 60, timeout_seconds DEFAULT 300이며 모두 0 이상, timeout_seconds는 1 이상이다. output_width/output_height는 양의 INTEGER이며 기본 1000이다. attempt_no는 최초 시도 1, 대기 중 0이다. identifier_candidate.rank_no는 1부터 시작한다. 각 실행의 started_at은 finished_at보다 늦을 수 없다. DB의 BIGINT는 Node에서 손실 가능한 number로 변환하지 않고 내부 string 또는 bigint로 다룬다.
 
 ### 2.1 관계, 유일성, 삭제
+
+2026-09-12 추가 결정: [DEC-20260912-010](../docs/DECISIONS.md#dec-20260912-010--p1-05-미정-코드-집합의-확장-가능한-저장-정책)에 따라 `product_master.product_type/created_method`, `import_batch.import_type`, `product_identifier.evidence_type`, `thumbnail_review.reviewer_type`은 P1-05에서 VARCHAR(64)·NOT NULL·공백 금지로 구현한다. 기존 원문에 완결된 허용값 목록이 없는 이 다섯 필드만 폐쇄 집합 CHECK를 유예하며 P2/P3/P4에서 값 목록과 기존 데이터 변환 정책을 확정해 별도 forward migration으로 추가한다. 다른 상태·타입 CHECK는 그대로 적용한다.
 
 모든 업무 FK는 기본 `ON DELETE RESTRICT`다. 운영 UI는 논리 비활성화/상태 변경을 사용하며 상품·근거·실행이력의 연쇄 삭제를 제공하지 않는다. 보존기간 경과 이력은 별도 정리 작업이 참조를 확인하고 자식부터 명시적으로 삭제한다.
 

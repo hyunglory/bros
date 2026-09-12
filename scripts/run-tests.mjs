@@ -53,7 +53,7 @@ console.log(
     .join(", ")}`,
 );
 
-const result = spawnSync(process.execPath, ["--test", ...testFiles], {
+const result = spawnSync(process.execPath, ["--env-file-if-exists=.env", "--test", ...testFiles], {
   cwd: repositoryRoot,
   stdio: "inherit",
 });

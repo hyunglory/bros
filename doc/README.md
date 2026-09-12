@@ -56,4 +56,6 @@
 
 ## 다음 구현 작업
 
+2026-09-12 P1-05 추가 결정: [DEC-20260912-010](../docs/DECISIONS.md#dec-20260912-010--p1-05-미정-코드-집합의-확장-가능한-저장-정책)의 다섯 미정 코드 필드 정책을 보완 명세 2.1에 반영했다. 현재 구현 상태·검증 결과는 [구현 현황](../docs/IMPLEMENTATION_STATUS.md)을 따른다.
+
 환경 재점검과 Git 초기화/기준 snapshot 후 P1-01부터 시작한다. 공통 Contract/Secret/Test 기반을 앞당겨 구성하고 PostgreSQL → Migration → API → Queue/Worker → Admin의 실제 실행을 검증한다. 실제 상품 샘플 20~100건과 첫 Browser 업무 절차는 Phase 1 진행 중 준비할 수 있다.

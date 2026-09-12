@@ -115,3 +115,13 @@
 - 정리: `docker compose stop postgres`로 service만 중지하고 `bros_postgres_data` named volume은 보존
 - 회귀 검증: `pnpm check` PASS — unit 14개, integration 1개, lint, typecheck, format check, build 성공
 - 이미지 재현성: `postgres:18.6-bookworm` multi-architecture digest `sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af`를 Compose와 CI에 동일하게 고정
+
+## 2026-09-12 — P1-05 명세 및 구현 초안
+
+- 대상: 아직 확정하지 않은 P1-05 working tree. BLK-002 정책 답변 대기.
+- 환경: Node.js v24.14.1, pnpm 11.19.0, Kysely 0.29.5, pg 8.23.0, @types/pg 8.23.1.
+- 명세 대조: 설계서 11·12장 + 보완 명세 2장/3.2에서 18개 테이블, 256개 컬럼, 26개 FK를 목록화했다.
+- 정적 검사: `node --check`로 migration CLI와 DB fixture/schema test 문법 PASS. `pnpm lint` PASS.
+- TypeScript: 최초 명시적 실행 차단 함수의 never 반환으로 unreachable 타입 오류 발생 → 반환 선언을 void로 바꾼 뒤 `pnpm --filter @bros/db build` PASS.
+- 미실행: 실제 DB migration, rollback/forward, metadata 대조, constraint negative test, 전체 `pnpm check`는 NOT_RUN. 정책 미확정 baseline의 up은 명시적 오류로 차단되어 있다.
+- 남은 테스트: 코드 정책 결정 후 MASTER/SKU 복합 FK, Identifier scope/primary, Import 최종 집계, Thumbnail 성공/검수 순번 사례를 추가하고 전체 DB 시나리오를 실행한다.
