@@ -14,8 +14,10 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint apps packages --max-warnings 0",
-    "test": "pnpm run build:packages && node --test packages/core/test/config.test.mjs packages/core/test/security.test.mjs packages/contracts/test/contract.test.mjs",
+    "lint": "eslint apps packages scripts tests eslint.config.js --max-warnings 0",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:integration": "pnpm build && node scripts/run-tests.mjs integration",
+    "test:unit": "pnpm run build:packages && node scripts/run-tests.mjs unit",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {

@@ -34,7 +34,8 @@ test("looks up secrets without exposing missing values", async () => {
   });
 
   await assert.doesNotReject(async () => {
-    assert.equal(await requireSecret(provider, "provider.image.apiKey"), "image-provider-secret");
+    const secret = await requireSecret(provider, "provider.image.apiKey");
+    assert.equal(secret === "image-provider-secret", true);
   });
   await assert.rejects(
     () => requireSecret(provider, "provider.search.apiKey"),
