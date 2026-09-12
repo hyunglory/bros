@@ -6,7 +6,7 @@
 
 - Node.js 24.x
 - pnpm 11.x
-- Docker Engine 29.x와 Docker Compose v5
+- Docker Engine과 `docker compose` CLI
 
 저장소 루트에서 실행한다.
 
