@@ -68,6 +68,16 @@ test("validates the common error response body", () => {
   });
 
   assert.equal(Value.Check(ErrorEnvelopeSchema, body), true);
+  assert.equal(
+    Value.Check(ErrorEnvelopeSchema, {
+      ...body,
+      error: {
+        ...body.error,
+        details: { rawSecret: "must-not-be-allowed" },
+      },
+    }),
+    false,
+  );
 });
 
 test("applies the documented pagination default and maximum", () => {

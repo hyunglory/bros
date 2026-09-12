@@ -76,6 +76,29 @@ export const HttpErrorStatusSchema = Type.Union([
 
 export type HttpErrorStatus = Static<typeof HttpErrorStatusSchema>;
 
+export const ErrorDetailsSchema = Type.Object(
+  {
+    issues: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            path: Type.String({ minLength: 1, maxLength: 256 }),
+            rule: Type.Integer({ minimum: 0 }),
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 20 },
+      ),
+    ),
+    expectedVersion: Type.Optional(Type.Integer({ minimum: 0 })),
+    actualVersion: Type.Optional(Type.Integer({ minimum: 0 })),
+    retryAfterSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
+export type ErrorDetails = Static<typeof ErrorDetailsSchema>;
+
 export const ErrorEnvelopeSchema = Type.Object(
   {
     error: Type.Object(
@@ -87,9 +110,7 @@ export const ErrorEnvelopeSchema = Type.Object(
         }),
         message: Type.String({ minLength: 1, maxLength: 512 }),
         requestId: Type.String({ minLength: 1, maxLength: 128 }),
-        details: Type.Optional(
-          Type.Record(Type.String({ minLength: 1, maxLength: 64 }), Type.Unknown()),
-        ),
+        details: Type.Optional(ErrorDetailsSchema),
       },
       { additionalProperties: false },
     ),
@@ -106,7 +127,7 @@ export interface ApiErrorResponse {
 
 export function createErrorEnvelope(input: {
   code: string;
-  details?: Readonly<Record<string, unknown>>;
+  details?: ErrorDetails;
   message: string;
   requestId: string;
 }): ErrorEnvelope {
