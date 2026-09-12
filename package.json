@@ -1,0 +1,19 @@
+{
+  "name": "bros",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "build:packages": "pnpm --filter ./packages/** -r --if-present run build",
+    "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

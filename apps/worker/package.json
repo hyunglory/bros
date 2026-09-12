@@ -1,0 +1,18 @@
+{
+  "name": "@bros/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bros/browser": "workspace:*",
+    "@bros/core": "workspace:*",
+    "@bros/db": "workspace:*",
+    "@bros/image": "workspace:*",
+    "@bros/queue": "workspace:*",
+    "@bros/storage": "workspace:*"
+  }
+}
