@@ -42,4 +42,13 @@ pnpm build
 - 오류 `details`에는 계약이 허용한 검증 issue, 버전 숫자, 재시도 초만 넣는다.
 - 목록 limit 기본값은 50, 최대값은 100이다.
 
+## Secret과 로그
+
+- 외부 provider와 browser 자격증명은 `SecretProvider`를 통해 조회한다.
+- 개발용 환경변수는 `BROS_SECRET_` prefix를 사용한다. 예: `provider.image.apiKey` → `BROS_SECRET_PROVIDER_IMAGE_API_KEY`.
+- browser profile key는 소문자로 시작하는 영숫자 1~32자로 제한한다.
+- 실제 secret은 `.env.example`, fixture, 로그, 오류 응답에 넣지 않는다.
+- API와 Worker logger는 `createRedactedLogger`로 생성한다. 임의 Pino instance를 만들지 않는다.
+- secret 누락 오류에는 secret key만 포함하고 값은 포함하지 않는다.
+
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.

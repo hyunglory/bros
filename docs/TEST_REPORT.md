@@ -68,3 +68,19 @@
 - 소비 검증: Admin은 Static type을, API는 같은 runtime schema를 `@bros/contracts`에서 import해 build 성공
 - 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
 - 결과: PASS — 최종 allowlist 보완을 포함한 전체 검증 재현
+
+## 2026-09-12 — P1-13 SecretProvider / Sensitive Data Redaction Baseline
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, Pino 10.3.1
+- 대상 커밋: `d983030`
+- 실행 명령: `pnpm check`
+- 결과: PASS — 14개 unit test, lint, typecheck, format check, build 성공
+- secret 검증: key→environment 이름 변환, browser profile key validation, EnvSecretProvider lookup, missing secret 오류 확인
+- text masking 검증: Bearer, password, cookie, DB URL userinfo, signed query 값 비노출
+- Pino 검증: root/nested token, request cookie/URL, database URL, Error message/stack을 실제 JSON line으로 직렬화하고 원문 secret 부재 확인
+- 회귀 확인: Pino가 serializer 처리 전 `err.message`를 최상위 `msg`로 복사해 token을 재노출하는 실패 탐지
+- 조치 및 결과: logger hook에서 문자열과 자동 Error message를 선행 마스킹하고 재실행 PASS
+- 실행 명령: `rg -n "process\.env" -- apps packages`
+- 결과: PASS — config process adapter 한 곳 외 직접 접근 없음
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`, `process.env` 경계 검색
+- 결과: PASS — 전체 보안 baseline 재현
