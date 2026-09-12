@@ -101,3 +101,17 @@
 - PostgreSQL lifecycle: GitHub Actions service에 PostgreSQL 18 healthcheck와 test 전용 DSN 구성
 - 원격 GitHub Actions 실행: NOT_RUN — GitHub remote/repository가 없어 BLK-001로 기록
 - merge/release required check 검증: NOT_RUN — branch protection 입력이 없어 BLK-001로 기록
+
+## 2026-09-12 — P1-04 PostgreSQL 18 개발환경
+
+- 환경: Windows, Docker Engine 29.7.2, Docker Compose v5.3.1, PostgreSQL 18.6
+- 대상 커밋: `bc8c419`
+- Compose 정적 검증: test 전용 `POSTGRES_PASSWORD`와 `POSTGRES_PORT=55432`를 process environment로 주입한 `docker compose config --quiet` PASS
+- 포트 안전성: 호스트 5432가 `mygoal-postgres`에 이미 할당된 사실을 확인하고 기존 서비스를 변경하지 않은 채 BROS만 55432로 기동
+- 실행 명령: `docker compose up -d postgres`, health 상태 poll, `docker compose ps postgres`
+- 결과: PASS — `bros-postgres-1`이 `healthy`, host 55432 → container 5432 TCP 연결 성공
+- DB 검증: `current_setting('server_version')`이 `18.6 (Debian 18.6-1.pgdg12+2)`, data directory가 `/var/lib/postgresql/18/docker`, `uuidv7()` 호출 성공
+- 영속성 검증: probe row 생성 → `docker compose restart postgres` → healthy 대기 → 같은 row 조회 성공 → probe table 제거
+- 정리: `docker compose stop postgres`로 service만 중지하고 `bros_postgres_data` named volume은 보존
+- 회귀 검증: `pnpm check` PASS — unit 14개, integration 1개, lint, typecheck, format check, build 성공
+- 이미지 재현성: `postgres:18.6-bookworm` multi-architecture digest `sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af`를 Compose와 CI에 동일하게 고정

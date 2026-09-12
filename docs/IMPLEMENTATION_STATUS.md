@@ -10,7 +10,8 @@
 | P1-08 API Contract / TypeBox | PASS | DEC-20260912-005, TEST_REPORT 2026-09-12 P1-08 | 완료 |
 | P1-13 SecretProvider / Redaction | PASS | DEC-20260912-006, TEST_REPORT 2026-09-12 P1-13 | 완료 |
 | P1-14 Test Harness / CI Baseline | IMPLEMENTED_NOT_VALIDATED | DEC-20260912-007, TEST_REPORT 2026-09-12 P1-14, BLK-001 | 로컬·fresh clone PASS, 원격 CI 실행과 required check 대기 |
-| P1-04 PostgreSQL 18 개발환경 | READY | Foundation Wave A, WBS v0.1 | Compose DB·healthcheck·volume 구현 |
-| 그 외 Phase 1 Task | NOT_STARTED | WBS v0.1 | 선행관계와 Foundation Wave 순서에 따라 진행 |
+| P1-04 PostgreSQL 18 개발환경 | PASS | DEC-20260912-008, TEST_REPORT 2026-09-12 P1-04, 구현 커밋 `bc8c419` | 완료 |
+| P1-05 DB Migration 기반 + MVP 18개 테이블 | READY | P1-02/P1-03/P1-04 PASS, WBS v0.1 | Kysely migration과 schema constraint 구현 |
+| 그 외 Phase 1 Task | NOT_STARTED | WBS v0.1 | 선행관계에 따라 진행 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`를 사용한다.

@@ -6,6 +6,7 @@
 
 - Node.js 24.x
 - pnpm 11.x
+- Docker Engine 29.x와 Docker Compose v5
 
 저장소 루트에서 실행한다.
 
@@ -14,7 +15,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`check`는 lint, typecheck, format check, build 순서로 실행한다. `typecheck`는 clean checkout에서도 동작하도록 공통 패키지 7개를 먼저 빌드한다.
+`check`는 lint, typecheck, unit/integration test, format check, build 순서로 실행한다. `typecheck`는 clean checkout에서도 동작하도록 공통 패키지 7개를 먼저 빌드한다.
 
 개별 명령이 필요하면 다음을 사용한다.
 
@@ -27,12 +28,38 @@ pnpm build
 
 ## 환경 설정
 
-로컬 실행 전 `.env.example`을 참고해 추적되지 않는 `.env`를 만든다. 최소 필수값은 `DATABASE_URL`이다.
+로컬 실행 전 `.env.example`을 참고해 추적되지 않는 `.env`를 만든다. 앱 실행의 최소 필수값은 `DATABASE_URL`이고 Compose 기동에는 `POSTGRES_PASSWORD`도 필요하다.
 
 - `APP_ENV=development` 또는 `test`: API host/port, Worker concurrency, local storage 경로에 개발 기본값을 적용한다.
 - `APP_ENV=production`: `API_HOST`, `API_PORT`, `WORKER_CONCURRENCY`, `STORAGE_DRIVER`를 명시해야 한다. Local storage를 선택하면 `STORAGE_LOCAL_ROOT`도 필수다.
 - 설정 오류는 환경변수 이름과 규칙만 출력하며 입력값은 출력하지 않는다.
 - 업무 코드는 환경변수를 직접 읽지 않고 `@bros/core`의 typed config를 받는다.
+
+## PostgreSQL 18 개발환경
+
+`.env.example`을 복사해 `.env`를 만들고 placeholder인 `POSTGRES_PASSWORD`와 `DATABASE_URL` 비밀번호를 같은 로컬 개발값으로 바꾼다. 그 뒤 저장소 루트에서 실행한다.
+
+```powershell
+pnpm db:up
+docker compose ps postgres
+docker compose exec -T postgres psql -U bros -d bros -c "SELECT current_setting('server_version'), uuidv7();"
+```
+
+`postgres` 상태가 `healthy`이고 서버 버전이 18.x이며 `uuidv7()`이 UUID를 반환해야 한다. PostgreSQL 18 공식 이미지의 named volume `bros_postgres_data`는 `/var/lib/postgresql`에 연결되고 개발 network 이름은 `bros_dev`다.
+
+호스트의 5432 포트를 다른 서비스가 사용 중이면 기존 서비스를 중지하지 말고 `.env`의 두 값을 함께 바꾼다.
+
+```dotenv
+POSTGRES_PORT=55432
+DATABASE_URL=postgresql://bros:<local-password>@localhost:55432/bros
+```
+
+로그 확인과 일반 중지는 다음 명령을 사용한다. 일반 종료에 `docker compose down -v`를 사용하면 개발 DB volume이 삭제되므로 실행하지 않는다.
+
+```powershell
+pnpm db:logs
+pnpm db:stop
+```
 
 ## 공통 API 계약
 
@@ -66,7 +93,7 @@ pnpm build
 
 - unit test 파일은 `apps/**` 또는 `packages/**` 아래의 `*.test.mjs`를 사용한다.
 - integration test 파일은 `tests/integration/**/*.integration.test.mjs`를 사용한다.
-- CI는 PostgreSQL 18 service가 healthy가 된 뒤 같은 명령 순서를 실행한다.
+- CI는 로컬 Compose와 같은 digest의 PostgreSQL 18.6 service가 healthy가 된 뒤 같은 명령 순서를 실행한다.
 - GitHub repository 연결 후 `install / lint / typecheck / test / build` job을 branch protection의 required check로 지정한다.
 
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.
