@@ -125,3 +125,25 @@
 - TypeScript: 최초 명시적 실행 차단 함수의 never 반환으로 unreachable 타입 오류 발생 → 반환 선언을 void로 바꾼 뒤 `pnpm --filter @bros/db build` PASS.
 - 미실행: 실제 DB migration, rollback/forward, metadata 대조, constraint negative test, 전체 `pnpm check`는 NOT_RUN. 정책 미확정 baseline의 up은 명시적 오류로 차단되어 있다.
 - 남은 테스트: 코드 정책 결정 후 MASTER/SKU 복합 FK, Identifier scope/primary, Import 최종 집계, Thumbnail 성공/검수 순번 사례를 추가하고 전체 DB 시나리오를 실행한다.
+
+## 2026-09-12 — P1-05 구현 및 DB 검증 완료
+
+- 대상 커밋: `6e3cd03` — DEC-20260912-010의 코드 정책을 반영한 baseline.
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, PostgreSQL 18.6, Kysely 0.29.5, pg 8.23.0, @types/pg 8.23.1.
+- 실행 명령: `TEST_DATABASE_URL`을 개발 PostgreSQL 55432로 process 주입한 뒤 `pnpm check`.
+- 결과: PASS — lint, typecheck, unit 14개, integration 22개(Node runner의 부모 test 포함), format check, build. Skip 0개.
+- schema metadata: 18개 테이블 256개 컬럼의 타입·NULL·기본값·identity를 작성한 DB_MIGRATION_SPEC과 대조. 모든 테이블 PK/public UUID UNIQUE, 26개 FK의 RESTRICT/조회 B-tree, 문서 컬럼 CHECK 존재, 상품명 pg_trgm GIN과 raw GIN 부재 확인.
+- migration: 빈 `template0` 기반 DB에서 실행; DDL 중간 충돌 시 앞선 생성도 rollback; 충돌 제거 후 재적용; 동시 재실행의 no-op; disposable DB에서 down→forward 성공. seed 4개 재현.
+- ID/수치: UUIDv7 기본 생성, UUID 중복/NULL 및 임의 identity 입력 차단; BIGINT `9007199254740993`과 NUMERIC 소수의 string 정밀도 보존.
+- 관계/유일성: global/platform alias 범위, MASTER/SKU 복합 FK, Identifier 범위·primary UNIQUE, 서로 다른 MASTER의 동일 식별자 허용, Source 외부 ID·옵션 key, 참조 중인 부모 삭제 차단.
+- 이미지: 미매칭 Source 등록 허용, metadata 일부만 입력/미저장 STORED/비정상 hash·revision 거절, 원본 revision 구분, 같은 생성 hash의 동시 INSERT 중 하나만 성공.
+- Import/후보: raw JSON null·배열·스칼라 보존과 SQL NULL 차단, 실패 원본·중복 외부 ID 행 보존, 행 번호 유일성, 종료 집계·상태 정합성, candidate rank/version/score와 evidence/conflict 배열 제약.
+- Thumbnail/자동화: recipe 버전 유일성, 성공 hash/processing version 필수, 성공과 검수 분리, 동시 검수 순번 충돌; browser profile/IANA timezone, queue provider/job ID 쌍, 실행 request key 유일성 및 시간 순서 검증.
+- 열린 코드 정책: 다섯 필드에 새로운 코드 값 허용, NULL·빈 문자열·공백/탭/개행만 있는 값·65자 입력 거절.
+- CLI: 정상 migration 성공과 잘못된 설정의 exit 1 확인. 오류에 입력 연결정보나 민감 marker가 노출되지 않음.
+- 초기 테스트 수정: 표 머리글을 컬럼으로 센 parser 수정, RESTRICT 삭제의 SQLSTATE `23001`과 FK 입력의 `23503` 구분, pg metadata의 `name[]`를 `text[]`로 변환. 수정 후 전체 PASS.
+- 최종 명세 대조 보완: automation_run.trigger_type을 VARCHAR(16)으로 수정, 문자열 공백 검증에 탭/개행 포함, Import 종료 상태와 failed_count의 관계 CHECK 추가. 모두 최종 테스트에 반영.
+- clean clone: `tmp/p105-clean-9e2c6343e8c14adda4a3157bf2a607b7`에 `6e3cd03`을 `git clone --no-local`로 복제 → `pnpm install --frozen-lockfile` → `pnpm check` PASS. 기존 node_modules/dist/.env 없이 재현, clone의 Git 변경 0건.
+- 개발 DB: 적용 전 bros DB의 app/bros_migrations 업무 테이블 0개 확인 → `pnpm db:migrate` PASS → 업무 테이블 18개, 이력 001-baseline, platform seed 4개 확인. 잔여 `bros_test_` DB 0개.
+- 종료 상태: `docker compose stop postgres` 실행. 개발 DB volume에 적용 결과 보존; 기존 다른 프로젝트 PostgreSQL은 변경하지 않음.
+- 미검증 범위: P1-06 런타임 repository/transaction API, P2/P3/P4/P5 업무 상태 전이·승인·매핑 잠금, P1-14 원격 GitHub CI/required check(BLK-001). P1-05 결과와 구분한다.

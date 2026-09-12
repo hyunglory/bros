@@ -11,7 +11,8 @@
 | P1-13 SecretProvider / Redaction | PASS | DEC-20260912-006, TEST_REPORT 2026-09-12 P1-13 | 완료 |
 | P1-14 Test Harness / CI Baseline | IMPLEMENTED_NOT_VALIDATED | DEC-20260912-007, TEST_REPORT 2026-09-12 P1-14, BLK-001 | 로컬·fresh clone PASS, 원격 CI 실행과 required check 대기 |
 | P1-04 PostgreSQL 18 개발환경 | PASS | DEC-20260912-008, TEST_REPORT 2026-09-12 P1-04, 구현 커밋 `bc8c419` | 완료 |
-| P1-05 DB Migration 기반 + MVP 18개 테이블 | IN_PROGRESS | DEC-20260912-010 (ACCEPTED), DB_MIGRATION_SPEC | 코드 정책 확정, baseline 구현·DB 실행 검증 |
+| P1-05 DB Migration 기반 + MVP 18개 테이블 | PASS | DEC-20260912-010/011, 구현 커밋 `6e3cd03`, TEST_REPORT P1-05 완료 | 개발 DB 적용 및 clean clone 검증 완료 |
+| P1-06 Kysely DB Client / Repository 기반 | READY | P1-05 PASS, WBS v0.1 | typed DB client·pool·transaction helper 및 API/Worker 공용 사용 검증 |
 | 그 외 Phase 1 Task | NOT_STARTED | WBS v0.1 | 선행관계에 따라 진행 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`를 사용한다.
