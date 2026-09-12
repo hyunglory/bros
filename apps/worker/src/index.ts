@@ -13,3 +13,5 @@ export const workerWorkspaceDependencies = [
   queuePackageName,
   storagePackageName,
 ] as const;
+
+export { createWorkerDataAccess } from "./database.js";

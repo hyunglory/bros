@@ -16,11 +16,17 @@ export type StorageConfig =
       driver: "r2";
     };
 
+export interface DatabaseConfig {
+  url: string;
+  poolMax: number;
+  connectionTimeoutMs: number;
+  idleTimeoutMs: number;
+  statementTimeoutMs: number;
+}
+
 export interface AppConfig {
   environment: AppEnvironment;
-  database: {
-    url: string;
-  };
+  database: DatabaseConfig;
   api: {
     host: string;
     port: number;
@@ -171,6 +177,29 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
       : undefined;
 
   validateDatabaseUrl(databaseUrl, issues);
+  const database: DatabaseConfig = {
+    url: databaseUrl,
+    poolMax: readInteger(environment, "DB_POOL_MAX", issues, {
+      defaultValue: 5,
+      minimum: 1,
+      maximum: 50,
+    }),
+    connectionTimeoutMs: readInteger(environment, "DB_CONNECTION_TIMEOUT_MS", issues, {
+      defaultValue: 5_000,
+      minimum: 1,
+      maximum: 300_000,
+    }),
+    idleTimeoutMs: readInteger(environment, "DB_IDLE_TIMEOUT_MS", issues, {
+      defaultValue: 30_000,
+      minimum: 1,
+      maximum: 300_000,
+    }),
+    statementTimeoutMs: readInteger(environment, "DB_STATEMENT_TIMEOUT_MS", issues, {
+      defaultValue: 30_000,
+      minimum: 1,
+      maximum: 300_000,
+    }),
+  };
 
   if (issues.length > 0) {
     throw new ConfigValidationError(issues);
@@ -178,7 +207,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
 
   return {
     environment: appEnvironment,
-    database: { url: databaseUrl },
+    database,
     api: {
       host: apiHost,
       port: apiPort,

@@ -16,3 +16,5 @@ export const apiCommonSchemas = {
 } as const;
 
 export type ApiPublicIdParams = PublicIdParams;
+
+export { createApiDataAccess } from "./database.js";

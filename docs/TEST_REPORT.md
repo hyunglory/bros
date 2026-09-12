@@ -147,3 +147,16 @@
 - 개발 DB: 적용 전 bros DB의 app/bros_migrations 업무 테이블 0개 확인 → `pnpm db:migrate` PASS → 업무 테이블 18개, 이력 001-baseline, platform seed 4개 확인. 잔여 `bros_test_` DB 0개.
 - 종료 상태: `docker compose stop postgres` 실행. 개발 DB volume에 적용 결과 보존; 기존 다른 프로젝트 PostgreSQL은 변경하지 않음.
 - 미검증 범위: P1-06 런타임 repository/transaction API, P2/P3/P4/P5 업무 상태 전이·승인·매핑 잠금, P1-14 원격 GitHub CI/required check(BLK-001). P1-05 결과와 구분한다.
+
+## 2026-09-12 — P1-06 완료
+
+- 결과: PASS. Node 24.14.1, pnpm 11.19.0, PostgreSQL 18.6 개발환경 사용.
+- 실행: `node --test tests/integration/database-client.integration.test.mjs` 9개 PASS 후 `pnpm check` 전체 PASS. unit 15개, integration 31개(Node parent 포함), fail/skip 0개; lint/typecheck/format/build PASS.
+- 최초 전체 검사에서 JsonObject index signature 표기가 lint에 실패했다. Record로 수정 후 전체 검사를 통과했다.
+- API/Worker의 별도 pool이 동일 packages/db repository로 seed를 조회하고 내부 id를 projection에 노출하지 않음을 확인했다. 실제 BIGINT string, timestamp Date, JSON object 반환을 확인했다.
+- transaction commit 전후 별도 연결의 가시성, callback 및 DB CHECK 실패 시 전체 rollback·연결 반환, callback 자동 재시도 없음, 중첩 transaction 차단을 검증했다.
+- pool max=1 포화 대기 timeout, SQL statement timeout(SQLSTATE 57014) 이후 query 복구, 중복 close·종료 후 query 거절·미사용 pool 종료를 검증했다.
+- 컴파일 검증은 잘못된 column/table/state, number BIGINT, identity 입력, public_id 수정, 미직렬화 JSON array 쓰기를 거절한다. 기존 18개 테이블·256개 컬럼 metadata 및 DB 제약 테스트도 통과했다.
+- 종료 전 잔여 bros_test_ DB 0개, 기존 app 테이블 18개 확인. BROS postgres만 중지하고 volume 보존. baseline migration 변경 없음.
+- P1-06 fresh clone 검사는 별도 실행하지 않았다. 이번 변경에는 dependency/lockfile 변경이 없다. P1-05 clean clone 증거를 P1-06의 실행 결과로 간주하지 않는다.
+- 미검증: HTTP signal/drain은 P1-07, Worker bootstrap은 P1-10, 업무 CAS/잠금은 후속 업무 service. 원격 CI/required check는 BLK-001 유지.

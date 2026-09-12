@@ -12,6 +12,10 @@ test("loads development defaults from a valid environment", () => {
     environment: "development",
     database: {
       url: "postgresql://bros:password@localhost:5432/bros",
+      poolMax: 5,
+      connectionTimeoutMs: 5000,
+      idleTimeoutMs: 30000,
+      statementTimeoutMs: 30000,
     },
     api: {
       host: "127.0.0.1",
@@ -73,6 +77,10 @@ test("loads explicit production settings without development defaults", () => {
     environment: "production",
     database: {
       url: "postgresql://bros:password@database:5432/bros",
+      poolMax: 5,
+      connectionTimeoutMs: 5000,
+      idleTimeoutMs: 30000,
+      statementTimeoutMs: 30000,
     },
     api: {
       host: "0.0.0.0",
@@ -102,4 +110,36 @@ test("does not include an invalid environment value in the error", () => {
       return true;
     },
   );
+});
+
+test("validates configurable pool and timeout bounds", () => {
+  const env = { DATABASE_URL: "postgresql://localhost/bros" };
+  const config = loadConfig({
+    ...env,
+    DB_POOL_MAX: "2",
+    DB_CONNECTION_TIMEOUT_MS: "500",
+    DB_IDLE_TIMEOUT_MS: "1000",
+    DB_STATEMENT_TIMEOUT_MS: "2000",
+  });
+  assert.equal(config.database.poolMax, 2);
+  assert.equal(config.database.connectionTimeoutMs, 500);
+  assert.equal(config.database.idleTimeoutMs, 1000);
+  assert.equal(config.database.statementTimeoutMs, 2000);
+  for (const [key, value] of [
+    ["DB_POOL_MAX", "0"],
+    ["DB_POOL_MAX", "51"],
+    ["DB_CONNECTION_TIMEOUT_MS", "-1"],
+    ["DB_IDLE_TIMEOUT_MS", "bad-private-value"],
+    ["DB_STATEMENT_TIMEOUT_MS", "0"],
+  ]) {
+    assert.throws(
+      () => loadConfig({ ...env, [key]: value }),
+      (error) => {
+        assert.ok(error instanceof ConfigValidationError);
+        assert.ok(error.issues.some((issue) => issue.startsWith(key)));
+        assert.equal(error.message.includes("bad-private-value"), false);
+        return true;
+      },
+    );
+  }
 });

@@ -80,6 +80,25 @@ docker compose exec -T postgres psql -U bros -d bros -c "SELECT count(*) FROM pg
 
 운영 명령에는 down/reset을 제공하지 않는다. down/forward는 테스트가 직접 생성한 disposable DB에서만 검증한다. 운영 복구는 백업 복구 또는 검증한 forward-fix migration으로 처리한다. down은 공유 가능성이 있는 pg_trgm extension이나 migration 이력 schema를 삭제하지 않는다.
 
+## DB Client / Repository — P1-06
+
+API는 `createApiDataAccess`, Worker는 `createWorkerDataAccess`에 검증된 `config.database`를 전달한다. 각 프로세스가 독립 pool을 소유하고 종료 시 `database.close()`를 await한다. close는 중복 호출 가능하며 종료 후 query는 실패한다. 실제 signal 처리와 요청 drain은 P1-07/P1-10 bootstrap에서 연결한다.
+
+| 환경변수 | 기본값 | 허용 범위 |
+|---|---|---|
+| DB_POOL_MAX | 5 | 1~50 |
+| DB_CONNECTION_TIMEOUT_MS | 5000 | 1~300000 |
+| DB_IDLE_TIMEOUT_MS | 30000 | 1~300000 |
+| DB_STATEMENT_TIMEOUT_MS | 30000 | 1~300000 |
+
+pool 한도는 프로세스별이다. 배포 시 API/Worker 인스턴스 수에 따른 합계에 migration/관리 연결 여유를 더해 PostgreSQL 한도에 맞춘다. connection timeout은 연결 생성 및 pool 대기를 제한하고 statement timeout은 개별 SQL을 제한한다. 전체 업무 transaction 실행 시간 제한이나 자동 재시도를 제공하지 않는다.
+
+`database.transaction(async (tx) => ...)` 안에서는 `createPlatformRepository(tx)`처럼 동일 executor를 모든 repository에 전달한다. 루트 client로 query하면 transaction 밖에서 실행되므로 사용하지 않는다. callback 실패는 rollback하며 자동 재시도하지 않는다. 중첩 transaction은 거절하므로 기존 tx를 전달한다. 격리 수준은 PostgreSQL 기본 READ COMMITTED이며 업무별 CAS/잠금은 후속 service에서 명시한다.
+
+typed schema는 `app.platform`처럼 schema-qualified table을 사용한다. BIGINT/NUMERIC은 string, TIMESTAMPTZ 조회는 Date다. JSON 쓰기는 `JSON.stringify`로 직렬화한 문자열을 전달한다. identity 입력과 public_id 변경은 타입 경계에서 차단하며 외부 응답에는 명시적인 publicId projection만 사용한다. TypeScript 타입이 HTTP 검증이나 인가를 대신하지 않는다.
+
+idle 연결 오류는 `DB_IDLE_CONNECTION_ERROR`와 고정 메시지만 기록한다. query 오류는 호출자에게 전파되므로 후속 API error handler는 원문 SQL/row/DSN을 응답에 노출하지 않아야 한다. 런타임 client를 생성하거나 import해도 migration은 실행되지 않는다.
+
 ## 공통 API 계약
 
 - 외부 리소스 ID는 UUIDv7 `publicId`만 사용한다. 내부 BIGINT ID를 요청·응답에 넣지 않는다.
