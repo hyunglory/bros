@@ -34,4 +34,12 @@ pnpm build
 - 설정 오류는 환경변수 이름과 규칙만 출력하며 입력값은 출력하지 않는다.
 - 업무 코드는 환경변수를 직접 읽지 않고 `@bros/core`의 typed config를 받는다.
 
+## 공통 API 계약
+
+- 외부 리소스 ID는 UUIDv7 `publicId`만 사용한다. 내부 BIGINT ID를 요청·응답에 넣지 않는다.
+- 비동기 작업 접수 응답은 HTTP 202와 `{publicId,status,statusUrl}`을 사용하며 접수 시 상태는 `QUEUED`다.
+- 오류 본문은 `{error:{code,message,requestId,details?}}`를 사용한다.
+- 오류 `details`에는 계약이 허용한 검증 issue, 버전 숫자, 재시도 초만 넣는다.
+- 목록 limit 기본값은 50, 최대값은 100이다.
+
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.

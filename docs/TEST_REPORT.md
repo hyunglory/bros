@@ -54,3 +54,17 @@
 - 결과: PASS — 기존 환경 파일·산출물 없이 전체 검증 재현
 - 회귀 확인: 첫 fresh clone에서 `.mjs`만 CRLF로 변환되어 format check 실패
 - 조치 및 결과: `.gitattributes`에 MJS/CJS를 추가한 뒤 같은 시나리오 PASS
+
+## 2026-09-12 — P1-08 API Contract / TypeBox
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `8035fa8`, 오류 details 보완 `94c7b65`
+- 실행 명령: `pnpm check`
+- 결과: PASS — 10개 unit test, lint, typecheck, format check, build 성공
+- 계약 검증: UUIDv7 publicId 허용, BIGINT/UUIDv4 거절, invalid request를 공통 400 envelope로 변환
+- 응답 검증: 202 `{publicId,status,statusUrl}`와 `{error:{code,message,requestId,details?}}` schema 확인
+- 경계 검증: error details의 비허용 key와 raw secret 형태를 schema가 거절
+- 페이지 검증: 기본 limit 50 정규화, 최대 100 허용, 101 거절
+- 소비 검증: Admin은 Static type을, API는 같은 runtime schema를 `@bros/contracts`에서 import해 build 성공
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 최종 allowlist 보완을 포함한 전체 검증 재현
