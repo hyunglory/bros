@@ -1,0 +1,10 @@
+AGENTS.md
+doc/
+docs/
+node_modules/
+dist/
+coverage/
+tmp/
+/data/
+/storage/
+pnpm-lock.yaml

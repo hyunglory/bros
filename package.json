@@ -11,9 +11,17 @@
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "build:packages": "pnpm --filter ./packages/** -r --if-present run build",
+    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint apps packages --max-warnings 0",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "@eslint/js": "10.0.1",
+    "eslint": "10.10.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0"
   }
 }
