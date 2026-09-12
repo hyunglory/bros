@@ -39,3 +39,18 @@
 - 결과: PASS — 97개 패키지를 lockfile로 설치하고 전체 품질 게이트 재현
 - 회귀 확인: `.gitattributes` 적용 전 fresh clone의 CRLF가 Prettier에서 탐지됨
 - 조치 및 결과: JS/JSON/TS/YAML을 LF로 고정한 뒤 같은 fresh clone 시나리오 PASS
+
+## 2026-09-12 — P1-03 환경변수 / Config Loader
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `9a43876`, 줄바꿈 보완 `15e82cb`
+- 실행 명령: `pnpm check`
+- 결과: PASS — lint, typecheck, config unit test, format check, build 성공
+- 실행 명령: `node --test packages/core/test/config.test.mjs` (`pnpm test`에서 선행 build 후 실행)
+- 결과: PASS — development valid, required value missing, production missing, production valid, invalid 값 비노출의 5개 case 통과
+- 실행 명령: `rg -n "process\.env" -- apps packages`
+- 결과: PASS — `packages/core/src/config/index.ts`의 명시적 process adapter 한 곳만 확인
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 기존 환경 파일·산출물 없이 전체 검증 재현
+- 회귀 확인: 첫 fresh clone에서 `.mjs`만 CRLF로 변환되어 format check 실패
+- 조치 및 결과: `.gitattributes`에 MJS/CJS를 추가한 뒤 같은 시나리오 PASS

@@ -135,3 +135,51 @@
 - 금지 변경: 실제 비밀값을 저장소에 기록하지 않고, SecretProvider/redaction의 P1-13 범위를 중복 구현하지 않는다.
 - 완료 조건: typed config module, `.env.example`, 개발/운영 구분, 필수값 누락 시 명확한 시작 중단, valid/invalid env 검증을 제공한다.
 - 재검토가 필요한 조건: P1-03에서 브라우저 자격증명이나 외부 provider secret을 직접 읽어야 하는 요구가 발견될 때
+
+## DEC-20260912-004 — P1-03 typed config 완료
+
+- 일자: 2026-09-12
+- 종료 단계/분야: Phase 1 P1-03 구현 및 검증
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-03
+- 검토 범위와 근거: DEC-20260912-003, P1-03 Acceptance Criteria, 마스터 프롬프트 P1-03, 커밋 `9a43876`, 보완 커밋 `15e82cb`, `docs/TEST_REPORT.md`의 P1-03 검증 기록
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+- typed config의 단일 구현 위치는 `packages/core/src/config`다.
+- 공통 실행 설정은 `APP_ENV`, `DATABASE_URL`, `API_HOST`, `API_PORT`, `WORKER_CONCURRENCY`, `STORAGE_DRIVER`, `STORAGE_LOCAL_ROOT`로 제한한다.
+- development/test는 로컬 기본값을 허용하고 production은 배포 환경에 종속되는 값을 명시하도록 강제한다.
+- `DATABASE_URL`은 항상 필수이며 postgres/postgresql URL만 허용한다.
+- `STORAGE_DRIVER`는 `local | r2` 판별 union으로 제공한다. R2 자격증명은 P1-13 SecretProvider 범위로 남긴다.
+- `process.env` 접근은 config process adapter에만 두고 업무 로직에는 typed config를 주입한다.
+- validation 오류에는 환경변수 이름과 규칙만 포함하고 입력값은 포함하지 않는다.
+- P1-14 전까지 P1-03 unit test는 Node.js 내장 test runner로 실행한다.
+
+### 기각한 선택지와 이유
+- 앱마다 환경변수를 직접 읽고 검증: API와 Worker 설정이 달라지고 마스터 프롬프트의 공통 typed config 요구를 위반한다.
+- config 오류에 실제 입력값 포함: URL의 비밀번호나 provider 값이 로그로 노출될 수 있다.
+- R2 access key를 `.env.example`과 config에 선행 추가: P1-13의 secret naming과 provider 경계를 먼저 확정해야 한다.
+- P1-03에서 별도 schema library 도입: 현재 설정 범위는 작은 parser로 명확히 검증할 수 있고 P1-08 TypeBox 계약과 불필요한 중복 의존성을 만들 수 있다.
+
+### 변경 파일
+- `.env.example`, `.gitattributes`
+- `package.json`, `pnpm-lock.yaml`, `tsconfig.base.json`
+- `packages/core/src/config/index.ts`, `packages/core/src/index.ts`, `packages/core/test/config.test.mjs`
+- `docs/DECISIONS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`
+
+### 검증 증거
+- 실행 명령 또는 수동 확인: `pnpm check`, config 5개 unit case, `process.env` 사용 위치 검색, 임시 fresh clone에서 고정 설치와 전체 check
+- 결과: PASS
+
+### 미해결 사항 및 Blocker
+- 실제 API/Worker 시작 시 config를 주입하는 bootstrap은 P1-07/P1-10 범위다.
+- 자격증명 조회와 Pino redaction은 P1-13 범위다.
+- 공통 test runner·CI workflow는 P1-14 범위다.
+- 없음(Blocker).
+
+### 다음 작업 인수 조건
+- 작업 범위: Foundation Wave A의 P1-08 API Contract / TypeBox
+- 금지 변경: 아직 결정되지 않은 다중 역할 권한, 도메인별 상세 API, DB 내부 식별자를 계약에 노출하지 않는다.
+- 완료 조건: 공통 request/response schema와 TypeScript type이 같은 TypeBox 정의에서 생성되고, 공통 오류와 publicId 검증 규칙 및 invalid/response schema test가 통과한다.
+- 재검토가 필요한 조건: publicId 형식이 UUIDv7 외 형식을 요구하거나 Fastify serializer/validator와 TypeBox 호환 문제가 확인될 때
