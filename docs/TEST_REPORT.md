@@ -26,3 +26,16 @@
 - 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm build`, Node.js ESM import
 - 결과: PASS — 기존 `node_modules`와 `dist` 없이 전체 Acceptance Criteria 재현
 - 비고: 첫 C: 임시 복제에서 샌드박스 네트워크 접근이 차단되었고, D: 임시 fresh clone에서 동일 lockfile을 사용해 설치 및 검증을 완료했다. 제품 결함으로 분류하지 않는다.
+
+## 2026-09-12 — P1-02 공통 TypeScript / 품질 설정
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `102c0a7`
+- 실행 명령: `pnpm check`
+- 결과: PASS — ESLint, strict typecheck, Prettier 검사, 전체 build 성공
+- 실행 명령: `packages/core/src/index.ts`에 문자열 변수로 숫자를 대입한 뒤 `pnpm typecheck`
+- 결과: PASS — TypeScript TS2322와 종료 코드 1을 확인하고 즉시 원복
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 97개 패키지를 lockfile로 설치하고 전체 품질 게이트 재현
+- 회귀 확인: `.gitattributes` 적용 전 fresh clone의 CRLF가 Prettier에서 탐지됨
+- 조치 및 결과: JS/JSON/TS/YAML을 LF로 고정한 뒤 같은 fresh clone 시나리오 PASS

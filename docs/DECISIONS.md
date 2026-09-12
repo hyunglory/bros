@@ -92,3 +92,46 @@
 - 금지 변경: P1-02에서 앱 프레임워크, DB 스키마, 인증 방식, 외부 서비스 구성을 선행 확정하지 않는다.
 - 완료 조건: WBS P1-02의 lint, format check, 단위 테스트 공통 명령이 root와 모든 적용 workspace에서 재현 가능해야 한다.
 - 재검토가 필요한 조건: 선택한 품질 도구가 Node.js 24, ESM 또는 workspace별 구성 상속을 지원하지 않을 때
+
+## DEC-20260912-003 — P1-02 공통 품질 기준 완료
+
+- 일자: 2026-09-12
+- 종료 단계/분야: Phase 1 P1-02 구현 및 검증
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-02
+- 검토 범위와 근거: DEC-20260912-002, P1-02 Acceptance Criteria, 커밋 `b0d838f`, 보완 커밋 `102c0a7`, `docs/TEST_REPORT.md`의 P1-02 검증 기록
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+- strict TypeScript 공통 기준은 루트 `tsconfig.base.json`에서 상속한다.
+- ESLint 10 flat config와 typescript-eslint strict/stylistic 구성을 루트에서 앱·패키지 전체에 적용한다.
+- Prettier는 루트 설정을 사용하고 기준 문서와 생성 산출물은 format 대상에서 제외한다.
+- `pnpm check`는 lint → typecheck → format check → build를 순서대로 수행한다.
+- JS, JSON, TS, YAML의 Git checkout 줄바꿈은 LF로 고정해 Windows와 CI 결과를 일치시킨다.
+
+### 기각한 선택지와 이유
+- workspace마다 ESLint/Prettier 설정 복제: 설정 차이를 막는 P1-02 목표에 맞지 않는다.
+- 기존 문서 전체를 Prettier 대상으로 포함: 설계 문서에 대규모 비기능 변경을 만들고 검토 이력을 흐린다.
+- Windows CRLF를 허용하면서 Prettier에서 자동 보정: fresh clone의 format check가 실패해 재현 가능한 게이트가 되지 않는다.
+
+### 변경 파일
+- `package.json`, `pnpm-lock.yaml`
+- `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.editorconfig`, `.gitattributes`
+- Prettier로 정규화된 `packages/*/package.json`, `packages/image/src/index.ts`
+- `docs/DECISIONS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`
+
+### 검증 증거
+- 실행 명령 또는 수동 확인: `pnpm check`, 의도적 TS2322 삽입 후 `pnpm typecheck` 실패 확인·원복, 임시 fresh clone에서 고정 설치와 `pnpm check`
+- 결과: PASS
+
+### 미해결 사항 및 Blocker
+- 단위·통합 test runner와 CI workflow는 P1-14 범위다.
+- 애플리케이션별 실행 프레임워크는 아직 구성하지 않았다.
+- 없음(Blocker).
+
+### 다음 작업 인수 조건
+- 작업 범위: P1-03 환경변수 / Config Loader
+- 금지 변경: 실제 비밀값을 저장소에 기록하지 않고, SecretProvider/redaction의 P1-13 범위를 중복 구현하지 않는다.
+- 완료 조건: typed config module, `.env.example`, 개발/운영 구분, 필수값 누락 시 명확한 시작 중단, valid/invalid env 검증을 제공한다.
+- 재검토가 필요한 조건: P1-03에서 브라우저 자격증명이나 외부 provider secret을 직접 읽어야 하는 요구가 발견될 때
