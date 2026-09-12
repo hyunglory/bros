@@ -84,3 +84,20 @@
 - 결과: PASS — config process adapter 한 곳 외 직접 접근 없음
 - 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`, `process.env` 경계 검색
 - 결과: PASS — 전체 보안 baseline 재현
+
+## 2026-09-12 — P1-14 Test Harness / CI Baseline
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `fc3269c`
+- 실행 명령: `pnpm check`
+- 결과: PASS — unit 14개, workspace integration 1개, lint, typecheck, format check, build 성공
+- discovery 검증: `scripts/run-tests.mjs`가 unit 3개 파일과 integration 1개 파일을 분리 발견하며 대상이 0개면 실패하도록 구성
+- 의도적 lint 실패: unused variable 주입 → ESLint 종료 코드 1 확인 → 원복
+- 의도적 type 실패: string에 number 대입 → TS2322와 종료 코드 1 확인 → 원복
+- 의도적 test 실패: secret과 무관한 boolean assertion 반전 → Node test runner 종료 코드 1 확인 → 원복
+- lockfile 검증: fresh clone에서 `pnpm install --frozen-lockfile` 성공
+- clean pipeline 검증: fresh clone에서 install → lint → typecheck → unit/integration → format check → build 순서 PASS
+- CI 정적 검증: workflow YAML을 Prettier parser로 확인하고 action release tag의 공식 commit SHA를 조회해 고정
+- PostgreSQL lifecycle: GitHub Actions service에 PostgreSQL 18 healthcheck와 test 전용 DSN 구성
+- 원격 GitHub Actions 실행: NOT_RUN — GitHub remote/repository가 없어 BLK-001로 기록
+- merge/release required check 검증: NOT_RUN — branch protection 입력이 없어 BLK-001로 기록

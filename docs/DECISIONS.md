@@ -281,3 +281,53 @@
 - 금지 변경: 실제 production secret, 외부 서비스 호출, 아직 없는 DB integration을 성공으로 가장하지 않는다.
 - 완료 조건: clean checkout install→lint→typecheck→unit/integration→build 자동화, lockfile 검증, 의도적 lint/type/test 실패 탐지 증거를 제공한다.
 - 재검토가 필요한 조건: CI provider가 GitHub Actions가 아니거나 PostgreSQL test lifecycle을 P1-04 이전에 실행해야 할 때
+
+## DEC-20260912-007 — P1-14 test/CI baseline 구현
+
+- 일자: 2026-09-12
+- 종료 단계/분야: Phase 1 P1-14 기반 구현 및 로컬 검증
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-14
+- 검토 범위와 근거: DEC-20260912-006, P1-14 Acceptance Criteria, 마스터 프롬프트 P1-14, Foundation Wave A의 “기반 먼저·전체 실행 후속” 조건, 커밋 `fc3269c`, `docs/TEST_REPORT.md`의 P1-14 검증 기록
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+- unit/integration test discovery와 실행은 Node.js 24 내장 test runner를 감싼 `scripts/run-tests.mjs`를 사용한다.
+- unit은 앱·패키지의 `*.test.mjs`, integration은 `tests/integration/**/*.integration.test.mjs`로 구분하며 발견 파일이 없으면 성공으로 처리하지 않는다.
+- root `pnpm test`는 unit 다음 integration을 실행한다. integration은 앱과 공통 패키지의 compiled public boundary를 사용한다.
+- GitHub Actions workflow는 install → lint → typecheck → unit/integration → format check → build를 별도 단계로 실행한다.
+- CI는 PostgreSQL 18 service/healthcheck와 test 전용 DSN을 미리 제공하며 실제 DB 연결·migration test는 P1-04/P1-05에서 추가한다.
+- workflow 권한은 contents read로 제한하고 checkout credential을 보존하지 않으며 concurrency 중복 실행을 취소한다.
+- 외부 GitHub action은 검증한 release의 전체 commit SHA로 고정한다.
+- P1-14 task 상태는 원격 workflow와 required check가 검증될 때까지 `IMPLEMENTED_NOT_VALIDATED`다. 이는 P1-04 착수를 차단하지 않지만 Phase 1 Gate PASS를 차단한다.
+
+### 기각한 선택지와 이유
+- test 파일을 root script에 개별 열거: Task가 늘 때 script를 빠뜨리기 쉽고 integration 분리가 어렵다.
+- integration test 0개를 성공 처리: Gate가 실제 검증 없이 통과하는 결과를 만든다.
+- 실제 운영 secret을 CI에 사용: 테스트 격리 원칙과 P1-13 경계를 위반한다.
+- action major tag만 참조: tag 이동 시 동일 commit 재현과 공급망 검토가 어렵다.
+- 원격 실행 없이 P1-14를 PASS 처리: 구현 완료와 CI 실검증을 혼동한다.
+
+### 변경 파일
+- `.github/workflows/ci.yml`
+- `package.json`, `eslint.config.js`
+- `scripts/run-tests.mjs`
+- `tests/integration/workspace-contract.integration.test.mjs`
+- `packages/core/test/security.test.mjs`
+- `docs/DECISIONS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/BLOCKERS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`
+
+### 검증 증거
+- 실행 명령 또는 수동 확인: `pnpm check`, 의도적 lint/type/test 실패 3종과 원복, clean clone의 명시적 CI 명령열, workflow format parse, action tag SHA 조회
+- 결과: IMPLEMENTED_NOT_VALIDATED
+
+### 미해결 사항 및 Blocker
+- BLK-001: GitHub remote, workflow 실실행, required status check 설정이 필요하다.
+- PostgreSQL 실제 연결·migration integration은 P1-04/P1-05 이후 추가한다.
+- GitHub Actions가 아닌 CI를 사용할 경우 workflow 결정을 재검토한다.
+
+### 다음 작업 인수 조건
+- 작업 범위: Foundation Wave A의 P1-04 PostgreSQL 18 개발환경
+- 금지 변경: P1-05의 업무 테이블 migration을 선행 구현하지 않고, 실제 자격증명을 Compose 파일에 넣지 않는다.
+- 완료 조건: Docker Compose PostgreSQL 18, healthcheck, persistent volume을 구성하고 DB 연결·uuidv7()·restart persistence를 검증한다.
+- 재검토가 필요한 조건: 로컬 Docker Engine을 사용할 수 없거나 PostgreSQL 18 이미지에서 uuidv7() 호출이 지원되지 않을 때

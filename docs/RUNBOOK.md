@@ -51,4 +51,22 @@ pnpm build
 - API와 Worker logger는 `createRedactedLogger`로 생성한다. 임의 Pino instance를 만들지 않는다.
 - secret 누락 오류에는 secret key만 포함하고 값은 포함하지 않는다.
 
+## 테스트와 CI
+
+로컬 전체 검증:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm format:check
+pnpm build
+```
+
+- unit test 파일은 `apps/**` 또는 `packages/**` 아래의 `*.test.mjs`를 사용한다.
+- integration test 파일은 `tests/integration/**/*.integration.test.mjs`를 사용한다.
+- CI는 PostgreSQL 18 service가 healthy가 된 뒤 같은 명령 순서를 실행한다.
+- GitHub repository 연결 후 `install / lint / typecheck / test / build` job을 branch protection의 required check로 지정한다.
+
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.
