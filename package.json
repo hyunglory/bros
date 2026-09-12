@@ -11,14 +11,16 @@
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "build:packages": "pnpm --filter ./packages/** -r --if-present run build",
-    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint apps packages --max-warnings 0",
+    "test": "pnpm run build:packages && node --test packages/core/test/config.test.mjs",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "24.13.4",
     "eslint": "10.10.0",
     "prettier": "3.9.6",
     "typescript": "5.9.3",
