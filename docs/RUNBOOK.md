@@ -183,6 +183,25 @@ ORDER BY r.created_at DESC LIMIT 10;
 - 오류 `details`에는 계약이 허용한 검증 issue, 버전 숫자, 재시도 초만 넣는다.
 - 목록 limit 기본값은 50, 최대값은 100이다.
 
+## Admin 개발 서버 — P1-11
+
+API를 `127.0.0.1:3000`에서 실행한 뒤 별도 터미널에서 다음 명령으로 Admin을 시작한다.
+
+```powershell
+pnpm admin:dev
+```
+
+브라우저에서 `http://127.0.0.1:5173/`에 접속한다. Dashboard는 same-origin `/health`를 요청하고 Vite 개발 프록시가 API로 전달한다. API가 정상 응답하면 `정상 운영 중`, 연결 실패·비정상 HTTP·계약 불일치이면 안전한 오류와 `다시 확인` 버튼을 표시한다.
+
+API 포트를 로컬에서 바꾼 경우 Admin 시작 전에 `VITE_API_PROXY_TARGET`을 전체 origin으로 지정한다. 이 값은 개발 프록시에만 적용하며 프로덕션 빌드는 `/health` same-origin 경계를 유지한다.
+
+```powershell
+$env:VITE_API_PROXY_TARGET='http://127.0.0.1:3100'
+pnpm admin:dev
+```
+
+프로덕션 정적 산출물은 `pnpm --filter @bros/admin build`의 `apps/admin/dist`에 생성된다. 실제 배포에서는 Admin origin의 `/health`와 `/api`를 API로 라우팅해야 한다. 배포 reverse proxy와 인증 경계는 후속 운영·인증 단계에서 확정한다.
+
 ## Secret과 로그
 
 - 외부 provider와 browser 자격증명은 `SecretProvider`를 통해 조회한다.

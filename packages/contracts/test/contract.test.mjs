@@ -9,11 +9,18 @@ import {
   PaginationQuerySchema,
   PublicIdParamsSchema,
   createErrorEnvelope,
+  isHealthResponse,
   normalizePaginationQuery,
   validateRequest,
 } from "../dist/http.js";
 
 const publicId = "01890f47-0c4d-7abc-8def-1234567890ab";
+
+test("recognizes only the shared health response shape", () => {
+  assert.equal(isHealthResponse({ status: "ok" }), true);
+  assert.equal(isHealthResponse({ status: "degraded" }), false);
+  assert.equal(isHealthResponse({ status: "ok", detail: "unexpected" }), false);
+});
 
 test("accepts UUIDv7 public IDs and rejects internal or other UUID versions", () => {
   assert.equal(Value.Check(PublicIdParamsSchema, { publicId }), true);

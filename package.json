@@ -10,6 +10,8 @@
   },
   "scripts": {
     "api:start": "pnpm build && node --env-file-if-exists=.env apps/api/dist/main.js",
+    "admin:dev": "pnpm --filter @bros/admin run dev",
+    "admin:preview": "pnpm --filter @bros/admin run preview",
     "worker:start": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/main.js",
     "worker:test": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-system-test.js",
     "build": "pnpm -r --if-present run build",
@@ -24,7 +26,7 @@
     "lint": "eslint apps packages scripts tests eslint.config.js --max-warnings 0",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:integration": "pnpm build && node scripts/run-tests.mjs integration",
-    "test:unit": "pnpm run build:packages && node scripts/run-tests.mjs unit",
+    "test:unit": "pnpm run build:packages && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {

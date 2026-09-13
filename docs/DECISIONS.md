@@ -708,3 +708,56 @@
 - 금지 변경: baseline 및 기존 코드/재시도/자동승인 정책 변경, 업무 인증 기반을 우회하는 신규 변경 API, browser/image 처리를 API로 이동하지 않는다.
 - 완료 조건: 실제 개발 서버에서 Admin 접근 및 /health 상태 표시, API 장애 UI, build/관련 UI 검증과 전체 품질 검사 PASS, 단계 기록.
 - 재검토가 필요한 조건: Admin 접근 origin/인증·배포 경계가 기존 보완 명세와 충돌하거나 새로운 업무 API가 필요할 때.
+
+## DEC-20260913-003 — P1-11 React/Vite Admin 기반과 health 경계 확정
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P1-11 Admin Skeleton 구현·UI/개발 서버 검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-11
+- 검토 범위와 근거: DEC-20260913-002, WBS P1-11, 보완 명세의 인증/API 경계, P1-07 `/health`와 P1-08 TypeBox contract, 현재 workspace·품질 검사 구성, TEST_REPORT P1-11.
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- Admin은 React 19 + React Router 7 + Vite 8 정적 SPA로 구성한다. `/`는 Dashboard, 미등록 route는 명시적 404 화면이며 공통 sidebar/topbar layout을 사용한다.
+- 브라우저 API client는 상대 경로 `/health`만 호출한다. 개발 중 Vite가 기본 `http://127.0.0.1:3000`으로 `/health`, `/ready`, `/api`를 프록시하고 필요할 때 `VITE_API_PROXY_TARGET`으로 개발 대상만 바꾼다. 프로덕션 배포는 같은 origin에서 해당 경로를 API로 라우팅해야 한다.
+- Dashboard는 최초 loading, 정상 상태와 확인 시각, 오류 메시지와 수동 retry를 제공한다. health 요청은 3초 후 중단하며 HTTP 오류·연결 실패·계약 불일치를 구분하되 원문 response body나 내부 연결 정보를 UI에 노출하지 않는다.
+- health 응답 판정은 `@bros/contracts`의 `isHealthResponse`가 공용 TypeBox schema를 사용한다. `{status:"ok"}` 외 추가 필드나 다른 상태는 정상으로 간주하지 않는다.
+- Admin 테스트는 Vitest/jsdom으로 UI·API client를 검증하고 루트 `test:unit`에 포함한다. 별도 Node integration test는 실제 Vite 개발 서버의 SPA entry와 health proxy를 검증한다.
+- P1-11은 로컬 PASS다. UI skeleton은 인증 없는 공개 probe만 읽으며 업무 API나 인증 우회를 추가하지 않았다.
+
+### 기각한 선택지와 이유
+
+- 브라우저에서 API 절대 URL 직접 호출: 환경별 CORS·origin 설정을 늘리고 이후 Admin 인증 경계를 복잡하게 한다.
+- `/health`의 HTTP 200만으로 정상 표시: proxy 오응답이나 계약 drift를 정상으로 오판한다.
+- 외부 웹폰트 runtime import: Admin 최초 렌더가 외부 네트워크와 제3자 요청에 종속된다.
+- 오류 원문 또는 upstream body 표시: 내부 주소·실패 상세·민감정보가 운영 UI에 노출될 수 있다.
+
+### 변경 파일
+
+- apps/admin/package.json, apps/admin/tsconfig.json, apps/admin/index.html, apps/admin/vite.config.ts
+- apps/admin/src/App.tsx, main.tsx, styles.css, api/health.ts, components/AppShell.tsx, pages/DashboardPage.tsx, pages/NotFoundPage.tsx 및 관련 Vitest 파일
+- packages/contracts/src/http.ts, packages/contracts/test/contract.test.mjs
+- tests/integration/admin-vite.integration.test.mjs, package.json, pnpm-lock.yaml, eslint.config.js
+- docs/DECISIONS.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/RUNBOOK.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `pnpm check`, `CI=true pnpm install --frozen-lockfile`, `node --test tests/integration/admin-vite.integration.test.mjs`, 실제 `pnpm admin:dev` + 브라우저 렌더/console 확인.
+- 결과: PASS — Admin Vitest 6개, Node unit 19개, integration 53개, fail/skip 0개와 lint/typecheck/format/build 성공. 실제 브라우저 health 정상 표시 및 warning/error 0건.
+- 프로덕션 배포와 원격 CI는 NOT_RUN. 테스트 후 Admin/mock server와 BROS PostgreSQL을 중지했고 DB volume은 보존했다.
+
+### 미해결 사항 및 Blocker
+
+- P1-11 로컬 blocker 없음. BLK-001 원격 CI/required check는 유지한다.
+- 프로덕션 정적 호스팅/reverse proxy, Admin 인증·인가, 업무 route는 후속 P6 및 각 업무 Task에서 구현·검증한다.
+- Phase 1에는 P1-12 ObjectStorage Local Adapter와 원격 CI 검증이 남아 있다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P1-12 ObjectStorage Port / Local Adapter — put/delete/signedUrl 계약, local adapter, object key 규칙과 Worker의 provider 비의존 경계.
+- 금지 변경: baseline migration, 기존 UUID/상태/재시도/자동승인 정책, P1-11 same-origin 경계와 Admin에 업무 API·인증 우회를 임의로 추가하지 않는다. 저장 파일이나 URL에 secret·원본 파일명을 노출하지 않는다.
+- 완료 조건: put/get 또는 signed URL 조회/delete lifecycle, path traversal와 root 탈출 차단, 원자적 write 및 실패 정리, provider 이름 없는 Worker 사용 예, 전체 품질 검사 PASS와 단계 기록.
+- 재검토가 필요한 조건: 현재 image storage_key 모델이 안전한 object key를 표현하지 못하거나 local signedUrl 의미가 운영 provider 계약과 양립하지 않을 때.

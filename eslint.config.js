@@ -13,12 +13,13 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         console: "readonly",
+        fetch: "readonly",
         process: "readonly",
       },
     },
   },
   {
-    files: ["apps/**/*.ts", "packages/**/*.ts"],
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.ts"],
     rules: {
       "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
     },

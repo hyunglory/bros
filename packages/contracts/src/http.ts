@@ -88,6 +88,10 @@ export const ReadyResponseSchema = Type.Object(
 export type HealthResponse = Static<typeof HealthResponseSchema>;
 export type ReadyResponse = Static<typeof ReadyResponseSchema>;
 
+export function isHealthResponse(value: unknown): value is HealthResponse {
+  return Value.Check(HealthResponseSchema, value);
+}
+
 export const ErrorDetailsSchema = Type.Object(
   {
     issues: Type.Optional(

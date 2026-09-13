@@ -196,3 +196,14 @@
 - 개발 DB smoke: send-system-test CLI 접수 → 실제 startWorker 실행 → publicId `01a09846-0c34-7e6d-bf7a-abd8dad5dac5`, provider ID `eb1d0f5f-b3f5-4950-84d9-dd14b99df537`, SUCCESS/attempt 1/result {platformCount:"4"} → WORKER_STOPPED 및 exit 0 확인. bros_queue 및 INTERNAL smoke 정의/성공 이력을 개발 DB에 보존했다.
 - 최종 잔여 bros_test_ DB 0개, app 테이블 18개 유지, BROS postgres 중지 및 volume 보존. 새 clean clone 검사는 별도 실행하지 않았다.
 - 미검증: P5 업무 자동화·Browser handler·schedule reconciliation, P6 운영 heartbeat/권한/배포, 원격 CI/required check. Phase 1 전체 완료로 간주하지 않는다.
+
+## 2026-09-13 — P1-11 완료
+
+- 결과: PASS(로컬). React 19.3.0, React Router 7.18.3, Vite 8.3.0, Vitest 5.0.0을 정확히 고정했다.
+- `pnpm check`: Admin Vitest 6개, Node unit 19개, integration 53개, fail/skip 0개 및 lint/typecheck/format/build PASS. Admin production build는 JS 318.35 kB(gzip 98.35 kB), CSS 5.94 kB(gzip 2.05 kB)다.
+- UI: `/` Dashboard, 공통 layout, 미등록 route 404 화면, `/health` 초기 loading·정상·안전한 오류·수동 retry를 렌더링 테스트로 확인했다. API client는 3초 timeout, 비정상 HTTP, 연결 실패, 공용 TypeBox 계약과 다른 200 응답을 구분한다.
+- 개발 서버: 실제 Vite server와 로컬 health server를 함께 띄워 HTML 및 변환된 React entry 접근, same-origin `/health` 프록시 응답을 통합 테스트했다.
+- 브라우저: `http://127.0.0.1:5173/`에서 실제 렌더링과 `정상 운영 중` 전환을 확인했고 console warning/error는 0건이었다. 확인 후 브라우저 탭과 3000/5173 개발 프로세스를 종료했다.
+- 의존성: `CI=true pnpm install --frozen-lockfile` PASS. 최초 비대화형 실행은 pnpm의 modules purge 확인 정책으로 중단됐으며 CI 모드에서 lockfile 불일치 없이 재실행했다.
+- DB 회귀: 기존 P1-05~10 통합 검사를 위해 BROS PostgreSQL만 기동했고 전체 PASS 후 중지했다. 개발 volume과 기존 업무 데이터는 보존했다.
+- 미검증: 프로덕션 reverse proxy/정적 호스팅, Admin 인증·인가 및 업무 API는 후속 P6/업무 단계 범위다. 원격 CI/required check는 BLK-001 유지.
