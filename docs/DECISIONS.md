@@ -913,3 +913,52 @@
 - 금지 변경: ruleset 23149676의 required check를 검증 없이 완화하거나 우회하지 않는다. 실제 상품/화면 입력 없이 Discovery 결과를 추정해 확정하지 않는다.
 - 완료 조건: P2-01은 실제 샘플 20건 mapping dry-run, P5-01은 실제 대상 화면의 prepare/authenticate/execute/verify/cleanup 수동 walkthrough와 명세 기록.
 - 재검토가 필요한 조건: repository visibility를 private으로 되돌리거나 CI check 이름, 기본 브랜치, workflow event를 변경할 때.
+
+## DEC-20260913-007 — P2-01 Source Discovery 입력 경계와 차단 상태
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P2-01 착수 전 실제 입력 감사와 Source Mapping Spec 골격 작성
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 기본(세부 모델·추론 수준 미노출)
+- 관련 WBS Task: P2-01, 선행 영향을 받는 P2-02/P2-03
+- 검토 범위와 근거: DEC-20260913-006, WBS P2-01~P2-04와 9장 사용자 입력, 설계서 14.1~14.3, 보완 명세 2장/5장, `docs/DB_MIGRATION_SPEC.md`, 현재 저장소 파일 전수 목록
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- Phase 1 Gate 이후 첫 Discovery는 Phase 2 선행 체인을 여는 P2-01로 진행한다.
+- 실제 저장 위치·형식과 비식별화된 샘플 최소 20건이 없으므로 P2-01은 `BLOCKED_EXTERNAL_INPUT`이다. Mapping Spec 골격을 작성한 사실을 sample mapping 완료나 PASS로 간주하지 않는다.
+- 기존 `SourceProductInput` 필드와 DB 경계를 Source Mapping Spec에 정리하되 실제 원본 컬럼, Adapter 종류와 변환 규칙은 입력 증거 없이 확정하지 않는다.
+- DB 필수 수집 시각, 상품 재고 입력, 금액 표현, `SourceOptionInput`/`SourceImageInput`, 식별자 type 변환은 실제 샘플을 확인한 뒤 P2-02에서 확정할 계약 공백이다.
+- raw는 원래 업무 구조를 보존하지만 token/cookie/password/API key/signed query는 저장 전에 제거하거나 해당 입력을 거절한다.
+
+### 기각한 선택지와 이유
+
+- 임의 CSV fixture 20건을 만들어 dry-run PASS 처리: 실제 데이터 형식 기반이라는 P2-01 목적과 Acceptance Criteria를 충족하지 못한다.
+- P5-01을 먼저 완료 처리: Browser 대상 URL·단계·로그인/2FA·성공 신호도 제공되지 않아 동일하게 실제 Flow PASS가 불가능하다.
+- 설계 예시만으로 옵션·이미지 타입을 확정: 실제 Source 구조와 향후 Adapter 계약을 되돌릴 가능성이 크다.
+
+### 변경 파일
+
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/DECISIONS.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/BLOCKERS.md
+- docs/TEST_REPORT.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `rg --files` 저장소 전수 목록; 요구사항·WBS·DB 명세의 source/import/option/image/identifier 필드 대조; Markdown format 검증.
+- 결과: IMPLEMENTED_NOT_VALIDATED — Discovery 문서 골격 작성 완료. 실제 데이터 inventory와 20건 mapping dry-run은 NOT_RUN.
+
+### 미해결 사항 및 Blocker
+
+- BLK-003: 실제 원본 위치·형식, 비식별 샘플 20~100건, 옵션/이미지/품번 컬럼, 전체 상품·옵션 규모와 필드 의미가 필요하다.
+- P5-01도 대상 URL·단계·입력값·실행 빈도·성공 신호·로그인/2FA 방식이 없어 실제 walkthrough를 수행할 수 없다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 제공된 원본을 읽기 전용으로 inventory하고 최소 20건을 `docs/SOURCE_MAPPING_SPEC_v0.1.md`의 표에 mapping dry-run한다.
+- 금지 변경: 실제 자격증명을 문서/fixture에 저장, 원본 외부 ID를 숫자로 변환, 통화·브랜드·품번·재고를 근거 없이 추정, 샘플 없이 P2-01 PASS 선언.
+- 완료 조건: 원본 위치/형식/규모, 실제 컬럼 mapping, 결측·중복·옵션·이미지·품번 사례, 20건 row별 결과가 기록되고 P2-02 계약 입력이 확정된다.
+- 재검토가 필요한 조건: 원본에 secret/개인정보가 포함되거나 API/DB live 접근, 재배포 제한 데이터, 여러 플랫폼 혼합 입력이 확인될 때.

@@ -22,3 +22,13 @@
 - 해소 이후: migration up 가드를 제거하고 실제 DB 검증을 진행한다. 최종 구현 검증 상태는 IMPLEMENTATION_STATUS와 TEST_REPORT를 따른다.
 - 제안: 다섯 필드를 VARCHAR(64), NOT NULL, 공백 금지로 시작하고 각 업무 단계에서 코드 집합을 확정하여 별도 migration으로 제한한다. 그 외 문서에 명시된 상태/타입 CHECK는 모두 유지한다.
 - 해소 조건: 열린 코드 제안 승인 또는 다섯 필드의 허용값 제공 → 새 ACCEPTED Decision → 가드 제거 → DB 실행 및 negative test 보완·검증.
+
+## BLK-003 — P2-01 기존 수집 데이터 입력 부재
+
+- 상태: BLOCKED_EXTERNAL_INPUT
+- 관련 Task: P2-01, P2-02, P2-03
+- 원인: 실제 수집 데이터의 저장 위치·형식, 대표 상품 20~100건, 옵션/이미지/품번 필드와 전체 규모가 제공되지 않았다. 현재 저장소에는 상품 sample/fixture가 없다.
+- 영향: 실제 원본 컬럼 매핑, 첫 Adapter 종류, `SourceOptionInput`/`SourceImageInput`, 수집 시각·재고·금액 표현 계약과 20건 mapping dry-run을 확정할 수 없다.
+- 진행한 독립 작업: `docs/SOURCE_MAPPING_SPEC_v0.1.md`에 확인된 표준 입력 경계, 계약 공백, 제공 입력, dry-run 판정표를 작성했다.
+- 우회: source와 독립적인 P2-05 Brand Normalizer 또는 P5-02 Browser Manager 기반은 별도 범위로 진행할 수 있다. P2-01/P2-02/P2-03을 PASS로 표시할 수는 없다.
+- 해소 조건: 비밀·개인정보를 제거한 실제 샘플 최소 20건과 저장 위치/형식/전체 규모/필드 의미 제공 → field inventory → 20건 mapping dry-run → Source Mapping Spec 확정.

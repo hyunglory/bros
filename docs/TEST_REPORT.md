@@ -240,3 +240,11 @@
 - 정리: PR #2는 merge 없이 CLOSED하고 임시 원격·로컬 branch `ci/verify-required-check`를 삭제했다. 실패 PR과 Actions 기록은 GitHub에 유지된다. PR #1은 OPEN/CLEAN 상태다.
 - 공개 범위 결정: GitHub Free private repository의 protection/ruleset API가 403을 반환해 사용자 승인 후 repository를 PUBLIC으로 전환했다.
 - Gate 판정: PASS — P1-14 원격 CI와 실패 차단을 포함해 P1-01~P1-14 Acceptance 증거가 충족됐다. BLK-001은 RESOLVED다.
+
+## 2026-09-13 — P2-01 Discovery 입력 감사
+
+- 대상: WBS P2-01, 설계서 14장, 보완 명세 5장 입력 의존성, 현재 저장소 파일 목록과 DB 물리 계약.
+- 저장소 검색: 실제 상품 샘플, 원본 데이터 위치, Source fixture, Browser 대상 URL은 발견되지 않았다.
+- 문서 대조: `SourceProductInput`의 기존 필드와 DB `source_product`/`source_sku`/`product_image` 경계를 매핑했다. 수집 시각·상품 재고 입력과 옵션/이미지 하위 타입이 P2-02에서 확정돼야 하는 계약 공백임을 확인했다.
+- mapping dry-run: NOT_RUN — 실제 샘플 20건이 없다.
+- 결과: BLOCKED_EXTERNAL_INPUT — Source Mapping Spec 골격은 작성했으나 P2-01 Acceptance Criteria는 미충족. BLK-003으로 추적한다.
