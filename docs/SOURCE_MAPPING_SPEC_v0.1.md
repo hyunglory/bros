@@ -1,95 +1,135 @@
 # BROS Source Mapping Spec v0.1
 
-상태: DRAFT / BLOCKED_EXTERNAL_INPUT  
-관련 Task: P2-01  
+상태: PASS (P2-01) / P2-02 계약 결정 필요
+관련 Task: P2-01
 기준일: 2026-09-13
 
 ## 1. 목적과 완료 조건
 
-첫 기존 수집 데이터의 실제 구조를 `SourceProductInput` 경계에 손실 없이 매핑하기 위한 발견 문서다. 실제 저장 위치·형식과 비식별화된 샘플 20~100건이 제공되기 전에는 Adapter 종류, 원본 컬럼명, 변환 규칙 또는 P2-01 PASS를 확정하지 않는다.
+첫 기존 수집 데이터의 실제 구조를 `SourceProductInput` 경계에 매핑하기 위한 발견 문서다. 원본 Excel은 읽기 전용으로 분석했으며 원본 파일을 수정하거나 Git에 추가하지 않았다.
 
-P2-01 완료 조건은 다음과 같다.
+P2-01 완료 조건과 결과는 다음과 같다.
 
-- 실제 저장 위치와 CSV/XLSX/JSON/API/Legacy DB 중 형식을 확인한다.
-- 전체 상품·옵션의 대략적 건수와 파일 크기 또는 DB 규모를 확인한다.
-- 최소 20개 입력행을 대상으로 mapping dry-run을 수행한다.
-- 상품 ID·이름, 옵션, 이미지, 품번, 가격, 통화, 재고, 수집 시각의 실제 원본 경로와 결측 형태를 기록한다.
-- 변환된 표준 입력과 제거된 민감 필드, 실패 사유를 입력행별로 재현할 수 있게 남긴다.
+- 실제 저장 위치와 형식 확인: PASS
+- 전체 상품·옵션 규모와 원본 한계 확인: PASS
+- 실제 상품 20건 mapping dry-run: PASS
+- 필드별 원본 경로, 결측, 변환 및 실패 조건 기록: PASS
+- P2-02에서 확정할 계약 공백 식별: PASS
 
-## 2. 현재 확인된 사실
+## 2. 원본 Inventory
 
 | 항목 | 확인 결과 | 근거 |
 | --- | --- | --- |
-| Phase 1 Gate | PASS | DEC-20260913-006 |
-| 원본 저장 위치 | 결정 필요 | 저장소에 샘플/연결 정보 없음 |
-| 원본 형식 | 결정 필요 | WBS가 CSV/XLSX/JSON/API/Legacy DB 후보만 제시 |
-| 샘플 수 | 0건 | 저장소 파일 전수 목록에 상품 fixture 없음 |
-| 전체 건수·옵션 규모 | 결정 필요 | 운영 입력 미제공 |
-| 첫 Adapter | 결정 필요 | 실제 형식 확인 후 하나를 선택해야 함 |
-| mapping dry-run | NOT_RUN | 최소 샘플 20건 미제공 |
+| 원본 위치 | `examples/더망고_상품정보_20260913.xlsx` | 사용자 지정 로컬 파일 |
+| 파일 크기 | 5,002,588 bytes | 파일 metadata |
+| SHA-256 | `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE` | 원본 동일성 기준 |
+| 형식 | XLSX | `수집 요약`, `상품 목록`, `검토 필요` 3개 시트 |
+| 데이터 범위 | `상품 목록!A5:U26380` | 5행 header, 상품 26,375행 |
+| 플랫폼 구성 | MUSINSA 16,133건 / OLIVEYOUNG 10,242건 | `원본사이트` 전수 집계 |
+| 재고 구성 | 재고상품 24,707건 / 품절상품 1,668건 | 원본 `수집 요약` |
+| 옵션 구성 | 옵션 상품 3,722건, 모두 OLIVEYOUNG | `옵션수 > 0` 전수 확인 |
+| 품질 검토 | 검토 필요 8,579건 | 원본 `수집 요약` |
+| 주요 결측 | 간략설명 6,785건, 원본상품코드·URL 407건 | 원본 `수집 요약` 및 전수 집계 |
+| 가격 | 26,375건 모두 원가·판매가 0 | 실제 0원이 아니라 전체 내보내기 한계 |
+| 내부 상품코드 | 26,375건 모두 공란 | 별도 product identifier로 사용 불가 |
+| 첫 Adapter | `XlsxImportAdapter` | 실제 입력 형식 |
 
-## 3. 표준 입력 경계 초안
+원본 파일의 재배포 가능 여부는 확인되지 않았다. 따라서 Excel 자체는 commit 대상이 아니며 문서에는 검증에 필요한 행 locator와 식별자만 기록한다.
 
-아래 대상 필드는 설계서 14.2의 `SourceProductInput`, 보완 명세 2장, 현재 DB 물리 계약에서 도출했다. 원본 경로와 변환 규칙은 실제 샘플 증거로만 채운다.
+## 3. 표준 입력 필드 Mapping
 
-| 표준 대상 | 필수 | 원본 경로 | 변환·검증 기준 | 현재 상태 |
+| 표준 대상 | 필수 | 원본 경로 | 변환·검증 기준 | 판정 |
 | --- | --- | --- | --- | --- |
-| `platformCode` | 예 | 결정 필요 | 공백 금지; 실제 수집처와 platform seed/code 관계 확인 | 입력 필요 |
-| `externalProductId` | 예 | 결정 필요 | 문자열로 보존; 숫자 변환 및 선행 0 제거 금지 | 입력 필요 |
-| `productName` | 예 | 결정 필요 | trim 후 공백값 거절; 원문은 `raw`에 보존 | 입력 필요 |
-| `brandName` | 아니오 | 결정 필요 | 결측 허용; 불확실 값을 추정하거나 새 BRAND로 자동 생성하지 않음 | 입력 필요 |
-| `productUrl` | 아니오 | 결정 필요 | 결측 허용; 임시 서명 query나 credential 포함 여부 검사 | 입력 필요 |
-| `normalPrice` | 아니오 | 결정 필요 | 결측 허용; 0 이상; 통화와 독립적으로 추정하지 않음 | 입력 필요 |
-| `currentPrice` | 아니오 | 결정 필요 | 결측 허용; 0 이상; 소수점·구분자·세금 포함 여부 확인 | 입력 필요 |
-| `currencyCode` | 아니오 | 결정 필요 | 대문자 3자; 결측 시 KRW 추정 금지 | 입력 필요 |
-| `identifiers[]` | 아니오 | 결정 필요 | type/value 원문 보존; MODEL_NO 등 내부 type 변환표는 증거 후 확정 | 입력 필요 |
-| `options[]` | 아니오 | 결정 필요 | 외부 SKU ID, 옵션명·값, 가격·재고와 안정된 option key 재료 확인 | 입력 필요 |
-| `images[]` | 아니오 | 결정 필요 | main/detail 구분, URL, 순서, 옵션 연결, 중복 형태 확인 | 입력 필요 |
-| `raw` | 예 | 입력행 전체 | 원래 업무 구조를 보존하되 token/cookie/password/key는 저장 전 제거 또는 입력 거절 | 입력 필요 |
+| `platformCode` | 예 | `상품 목록!B:B 원본사이트` | `MUSINSA.com → MUSINSA`, `OliveYoung.co.kr → OLIVEYOUNG`; DB seed와 일치하지 않으면 거절 | 매핑 가능 |
+| `externalProductId` | 예 | `C:C 원본상품코드` | trim한 문자열로 보존; 숫자 변환 금지; 공란은 `MISSING_EXTERNAL_PRODUCT_ID`로 거절 | 20건 중 16건 가능 |
+| `productName` | 예 | `D:D 상품명` | trim 후 공백 거절; 원문은 `raw`에 보존 | 20/20 |
+| `brandName` | 아니오 | `E:E 브랜드` | trim; 결측 허용; 이후 Brand Normalizer에서 검수 | 20/20 존재 |
+| `productUrl` | 아니오 | `N:N 원문상품 URL(추정)` | http/https와 플랫폼 host 검사; 원본상품코드 결측 시 null; 실제 접속 성공을 이번 dry-run에서 단정하지 않음 | 16/20 |
+| `normalPrice` | 아니오 | `R:R 원가(내보내기값)` | 원본 0은 exporter 한계이므로 실제 0원으로 저장하지 않고 null | 0/20 유효 가격 |
+| `currentPrice` | 아니오 | `S:S 판매가(내보내기값)` | 원본 0은 exporter 한계이므로 실제 0원으로 저장하지 않고 null | 0/20 유효 가격 |
+| `currencyCode` | 아니오 | 없음 | 가격이 없으므로 KRW를 추정하지 않고 null | 0/20 |
+| `identifiers[]` | 아니오 | `Q:Q 내부 상품코드` | 전부 공란; 카테고리코드는 product identifier로 승격하지 않고 `raw`에 보존 | 0/20 |
+| `options[]` | 아니오 | `I:I 옵션수`, `J:J 옵션명 목록`, `K:K 옵션 이미지 URL 목록` | ` | ` 구분자로 같은 순서의 이름·이미지를 pairing; 외부 SKU·옵션별 가격·재고는 없음 | 표본 20개 옵션, pairing 가능 |
+| `images[]` | 아니오 | `M:M 대표이미지 URL`, `K:K 옵션 이미지 URL 목록` | 대표이미지는 `SOURCE_MAIN`; 옵션 이미지는 옵션 순서와 연결하되 최종 하위 타입은 P2-02에서 확정 | 표본 40개 URL |
+| `raw` | 예 | `A:U` 입력행 전체 | 원문과 legacy `고유값`을 보존; token/cookie/password/key 탐지 시 입력 거절 | 20/20 |
+| `stockStatus` 제안 | P2-02 | `G:G 재고수`, `H:H 상태` | `재고수 > 0 → IN_STOCK`, `0 → OUT_OF_STOCK`; 수량 31은 정확한 재고수로 단정하지 않음 | 20/20 |
+| 수집 시각 | P2-02 | 행별 필드 없음 | 파일 기준일 2026-09-13은 날짜만 제공; 행별 시각이나 timezone으로 확대 해석하지 않음 | 결정 필요 |
 
-## 4. P2-02에서 확정할 계약 공백
+`A:A 고유값`은 더망고 export 행의 legacy ID다. 플랫폼 상품 ID의 의미가 아니므로 `C:C 원본상품코드` 결측 시 대체값으로 사용하지 않는다.
 
-실제 샘플을 확인한 뒤 다음을 P2-02 타입과 validation 계약으로 확정한다.
+## 4. 실제 샘플 20건 선정 규칙
 
-| 결정 항목 | 현재 근거와 문제 | 선택지 |
-| --- | --- | --- |
-| 수집 시각 | DB의 `collected_at`/`last_seen_at`은 필수지만 현재 `SourceProductInput`에 필드가 없다. | `collectedAt` 선택 필드 추가 / Import context 시각만 사용. 원본 시각 미상 시 Import 시각과 대체 사실을 raw metadata에 기록해야 함 |
-| 상품 재고 | DB는 `stock_status`를 저장하지만 현재 최상위 입력 계약에 재고 필드가 없다. | 선택 `stockStatus` 추가 / Adapter가 raw에서 변환. 결측은 UNKNOWN |
-| 숫자 표현 | 설계 예시는 JavaScript `number`, DB는 `NUMERIC(20,4)`다. | decimal string / 제한된 number. 실제 자릿수와 소수 형식 확인 후 결정 |
-| `SourceOptionInput` | 하위 타입의 필드 목록과 option key 생성 규칙이 문서에 완결되어 있지 않다. | 실제 옵션 구조 기반 canonical key 규칙 확정 |
-| `SourceImageInput` | URL·순서·main/detail·옵션 연결 계약이 문서에 완결되어 있지 않다. | 실제 이미지 필드 기반 최소 하위 타입 확정 |
-| 식별자 type 변환 | 내부 허용 type은 있으나 원본 코드·컬럼이 미확인이다. | 명시적 mapping table / 미지원 값은 raw 보존 후 검수 |
+원본 행 순서를 유지한 채 아래 10개 조건에서 처음 등장하는 2건씩을 선택했다. 동일 SHA-256 파일에 같은 규칙을 적용하면 같은 표본이 나온다.
 
-## 5. 제공받을 입력
+1. OLIVEYOUNG 재고·확인 완료
+2. OLIVEYOUNG 품절
+3. OLIVEYOUNG 검토 필요
+4. OLIVEYOUNG 옵션 존재
+5. OLIVEYOUNG 간략설명 누락
+6. OLIVEYOUNG 원본상품코드 누락
+7. MUSINSA 재고·확인 완료
+8. MUSINSA 품절
+9. MUSINSA 원본상품코드 누락
+10. MUSINSA 검토 필요
 
-Secret과 개인정보를 제거한 상태로 다음 중 하나의 읽기 가능한 위치를 제공한다. Git에 넣을 샘플은 재배포 가능 여부도 함께 확인한다.
+## 5. 샘플 20건 Mapping Dry-run
 
-1. 실제 원본 위치와 접근 방법: 로컬 파일 경로, 읽기 전용 DB 접속 방식 또는 API 문서
-2. 형식과 인코딩: CSV delimiter/quote/encoding, XLSX sheet, JSON shape, DB table/query 또는 API pagination
-3. 대표 상품 20~100건: 최소 20개 입력행과 원본 컬럼명 유지
-4. 변형 사례: 품번 없음, 옵션 없음, 다중 옵션, 이미지 없음, 다중 이미지, 가격/통화 결측, 재고 결측, 선행 0 외부 ID를 가능한 범위에서 포함
-5. 전체 규모: 상품행, 옵션행, 이미지 URL 수, 파일 크기 또는 DB row count의 대략값
-6. 수집 시각 의미와 timezone, 가격의 세금/할인/통화 의미, 재고 코드 정의
+`MAPPED_WITH_REVIEW`는 필수 3필드가 유효해 top-level 입력은 만들 수 있지만 원본 품질 표시 또는 옵션 하위 계약 확정이 필요한 경우다. `REJECTED`는 현재 필수 계약을 만들 수 없는 경우다.
 
-실제 password, cookie, Authorization header, API key, signed URL 전체값은 문서나 fixture에 넣지 않는다. 접근 자격증명은 SecretProvider 경계로 별도 주입한다.
-
-## 6. 샘플 20건 mapping dry-run 기록표
-
-샘플을 받은 뒤 한 입력행당 한 줄로 작성한다. 원문 전체는 승인된 fixture 또는 별도 안전 위치에 두고 여기에는 위치와 판정만 기록한다.
-
-| input_row_no | source locator | product ID | product name | options | images | identifiers | result | issue code |
+| input_row_no | source locator | externalProductId | name | options | images | identifiers | result | issue code |
 | ---: | --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| 1~20 | 입력 필요 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | SAMPLE_NOT_PROVIDED |
+| 1 | `상품 목록!A7:U7` | `A000000264904` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 2 | `상품 목록!A9:U9` | `A000000160370` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 3 | `상품 목록!A6:U6` | `A000000200463` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 4 | `상품 목록!A11:U11` | `A000000141025` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 5 | `상품 목록!A8:U8` | `A000000209125` | 있음 | 0 | 1 | 0 | MAPPED_WITH_REVIEW | `SOURCE_REVIEW_REQUIRED` |
+| 6 | `상품 목록!A12:U12` | `A000000137298` | 있음 | 0 | 1 | 0 | MAPPED_WITH_REVIEW | `SOURCE_REVIEW_REQUIRED` |
+| 7 | `상품 목록!A36:U36` | `A000000136713` | 있음 | 1 | 2 | 0 | MAPPED_WITH_REVIEW | `OPTION_CHILD_CONTRACT_REQUIRED` |
+| 8 | `상품 목록!A47:U47` | `A000000110553` | 있음 | 4 | 5 | 0 | MAPPED_WITH_REVIEW | `OPTION_CHILD_CONTRACT_REQUIRED` |
+| 9 | `상품 목록!A1206:U1206` | `A000000258443` | 있음 | 4 | 5 | 0 | MAPPED_WITH_REVIEW | `OPTION_CHILD_CONTRACT_REQUIRED`, `SOURCE_DESCRIPTION_MISSING`, `SOURCE_REVIEW_REQUIRED` |
+| 10 | `상품 목록!A1342:U1342` | `A000000243610` | 있음 | 10 | 11 | 0 | MAPPED_WITH_REVIEW | `OPTION_CHILD_CONTRACT_REQUIRED`, `SOURCE_DESCRIPTION_MISSING`, `SOURCE_REVIEW_REQUIRED` |
+| 11 | `상품 목록!A48:U48` | 없음 (legacy `360668`) | 있음 | 1 | 2 | 0 | REJECTED | `MISSING_EXTERNAL_PRODUCT_ID`, `SOURCE_PRODUCT_URL_UNAVAILABLE` |
+| 12 | `상품 목록!A49:U49` | 없음 (legacy `360667`) | 있음 | 0 | 1 | 0 | REJECTED | `MISSING_EXTERNAL_PRODUCT_ID`, `SOURCE_PRODUCT_URL_UNAVAILABLE` |
+| 13 | `상품 목록!A2603:U2603` | `6210231` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 14 | `상품 목록!A2604:U2604` | `6414920` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 15 | `상품 목록!A2605:U2605` | `6415004` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 16 | `상품 목록!A10271:U10271` | `4843587` | 있음 | 0 | 1 | 0 | MAPPED | — |
+| 17 | `상품 목록!A11083:U11083` | 없음 (legacy `343095`) | 있음 | 0 | 1 | 0 | REJECTED | `MISSING_EXTERNAL_PRODUCT_ID`, `SOURCE_PRODUCT_URL_UNAVAILABLE` |
+| 18 | `상품 목록!A11875:U11875` | 없음 (legacy `339999`) | 있음 | 0 | 1 | 0 | REJECTED | `MISSING_EXTERNAL_PRODUCT_ID`, `SOURCE_PRODUCT_URL_UNAVAILABLE` |
+| 19 | `상품 목록!A12334:U12334` | `5250788` | 있음 | 0 | 1 | 0 | MAPPED_WITH_REVIEW | `SOURCE_REVIEW_REQUIRED` |
+| 20 | `상품 목록!A12335:U12335` | `5250800` | 있음 | 0 | 1 | 0 | MAPPED_WITH_REVIEW | `SOURCE_REVIEW_REQUIRED` |
 
-Dry-run은 다음을 확인한다.
+### Dry-run 집계
 
-- 입력행 순서와 `input_row_no`가 재실행에도 안정적이다.
-- 필수 3필드 결측만 validation 실패로 분리되고 브랜드·품번·가격·이미지 결측은 허용된다.
-- 동일 `(platformCode, externalProductId)`가 반복될 때 같은 Source identity로 수렴할 수 있다.
-- 옵션과 이미지를 원본 상품에 손실 없이 연결할 수 있다.
-- 지원하지 않는 원본 값은 추정하지 않고 raw와 issue code로 보존된다.
-- 원본에 포함된 민감정보가 표준 입력, raw, 오류 메시지 또는 로그에 남지 않는다.
+| 검사 | 결과 |
+| --- | --- |
+| 표본 수 | 20 |
+| MAPPED | 8 |
+| MAPPED_WITH_REVIEW | 8 |
+| REJECTED | 4 |
+| 유효 `(platformCode, externalProductId)` | 16 |
+| 유효 identity 중복 | 0 |
+| 옵션 이름·이미지 pairing | 20/20, mismatch 0 |
+| 대표이미지 존재 | 20/20 |
+| 민감정보 의심 필드/값 | 0 |
+| 가격 mapping | 20/20 null 처리 |
 
-## 7. 착수 판정
+4건의 `REJECTED`는 dry-run 실패가 아니라 필수값 거절 규칙이 실제 결측 행에 적용된 결과다. legacy `고유값`을 외부 상품 ID로 대체하면 잘못된 플랫폼 identity가 생성되므로 자동 보정하지 않는다.
 
-P2-01은 `BLOCKED_EXTERNAL_INPUT`이다. 문서 골격과 판정 기준은 준비됐지만 실제 샘플 기반 필드표와 20건 dry-run이 없으므로 Source Mapping Spec v0.1을 완료본 또는 PASS로 취급하지 않는다.
+## 6. P2-02에서 확정할 계약
+
+| 결정 항목 | 실제 샘플 근거 | 권장 결정 |
+| --- | --- | --- |
+| 수집 시각 | 행별 시각·timezone 없음 | `ImportContext.collectedAt`을 실행 시각으로 필수 주입하고 `sourceAsOfDate=2026-09-13`을 raw metadata에 별도 보존 |
+| 상품 재고 | 0과 양수로 status 판정 가능하나 31의 실제 수량 의미는 불명 | `stockStatus?: UNKNOWN | IN_STOCK | OUT_OF_STOCK` 추가; 정확한 quantity는 계약에 넣지 않음 |
+| 금액 표현 | 실제 가격이 전부 미제공 | 가격은 null; P2-02 타입은 DB `numeric(20,4)` 손실을 막는 decimal string 채택 여부 결정 |
+| `SourceOptionInput` | 이름·순서·이미지는 있으나 외부 SKU, 옵션별 가격·재고 없음 | 최소 `rawOptionName`, `sourceOrder`, 선택 `imageUrl`, `raw` 정의; 안정된 option key 규칙 확정 |
+| `SourceImageInput` | 대표이미지와 옵션이미지 구분 가능 | `sourceUrl`, `imageRole`, `sourceOrder`, 선택 option 연결 정의; DB image type/연결 방식 대조 |
+| 식별자 | 내부 상품코드는 전부 공란 | `identifiers=[]`; 카테고리코드는 `raw.categoryCode`로만 보존 |
+| 가격·URL 보강 | Excel만으로 실제 가격과 407건 URL을 복구할 수 없음 | 별도 관리자 화면/API source가 확보될 때 보강 Adapter를 분리 |
+
+## 7. P2-01 판정
+
+P2-01은 **PASS**다. 실제 XLSX 구조, 전체 규모, 필드 mapping과 대표 20건 dry-run이 재현 가능하게 기록됐다. BLK-003은 해소한다.
+
+P2-02는 `stockStatus`, 수집 시각, 옵션·이미지 하위 타입과 decimal 표현을 확정한 뒤 착수한다. 원본상품코드가 없는 407건은 필수 validation에서 거절하거나 별도 보강 절차로 보내며 자동 생성한 ID로 source identity를 만들지 않는다.

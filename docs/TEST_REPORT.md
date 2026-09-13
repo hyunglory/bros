@@ -248,3 +248,17 @@
 - 문서 대조: `SourceProductInput`의 기존 필드와 DB `source_product`/`source_sku`/`product_image` 경계를 매핑했다. 수집 시각·상품 재고 입력과 옵션/이미지 하위 타입이 P2-02에서 확정돼야 하는 계약 공백임을 확인했다.
 - mapping dry-run: NOT_RUN — 실제 샘플 20건이 없다.
 - 결과: BLOCKED_EXTERNAL_INPUT — Source Mapping Spec 골격은 작성했으나 P2-01 Acceptance Criteria는 미충족. BLK-003으로 추적한다.
+
+## 2026-09-13 — P2-01 실제 샘플 20건 Mapping Dry-run
+
+- 입력: `examples/더망고_상품정보_20260913.xlsx`, 5,002,588 bytes, SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`.
+- 원본 보호: workbook은 `read_only=True`, `data_only=True`로 열었으며 셀을 수정하거나 다시 저장하지 않았다. 재배포 가능 여부가 확인되지 않아 Git stage 대상에서도 제외했다.
+- inventory: `상품 목록` 26,375건, MUSINSA 16,133건, OLIVEYOUNG 10,242건. 옵션 상품 3,722건, 재고상품 24,707건, 품절상품 1,668건.
+- 표본: 원본 행 순서 기준 10개 변형 조건에서 각 2건을 선택해 정확히 20건을 mapping했다. source locator와 선정 규칙은 Source Mapping Spec 4~5장에 기록했다.
+- mapping 결과: MAPPED 8건, MAPPED_WITH_REVIEW 8건, REJECTED 4건. REJECTED는 두 플랫폼에서 `externalProductId`가 비어 있는 의도된 필수값 실패다.
+- identity 검증: 유효 `(platformCode, externalProductId)` 16건, 중복 0건. legacy `고유값`은 누락 ID 대체값으로 사용하지 않았다.
+- 옵션/이미지 검증: 표본 옵션 20개에서 옵션명 20개와 옵션이미지 20개의 순서 pairing이 일치했다. mismatch 0건, 대표이미지 20/20건 존재.
+- 가격 검증: 원본 0은 실제 가격이 아닌 export 한계이므로 `normalPrice`/`currentPrice`는 20/20건 null로 mapping했다. 통화도 추정하지 않았다.
+- 보안 검사: 선택 20행의 field name/value에서 password, authorization, cookie, API key, token 의심값 0건. 이미지 URL query는 변환 파라미터이며 자격증명 파라미터는 확인되지 않았다.
+- 미실행: 추정 상품 URL의 live 접속, 이미지 다운로드, DB insert, Adapter 코드 실행은 P2-01 범위가 아니므로 수행하지 않았다.
+- 결과: PASS — 실제 필드표와 20건 row-level 결과가 작성돼 P2-01 Acceptance Criteria를 충족했다. P2-02 계약 결정은 별도 후속 작업이다.

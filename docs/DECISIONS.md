@@ -962,3 +962,62 @@
 - 금지 변경: 실제 자격증명을 문서/fixture에 저장, 원본 외부 ID를 숫자로 변환, 통화·브랜드·품번·재고를 근거 없이 추정, 샘플 없이 P2-01 PASS 선언.
 - 완료 조건: 원본 위치/형식/규모, 실제 컬럼 mapping, 결측·중복·옵션·이미지·품번 사례, 20건 row별 결과가 기록되고 P2-02 계약 입력이 확정된다.
 - 재검토가 필요한 조건: 원본에 secret/개인정보가 포함되거나 API/DB live 접근, 재배포 제한 데이터, 여러 플랫폼 혼합 입력이 확인될 때.
+
+## DEC-20260913-008 — 더망고 XLSX 20건 Mapping Dry-run과 P2-01 완료
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P2-01 기존 수집 데이터 Discovery와 실제 샘플 mapping dry-run
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P2-01, 후속 P2-02/P2-03
+- 검토 범위와 근거: `examples/더망고_상품정보_20260913.xlsx`, WBS P2-01/P2-02, 설계서 14.1~14.5, `docs/DB_MIGRATION_SPEC.md`, DEC-20260913-007
+- 상태: ACCEPTED
+- supersedes: DEC-20260913-007의 `BLOCKED_EXTERNAL_INPUT` 판정과 실제 입력 미제공 사실을 대체한다. 당시의 입력 안전·추정 금지 원칙은 유지한다.
+
+### 확정 결정
+
+- 첫 실제 입력은 XLSX이며 첫 Source Adapter 유형은 `XlsxImportAdapter`로 한다. 입력 시트는 `상품 목록`, header는 5행, 상품 데이터는 6행부터다.
+- `원본사이트`는 현재 DB seed에 맞춰 `MUSINSA.com → MUSINSA`, `OliveYoung.co.kr → OLIVEYOUNG`으로 변환한다.
+- `externalProductId`는 `원본상품코드` 문자열만 사용한다. 더망고 `고유값`은 legacy export 행 ID이므로 누락 외부 ID의 대체값으로 사용하지 않는다.
+- 원가·판매가 0은 26,375건 전체에서 exporter 한계로 확인됐다. 실제 0원이나 KRW로 추정하지 않고 가격과 통화를 null로 mapping한다.
+- 20건 표본은 플랫폼·재고·옵션·설명 결측·외부 ID 결측·검토 상태 10개 조건에서 원본 순서상 처음 2건씩 선택한다. 같은 파일 hash와 규칙으로 표본을 재현한다.
+- dry-run 결과는 MAPPED 8건, MAPPED_WITH_REVIEW 8건, REJECTED 4건이다. 거절 4건은 필수 `externalProductId` 결측이며 예상한 validation 분기다.
+- 유효 source identity 16건의 중복은 0건이다. 표본 옵션 20개에서 옵션명·옵션이미지 pairing mismatch도 0건이다.
+- P2-01 Acceptance Criteria가 충족됐으므로 P2-01은 PASS, BLK-003은 RESOLVED로 변경한다.
+- 원본 Excel의 재배포 가능 여부가 확인되지 않았으므로 원본 파일은 Git에 추가하지 않는다.
+
+### 기각한 선택지와 이유
+
+- 시트 첫 20행만 사용: OLIVEYOUNG의 단일 무옵션 유형만 포함해 옵션과 필수값 실패 경계를 검증하지 못한다.
+- 누락 `externalProductId`를 더망고 `고유값`이나 이미지 경로 숫자로 대체: 플랫폼 원본 ID라는 의미와 멱등성 key를 훼손한다.
+- 내보내기 가격 0과 통화 KRW를 그대로 저장: 원본 요약이 실제 가격 미제공이라고 명시하므로 잘못된 가격 사실을 만든다.
+- 원본 Excel을 결과 증거로 commit: 재배포 권한이 확인되지 않았고 전체 운영 상품 데이터가 포함돼 있다.
+
+### 변경 파일
+
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/BLOCKERS.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- 원본 동일성: 5,002,588 bytes, SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`.
+- workbook read: bundled Python/openpyxl의 `read_only=True`, `data_only=True`; 원본 저장 동작 없음.
+- inventory 결과: 26,375건, MUSINSA 16,133건, OLIVEYOUNG 10,242건, 옵션 상품 3,722건.
+- 20건 dry-run: 표본 20, 유효 identity 16, identity 중복 0, 옵션 pairing mismatch 0, 대표이미지 20, 민감정보 의심 0.
+- 결과: PASS — P2-01 field table과 실제 20건 row-level mapping 결과를 Source Mapping Spec에 기록했다.
+
+### 미해결 사항 및 Blocker
+
+- P2-02에서 `stockStatus`, `ImportContext.collectedAt`, decimal 표현, `SourceOptionInput`과 `SourceImageInput`을 확정해야 한다.
+- 원본상품코드·추정 URL이 없는 전체 407건은 자동 import 대상이 아니며 별도 보강 또는 거절 경로가 필요하다.
+- 실제 가격과 통화는 이 Excel에서 복구할 수 없다. 관리자 화면/API 등 별도 source가 필요하다.
+- P5-01 Browser Flow Discovery 입력은 아직 제공되지 않았다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-02 표준 계약을 실제 샘플에 맞춰 타입·validation·issue code로 구현하고 valid/partial/invalid fixture를 작성한다.
+- 금지 변경: legacy `고유값`을 플랫폼 외부 ID로 승격, 원본 0을 실제 가격으로 저장, KRW 추정, 옵션 이름만으로 외부 SKU ID 생성, 재배포 확인 전 원본 Excel commit.
+- 완료 조건: top-level/option/image 타입, 수집 시각과 재고 정책, decimal 표현, validation 결과가 문서와 코드에서 일치하고 valid/partial/invalid 테스트가 PASS한다.
+- 재검토가 필요한 조건: 실제 가격 source, 행별 수집 시각, 외부 SKU ID, 옵션별 재고/가격 또는 상세 이미지가 추가 제공될 때.

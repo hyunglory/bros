@@ -25,10 +25,12 @@
 
 ## BLK-003 — P2-01 기존 수집 데이터 입력 부재
 
-- 상태: BLOCKED_EXTERNAL_INPUT
+- 상태: RESOLVED (2026-09-13)
 - 관련 Task: P2-01, P2-02, P2-03
-- 원인: 실제 수집 데이터의 저장 위치·형식, 대표 상품 20~100건, 옵션/이미지/품번 필드와 전체 규모가 제공되지 않았다. 현재 저장소에는 상품 sample/fixture가 없다.
-- 영향: 실제 원본 컬럼 매핑, 첫 Adapter 종류, `SourceOptionInput`/`SourceImageInput`, 수집 시각·재고·금액 표현 계약과 20건 mapping dry-run을 확정할 수 없다.
+- 해소 전 원인: 실제 수집 데이터의 저장 위치·형식, 대표 상품 20~100건, 옵션/이미지/품번 필드와 전체 규모가 제공되지 않았다.
+- 해소 전 영향: 실제 원본 컬럼 매핑, 첫 Adapter 종류, `SourceOptionInput`/`SourceImageInput`, 수집 시각·재고·금액 표현 계약과 20건 mapping dry-run을 확정할 수 없었다.
 - 진행한 독립 작업: `docs/SOURCE_MAPPING_SPEC_v0.1.md`에 확인된 표준 입력 경계, 계약 공백, 제공 입력, dry-run 판정표를 작성했다.
-- 우회: source와 독립적인 P2-05 Brand Normalizer 또는 P5-02 Browser Manager 기반은 별도 범위로 진행할 수 있다. P2-01/P2-02/P2-03을 PASS로 표시할 수는 없다.
+- 해소 전 우회: source와 독립적인 P2-05 Brand Normalizer 또는 P5-02 Browser Manager 기반만 별도 진행할 수 있었다.
 - 해소 조건: 비밀·개인정보를 제거한 실제 샘플 최소 20건과 저장 위치/형식/전체 규모/필드 의미 제공 → field inventory → 20건 mapping dry-run → Source Mapping Spec 확정.
+- 해소 근거: `examples/더망고_상품정보_20260913.xlsx`를 읽기 전용 분석해 상품 26,375건과 옵션 상품 3,722건을 확인하고, 변형 사례를 포함한 20건 mapping dry-run을 완료했다. 결과는 MAPPED 8건, MAPPED_WITH_REVIEW 8건, 필수 `externalProductId` 결측에 따른 REJECTED 4건이며 유효 source identity 중복과 옵션-이미지 pairing mismatch는 0건이다.
+- 후속 범위: BLK-003 해소는 P2-02 계약 구현 완료를 의미하지 않는다. `stockStatus`, 수집 시각, 옵션·이미지 하위 타입과 가격 decimal 표현은 Source Mapping Spec 6장에서 확정한 뒤 구현한다.
