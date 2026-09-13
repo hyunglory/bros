@@ -1,6 +1,6 @@
 # BROS Blocker
 
-기준일: 2026-09-12
+기준일: 2026-09-13
 
 ## BLK-001 — P1-14 원격 CI 실행 및 merge 차단 검증
 
@@ -11,6 +11,7 @@
 - 우회: P1-04 이후 구현은 계속할 수 있다. P1-14를 PASS로 전환하거나 Phase 1 Gate를 통과할 수는 없다.
 - 해소 조건: GitHub remote 연결 → branch push/PR → CI 성공 확인 → `quality` job을 required check로 설정 → 의도적 실패 PR 차단 증거 기록.
 - 필요한 사용자/외부 입력: 사용할 GitHub repository와 branch protection 권한.
+- 2026-09-13 재확인: HEAD `b8bed87`에서 BROS 전용 PostgreSQL을 사용한 `pnpm check`는 PASS했다. 그러나 `git remote -v` 출력은 비어 있고, GitHub CLI 기본 계정의 인증 토큰은 무효다. 따라서 원격 repository 선택, push, workflow 실행, protection 설정은 NOT_RUN이며 BLK-001은 해소되지 않았다.
 
 ## BLK-002 — P1-05 코드 필드 허용 집합 결정
 

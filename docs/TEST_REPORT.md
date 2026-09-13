@@ -218,3 +218,13 @@
 - Local signed URL은 HMAC과 1~86400초 만료를 적용하고 같은 adapter instance에서 검증·조회한다. 임시 signing key이므로 프로세스 재시작 후 URL 지속성은 보장하지 않는다.
 - 전체 회귀를 위해 BROS PostgreSQL만 기동했고 PASS 후 중지했다. 개발 volume은 보존했고 실제 `./storage`에는 파일을 생성하지 않았으며 테스트별 OS temp root를 정리했다.
 - 미검증: POSIX mode 0700/0600과 symlink 동작은 Windows 환경에서 직접 검증하지 않았다. R2/S3, HTTP preview route, 인증·보존 정책, 이미지 다운로드 크기/MIME/decode 검사는 P2/P4/P5/P6 범위다. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-13 — Phase 1 Gate 재판정 / BLK-001 재확인
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, PostgreSQL 18.6(BROS 전용 Compose)
+- 대상: branch `codex/p1-foundation`, commit `b8bed87`
+- 실행 명령: PostgreSQL healthy 확인 후 `CI=true`, `TEST_DATABASE_URL`을 테스트 DSN으로 설정하고 `pnpm check` 실행
+- 결과: PASS — lint, typecheck, Admin Vitest 6개, Node unit 28개, integration, format check, build가 모두 성공했다. 테스트 종료 후 BROS PostgreSQL 컨테이너를 중지했고 volume은 보존했다.
+- P1-14 원격 GitHub Actions: NOT_RUN — `git remote -v`가 비어 있으며 GitHub CLI 기본 계정 토큰이 무효여서 대상 repository와 인증 권한을 확인할 수 없다.
+- required check 및 의도적 실패 PR merge 차단: NOT_RUN — branch protection 대상 repository·권한이 없다.
+- Gate 판정: BLOCKED — WBS P1-14 Acceptance Criteria의 실제 CI failure/merge 차단 증거가 없으므로, 로컬 pipeline PASS를 Phase 1 Gate PASS로 전환하지 않는다. BLK-001을 유지한다.

@@ -816,3 +816,48 @@
 - 금지 변경: 로컬 PASS를 원격 CI PASS로 간주하거나 BLK-001을 근거 없이 해소하지 않는다. baseline, Storage key/서명 계약, 자동승인 OFF와 기존 API/Queue/Worker 정책을 변경하지 않는다.
 - 완료 조건: P1-01~14 Acceptance 증거 재대조, clean remote CI 성공, required check의 의도적 실패 차단 확인, blocker/status/test/decision 갱신 후 Phase 1 Gate 판정.
 - 재검토가 필요한 조건: 사용할 GitHub repository/branch protection 권한이 없거나 CI 환경에서 Windows 전용으로 검증된 filesystem/signal 동작이 달라질 때.
+
+## DEC-20260913-005 — Phase 1 Gate BLOCKED 판정 및 BLK-001 외부 입력 재확인
+
+- 일자: 2026-09-13
+- 종료 단계/분야: Phase 1 Gate 증거 재대조와 원격 CI/merge 차단 검증 시도
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-14, Phase 1 Gate
+- 검토 범위와 근거: WBS P1-14 및 Phase 1 Gate, 마스터 프롬프트 21장, DEC-20260912-007, DEC-20260913-004, `.github/workflows/ci.yml`, `docs/IMPLEMENTATION_STATUS.md`, `docs/BLOCKERS.md`, `docs/TEST_REPORT.md`, 현재 branch `codex/p1-foundation` commit `b8bed87`
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- Phase 1 Gate는 `BLOCKED`다. P1-01~P1-13의 로컬 PASS와 현재 HEAD의 전체 품질 pipeline PASS는 확인했지만, P1-14의 실제 CI 실패 탐지와 merge/release 차단 가능 조건을 원격에서 검증하지 못했다.
+- BLK-001은 `BLOCKED_EXTERNAL_INPUT`으로 유지한다. `git remote -v`가 비어 있고 GitHub CLI 기본 계정의 토큰이 무효여서, 임의 repository를 선택·생성하거나 branch protection을 설정하지 않는다.
+- `.github/workflows/ci.yml`의 `quality` job은 원격 repository가 준비되면 required check 대상으로 사용한다. 해소 순서는 remote 연결, branch push/PR, 실제 `quality` 성공, protected base branch에 required check 설정, 의도적 lint/type/test 실패 PR의 merge 차단 증거 기록이다.
+
+### 기각한 선택지와 이유
+
+- 현재 로컬 `pnpm check` PASS만으로 P1-14 또는 Gate를 PASS 처리: WBS P1-14의 CI failure/merge 차단 요구와 DEC-20260912-007의 원격 검증 보류 결정을 충족하지 못한다.
+- 계정이나 repository를 추정해 remote 생성·연결: 사용자가 지정하지 않은 외부 저장소와 권한을 변경하게 되며 branch protection 검증 대상도 불명확하다.
+
+### 변경 파일
+
+- docs/DECISIONS.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/BLOCKERS.md
+- docs/TEST_REPORT.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: BROS PostgreSQL healthy 확인 후 `CI=true` 및 테스트 DSN으로 `pnpm check`; `git remote -v`; `gh auth status`; `.github/workflows/ci.yml` 검토.
+- 결과: 로컬 quality pipeline PASS — Admin Vitest 6개, Node unit 28개, integration, lint/typecheck/format/build 성공. 원격 GitHub Actions, required check, 의도적 실패 PR merge 차단은 대상 remote와 유효 권한 부재로 NOT_RUN.
+
+### 미해결 사항 및 Blocker
+
+- BLK-001: 사용할 GitHub repository URL과 branch protection 권한이 필요하다. GitHub CLI는 설치되어 있으나 현재 기본 계정 토큰이 무효다.
+- Linux GitHub Actions에서 P1-07/P1-10의 실제 POSIX SIGTERM 분기와 P1-12 Windows 외 filesystem 차이를 함께 확인해야 한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 사용자가 지정한 GitHub repository를 `origin`으로 연결하고 유효한 GitHub 인증으로 현재 branch를 push한 뒤 P1-14 원격 검증을 완료한다.
+- 금지 변경: 사용자가 지정하지 않은 repository 생성·사용, 실제 CI 증거 없는 PASS 선언, baseline 및 기존 계약 변경.
+- 완료 조건: `quality` job 성공 URL/commit 기록, required check 설정 확인, 의도적으로 실패한 PR이 merge 불가임을 확인한 증거, BLK-001/P1-14/Gate 상태와 테스트·결정 기록 갱신.
+- 재검토가 필요한 조건: repository의 기본 branch 이름, branch protection 정책 또는 GitHub Actions 실행 권한이 문서의 `main`/`quality` 전제와 다를 때.
