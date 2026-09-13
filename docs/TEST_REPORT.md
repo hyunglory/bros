@@ -228,3 +228,15 @@
 - P1-14 원격 GitHub Actions: NOT_RUN — `git remote -v`가 비어 있으며 GitHub CLI 기본 계정 토큰이 무효여서 대상 repository와 인증 권한을 확인할 수 없다.
 - required check 및 의도적 실패 PR merge 차단: NOT_RUN — branch protection 대상 repository·권한이 없다.
 - Gate 판정: BLOCKED — WBS P1-14 Acceptance Criteria의 실제 CI failure/merge 차단 증거가 없으므로, 로컬 pipeline PASS를 Phase 1 Gate PASS로 전환하지 않는다. BLK-001을 유지한다.
+
+## 2026-09-13 — P1-14 원격 CI / BLK-001 해소 / Phase 1 Gate 완료
+
+- 원격: `https://github.com/hyunglory/bros`, 기본 브랜치 `main`, 검증 브랜치 `codex/p1-foundation`, 정상 PR #1.
+- 최초 원격 CI: Actions run 34746278320이 Bash에서 인용되지 않은 `./packages/**` glob을 확장해 typecheck 단계에서 FAIL했다. `package.json`의 pnpm filter 패턴을 인용한 commit `5175a58`로 수정했다.
+- 수정 후 로컬 회귀: BROS PostgreSQL 18.6을 기동하고 `CI=true`, 테스트 DSN으로 `pnpm check` PASS. Admin Vitest 6개, Node unit 28개, integration 53개, fail/skip 0개와 lint/typecheck/format/build가 성공했다. 이후 컨테이너를 중지하고 volume을 보존했다.
+- 정상 원격 CI: PR #1 commit `5175a58`, Ubuntu 24.04, PostgreSQL 18.6에서 Actions run 34746426348의 `install / lint / typecheck / test / build`가 2분 37초에 SUCCESS. GitHub API는 PR #1을 `mergeStateStatus=CLEAN`으로 반환했다.
+- 보호 규칙: repository ruleset `main required quality` ID 23149676, target branch `~DEFAULT_BRANCH`, enforcement `active`, strict required status check `install / lint / typecheck / test / build`, bypass actor 없음.
+- 실패 차단: 임시 PR #2 commit `dc048c5`에 `@typescript-eslint/no-unused-vars` 오류를 의도적으로 추가했다. 로컬 lint FAIL 및 Actions run 34747040147 FAILURE를 확인했고, GitHub API는 `mergeable=MERGEABLE`이지만 `mergeStateStatus=BLOCKED`를 반환했다. 이는 충돌이 아니라 required check가 merge를 차단한 증거다.
+- 정리: PR #2는 merge 없이 CLOSED하고 임시 원격·로컬 branch `ci/verify-required-check`를 삭제했다. 실패 PR과 Actions 기록은 GitHub에 유지된다. PR #1은 OPEN/CLEAN 상태다.
+- 공개 범위 결정: GitHub Free private repository의 protection/ruleset API가 403을 반환해 사용자 승인 후 repository를 PUBLIC으로 전환했다.
+- Gate 판정: PASS — P1-14 원격 CI와 실패 차단을 포함해 P1-01~P1-14 Acceptance 증거가 충족됐다. BLK-001은 RESOLVED다.

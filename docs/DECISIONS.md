@@ -861,3 +861,55 @@
 - 금지 변경: 사용자가 지정하지 않은 repository 생성·사용, 실제 CI 증거 없는 PASS 선언, baseline 및 기존 계약 변경.
 - 완료 조건: `quality` job 성공 URL/commit 기록, required check 설정 확인, 의도적으로 실패한 PR이 merge 불가임을 확인한 증거, BLK-001/P1-14/Gate 상태와 테스트·결정 기록 갱신.
 - 재검토가 필요한 조건: repository의 기본 branch 이름, branch protection 정책 또는 GitHub Actions 실행 권한이 문서의 `main`/`quality` 전제와 다를 때.
+
+## DEC-20260913-006 — P1-14 원격 CI 검증과 Phase 1 Gate PASS
+
+- 일자: 2026-09-13
+- 종료 단계/분야: GitHub repository 연결, P1-14 원격 CI, required check 실패 차단, Phase 1 Gate 최종 판정
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 기본(세부 모델·추론 수준 미노출)
+- 관련 WBS Task: P1-14, Phase 1 Gate
+- 검토 범위와 근거: DEC-20260912-007, DEC-20260913-005, WBS P1-14/Phase 1 Gate, `.github/workflows/ci.yml`, PR #1/#2, Actions run 34746278320/34746426348/34747040147, repository ruleset 23149676, 로컬 `pnpm check`
+- 상태: ACCEPTED
+- supersedes: DEC-20260913-005
+
+### 확정 결정
+
+- GitHub 원격은 `https://github.com/hyunglory/bros`이고 기본 브랜치는 `main`이다. 사용자가 공개 전환을 명시적으로 승인했으므로 repository visibility는 PUBLIC이다.
+- Bash가 `./packages/**`를 shell glob으로 확장해 pnpm filter를 깨뜨린 최초 원격 CI 결함을 확인했다. `package.json`에서 filter 패턴을 따옴표로 고정한 commit `5175a58`을 공통 계약으로 채택한다.
+- PR #1의 원격 Linux CI SUCCESS를 P1-14 정상 경로 증거로 채택한다. 같은 commit의 로컬 전체 품질 pipeline도 PASS했다.
+- 기본 브랜치 보호는 classic protection 대신 repository ruleset `main required quality` ID 23149676으로 구현한다. ruleset은 기본 브랜치에 strict required check `install / lint / typecheck / test / build`만 적용하며 bypass actor가 없다.
+- 임시 PR #2에서 의도적 lint FAILURE와 `mergeStateStatus=BLOCKED`를 확인했으므로 required check의 merge 차단은 재현됐다. PR #2는 merge하지 않고 닫고 임시 브랜치를 삭제했다.
+- P1-14를 PASS, BLK-001을 RESOLVED, Phase 1 Gate를 PASS로 전환한다.
+
+### 기각한 선택지와 이유
+
+- GitHub Free private repository 유지: protection과 ruleset API가 모두 403을 반환해 required check를 적용할 수 없다. Pro 업그레이드 대신 사용자가 PUBLIC 전환을 승인했다.
+- classic branch protection API: required check 외에 관리자 적용, PR 리뷰, 접근 제한 필드를 함께 갱신해야 해 변경 범위가 넓다. 기존 설정을 건드리지 않고 required check 하나만 추가하는 repository ruleset을 선택했다.
+- 최초 원격 FAIL을 정상 검증으로 간주: 실제 shell 호환성 결함이므로 수정 후 전체 로컬·원격 SUCCESS를 별도로 확인했다.
+
+### 변경 파일
+
+- package.json
+- docs/DECISIONS.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/BLOCKERS.md
+- docs/TEST_REPORT.md
+- docs/RUNBOOK.md
+- 외부 상태: GitHub repository `hyunglory/bros`, PR #1/#2, ruleset 23149676
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `CI=true pnpm build:packages`; BROS PostgreSQL healthy 상태에서 테스트 DSN으로 `pnpm check`; `gh pr checks`; `gh pr view`; GitHub ruleset 적용 조회.
+- 결과: PASS — 로컬 Admin 6개, Node unit 28개, integration 53개, fail/skip 0개와 lint/typecheck/format/build 성공. PR #1 Actions run 34746426348 SUCCESS/CLEAN. PR #2 Actions run 34747040147 FAILURE 및 `mergeStateStatus=BLOCKED`.
+
+### 미해결 사항 및 Blocker
+
+- Phase 1 blocker 없음. BLK-001은 해소했다.
+- repository는 PUBLIC이다. 향후 private 전환이 필요하면 GitHub Pro 이상에서 동일 ruleset 기능과 required check 동작을 먼저 확인한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: Phase 2의 P2-01 기존 수집 데이터 Discovery와 Phase 5의 P5-01 Browser Flow Discovery를 입력 준비 상황에 따라 착수한다.
+- 금지 변경: ruleset 23149676의 required check를 검증 없이 완화하거나 우회하지 않는다. 실제 상품/화면 입력 없이 Discovery 결과를 추정해 확정하지 않는다.
+- 완료 조건: P2-01은 실제 샘플 20건 mapping dry-run, P5-01은 실제 대상 화면의 prepare/authenticate/execute/verify/cleanup 수동 walkthrough와 명세 기록.
+- 재검토가 필요한 조건: repository visibility를 private으로 되돌리거나 CI check 이름, 기본 브랜치, workflow event를 변경할 때.

@@ -247,6 +247,6 @@ pnpm build
 - `TEST_DATABASE_URL` 누락·접속 실패는 테스트 실패다. DB test를 자동 skip하지 않는다. 브라우저나 외부 provider 자격증명은 필요 없다.
 - 비정상 프로세스 강제 종료로 `bros_test_` DB가 남을 수 있다. 진행 중인 테스트가 없는지와 실제 생성 주체를 확인한 후 해당 DB만 명시적으로 정리한다. 접두어만 보고 일괄 삭제하지 않는다.
 - CI는 로컬 Compose와 같은 digest의 PostgreSQL 18.6 service가 healthy가 된 뒤 같은 명령 순서를 실행한다.
-- GitHub repository 연결 후 `install / lint / typecheck / test / build` job을 branch protection의 required check로 지정한다.
+- GitHub repository는 `https://github.com/hyunglory/bros`이며 기본 브랜치는 `main`이다. repository ruleset `main required quality`(ID 23149676)가 `install / lint / typecheck / test / build`를 strict required check로 적용하고 bypass actor는 두지 않는다. ruleset이나 check 이름을 변경하면 정상 PR 성공과 실패 PR `mergeStateStatus=BLOCKED`를 다시 검증한다.
 
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.

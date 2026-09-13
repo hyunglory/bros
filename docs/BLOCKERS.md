@@ -4,13 +4,12 @@
 
 ## BLK-001 — P1-14 원격 CI 실행 및 merge 차단 검증
 
-- 상태: BLOCKED_EXTERNAL_INPUT
+- 상태: RESOLVED — DEC-20260913-006, 2026-09-13
 - 관련 Task: P1-14, Phase 1 Gate
-- 원인: 현재 저장소에 GitHub remote와 branch protection 대상 repository가 없다.
-- 영향: 로컬/fresh clone pipeline은 검증됐지만 GitHub Actions 실실행과 required status check에 의한 merge 차단은 검증할 수 없다.
-- 우회: P1-04 이후 구현은 계속할 수 있다. P1-14를 PASS로 전환하거나 Phase 1 Gate를 통과할 수는 없다.
-- 해소 조건: GitHub remote 연결 → branch push/PR → CI 성공 확인 → `quality` job을 required check로 설정 → 의도적 실패 PR 차단 증거 기록.
-- 필요한 사용자/외부 입력: 사용할 GitHub repository와 branch protection 권한.
+- 해소 전 원인: 저장소에 GitHub remote와 branch protection 대상 repository가 없었다.
+- 해소 결과: 사용자가 공개 전환을 승인한 `hyunglory/bros` repository를 `origin`으로 연결했다. PR #1의 Actions run 34746426348이 PASS했고, ruleset 23149676이 기본 브랜치에 strict required status check `install / lint / typecheck / test / build`를 적용한다.
+- 실패 차단 증거: 임시 PR #2의 Actions run 34747040147이 의도적 ESLint 오류를 탐지해 FAILURE가 되었고, GitHub API의 `mergeStateStatus`가 `BLOCKED`를 반환했다. PR은 merge하지 않고 닫았으며 임시 원격·로컬 브랜치는 삭제했다.
+- 공개 범위: GitHub Free private repository에서는 branch protection/ruleset API가 403을 반환해, 사용자 승인에 따라 repository를 PUBLIC으로 전환했다.
 - 2026-09-13 재확인: HEAD `b8bed87`에서 BROS 전용 PostgreSQL을 사용한 `pnpm check`는 PASS했다. 그러나 `git remote -v` 출력은 비어 있고, GitHub CLI 기본 계정의 인증 토큰은 무효다. 따라서 원격 repository 선택, push, workflow 실행, protection 설정은 NOT_RUN이며 BLK-001은 해소되지 않았다.
 
 ## BLK-002 — P1-05 코드 필드 허용 집합 결정
