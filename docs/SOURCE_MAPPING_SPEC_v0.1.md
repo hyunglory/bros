@@ -1,7 +1,7 @@
 # BROS Source Mapping Spec v0.1
 
-상태: PASS (P2-01, P2-02)
-관련 Task: P2-01, P2-02
+상태: PASS (P2-01, P2-02, P2-03)
+관련 Task: P2-01, P2-02, P2-03
 기준일: 2026-09-14
 
 ## 1. 목적과 완료 조건
@@ -136,3 +136,14 @@ P2-01 완료 조건과 결과는 다음과 같다.
 P2-01은 **PASS**다. 실제 XLSX 구조, 전체 규모, 필드 mapping과 대표 20건 dry-run이 재현 가능하게 기록됐다. BLK-003은 해소한다.
 
 P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계약으로 XLSX Adapter를 구현한다. 원본상품코드가 없는 407건은 필수 validation에서 거절하거나 별도 보강 절차로 보내며 자동 생성한 ID로 source identity를 만들지 않는다.
+
+## 8. P2-03 XLSX Adapter 결과
+
+`@bros/importer`의 `XlsxImportAdapter`는 workbook buffer를 읽고 `상품 목록` 시트의 5행 header와 필수 컬럼을 먼저 검증한다. 파일명 `더망고_상품정보_YYYYMMDD.xlsx`의 기준일은 `SourceImportContext.sourceAsOfDate`로만 파생하며, `collectedAt`은 adapter 실행 시각 또는 호출자가 제공한 RFC 3339 시각을 사용한다.
+
+- A:U의 header와 cell value는 `SourceProductInput.raw`에 보존한다. formula, JSON으로 표현할 수 없는 cell 값, workbook 25MB 초과, 100,000행 초과는 안전한 오류 코드로 거절한다.
+- `원본사이트`는 `MUSINSA.com → MUSINSA`, `OliveYoung.co.kr → OLIVEYOUNG`으로만 변환한다. product URL은 해당 플랫폼 host만 허용한다.
+- 옵션명·옵션 이미지 URL은 `|` 구분 순서로 pairing한다. 옵션 수와 이름 또는 제공된 이미지 목록의 길이가 다르면 행을 거절한다.
+- 재고수는 0이면 `OUT_OF_STOCK`, 양수면 `IN_STOCK`이며 정확한 quantity는 전달하지 않는다. 가격 0은 누락으로 유지하고 통화나 nonzero 가격을 추정하지 않는다.
+- 2026-09-14 동일 원본 SHA-256에 고정 `collectedAt`을 주입한 전체 read-only 실행 결과는 총 26,375행, `MAPPED` 25,945행, `REJECTED` 430행이다. issue 발생 횟수는 외부 ID 결측 407회, 옵션명 수 불일치 5회, 옵션 이미지 수 불일치 24회이며 한 행에는 복수 issue가 있을 수 있다.
+- P2-01의 실제 20행 locator를 다시 실행하면 `MAPPED` 16행, `REJECTED` 4행(모두 `MISSING_EXTERNAL_PRODUCT_ID`)이다. 이전 `MAPPED_WITH_REVIEW`은 `데이터상태`·설명 결측 등 원본 품질 신호를 보이기 위한 dry-run 분류였으며, adapter는 이 필드를 raw에 보존하고 계약 유효성으로만 accept/reject를 정한다.

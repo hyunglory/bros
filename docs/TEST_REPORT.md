@@ -273,3 +273,13 @@
 - 전체 결과: PASS — Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
 - 원격 결과: PR #1의 GitHub Actions run 34779705905에서 required check `install / lint / typecheck / test / build` PASS, 실행 시간 1분 39초.
 - 입력 보호: `examples/더망고_상품정보_20260913.xlsx`는 읽거나 수정·stage하지 않았고 원본 Excel은 Git 외부에 유지했다.
+
+## 2026-09-14 — P2-03 XlsxImportAdapter
+
+- 대상: `@bros/importer` workspace의 `XlsxImportAdapter`, 비식별 XLSX fixture mapping test.
+- adapter 경계: workbook buffer만 입력으로 받고 `상품 목록` 시트와 5행 header를 검증한다. 25MB와 100,000 data row 상한, formula/비 JSON cell 거절, platform host allowlist, option count/pairing, safe issue code를 적용한다.
+- fixture 검증: full product/option/image/raw 변환, partial 입력, legacy ID fallback 거절, 20행 대표 집계(16 mapped/4 rejected), option·URL·price·formula 오류, sheet/header/size 경계를 검사한다.
+- 실제 원본 read-only 실행: SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`의 26,375행을 `MAPPED` 25,945행, `REJECTED` 430행으로 변환했다. 외부 ID 결측 issue 407회, option 이름 수 불일치 5회, option 이미지 수 불일치 24회다.
+- 20행 재현: P2-01의 실제 locator 20개는 `MAPPED` 16행, `REJECTED` 4행이며 거절은 모두 외부 ID 결측이다. 원본 품질 상태는 raw에 보존하고 adapter의 accept/reject 결과와 혼합하지 않는다.
+- 의존성 선택: 실제 원본을 해석하지 못한 `exceljs 4.4.0`은 제거했다. 공개 Apache-2.0 repository와 integrity가 확인된 `@e965/xlsx 0.20.3`을 고정했다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 41개(신규 adapter 5개 포함), integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.

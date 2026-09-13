@@ -1082,3 +1082,64 @@
 - 금지 변경: P2-02 계약을 Adapter 편의로 재해석, legacy ID fallback, export 가격 0이나 KRW 추정, option 이름 기반 external SKU 생성, 원본 Excel 또는 운영 상품 원문을 Git에 추가.
 - 완료 조건: sheet/header 검증, platform mapping, product/option/image/raw 변환, import context 주입, valid/partial/reject fixture와 실제 20건 기대 집계가 자동 테스트에서 재현되고 전체 `pnpm check`가 PASS한다.
 - 재검토가 필요한 조건: Adapter 구현이 현 계약으로 표현할 수 없는 실제 필드를 발견하거나 XLSX parser 의존성·formula/date 처리에서 보안 또는 재현성 문제가 확인될 때. 이 경우 기존 결정을 덮어쓰지 않고 새 결정으로 변경 근거를 남긴다.
+
+## DEC-20260914-002 — P2-03 XlsxImportAdapter 구현 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-03 첫 Source Adapter 구현과 실제 XLSX 변환 검증
+- 작성 모델/추론 수준: gpt-5.6-terra / medium (사용자 지정)
+- 관련 WBS Task: P2-03, 후속 P2-04/P2-05/P2-07
+- 검토 범위와 근거: DEC-20260914-001, `docs/SOURCE_MAPPING_SPEC_v0.1.md`, WBS P2-03, `examples/더망고_상품정보_20260913.xlsx`의 read-only 결과, `packages/contracts/src/source-product.ts`
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-001의 P2-03 인수 조건을 구현으로 완료한다.
+
+### 확정 결정
+
+- 첫 Adapter는 새 `@bros/importer` workspace의 `XlsxImportAdapter`다. API는 workbook buffer만 받아 경로 권한과 파일 I/O를 caller에게 분리한다.
+- `상품 목록` 시트와 5행 header, 25MB compressed input, 100,000 data row 상한을 검증한다. 읽기 과정은 원본을 쓰거나 Git에 추가하지 않는다.
+- 파일명 `더망고_상품정보_YYYYMMDD.xlsx`의 날짜만 선택 `sourceAsOfDate`로 파생한다. `collectedAt`은 호출자가 주입하거나 adapter 실행 시각으로 만든다.
+- `MUSINSA.com → MUSINSA`, `OliveYoung.co.kr → OLIVEYOUNG`만 허용한다. 외부 ID는 `원본상품코드` 문자열만 사용하며 legacy `고유값` fallback은 없다.
+- A:U header와 cell value는 valid `SourceProductInput.raw`에 보존한다. formula와 비 JSON cell, unsupported platform, 잘못된 product URL, 손실성 option pairing, 가격 형식은 row-level safe issue code로 거절한다.
+- 0 가격은 가격·통화 미제공으로 유지한다. 수집 가격이 nonzero인데 통화가 없으면 P2-02 계약 validation이 거절한다. 재고수는 stock status로만 변환한다.
+- 실제 원본 26,375행은 `MAPPED` 25,945행, `REJECTED` 430행으로 변환됐다. 20행 대표 locator는 16 mapped/4 rejected이며 4건은 모두 외부 ID 결측이다.
+- `exceljs 4.4.0`은 실제 workbook metadata를 해석하지 못해 제거했다. 공개 Apache-2.0 repository와 package integrity를 확인한 `@e965/xlsx 0.20.3`을 lockfile에 고정했다.
+
+### 기각한 선택지와 이유
+
+- `exceljs 4.4.0` 유지: 실제 원본을 읽을 때 workbook metadata 파싱 실패가 재현돼 P2-03 Acceptance Criteria를 충족하지 못한다.
+- 원본 Excel을 test fixture로 commit: 재배포 권한이 확인되지 않았고 운영 상품 원문을 repository에 넣게 된다.
+- 외부 ID·가격·통화를 추정해 reject를 줄이기: DEC-20260913-008과 DEC-20260914-001의 source identity와 가격 사실성 결정을 위반한다.
+- formula 결과를 계산하거나 무시: adapter가 계산 엔진이 되거나 raw 보존을 훼손한다. 현재는 명시적으로 거절해 재현성을 유지한다.
+
+### 변경 파일
+
+- packages/importer/package.json
+- packages/importer/tsconfig.json
+- packages/importer/src/index.ts
+- packages/importer/src/xlsx-import-adapter.ts
+- packages/importer/test/xlsx-import-adapter.test.mjs
+- pnpm-lock.yaml
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- fixture: full/partial product, product·option·image·raw mapping, legacy ID fallback 거절, 20행 대표 집계, option/URL/price/formula 오류, sheet/header/size 경계의 5개 unit test PASS.
+- 실제 입력: SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`를 read-only buffer로 변환했다. 총 26,375행, mapped 25,945행, rejected 430행이며 원본은 수정하거나 stage하지 않았다.
+- 실행 명령: importer build, adapter unit test, BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
+- 결과: PASS — Admin Vitest 6개, Node unit 41개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+### 미해결 사항 및 Blocker
+
+- P2-03 blocker는 없다. P2-04의 Import Validation/Raw 보존 persistence와 P2-06 upsert는 아직 구현하지 않았다.
+- 전체 430개 rejected row 중 407개는 외부 ID 결측이다. 5회 option name count, 24회 option image count issue는 일부 행에 함께 발생할 수 있으며 자동 보정하지 않는다.
+- workbook input은 25MB compressed size로 제한하지만 decompressed XML 크기와 ZIP entry count의 별도 상한은 아직 없다. 외부 비신뢰 workbook ingestion을 열기 전 별도 streaming/sandbox 정책을 결정해야 한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-04 Import Validation / Raw 보존에서 adapter result를 import row 이력과 raw persistence로 연결하고, 필수값 reject와 optional 결측 수용 정책을 DB 경계까지 검증한다.
+- 금지 변경: P2-03 safe issue를 자동 수정, 원본 Excel commit, legacy ID fallback, 가격 0·KRW 추정, `MAPPED` row raw의 secret scan 우회.
+- 완료 조건: adapter 결과의 accepted/rejected row가 원본 locator·raw·issue code와 함께 저장되고, 필수값 결측은 명확히 실패하며 브랜드/식별자/가격/이미지 결측은 수용하는 integration test와 전체 `pnpm check`가 PASS한다.
+- 재검토가 필요한 조건: source workbook이 25MB 또는 100,000행을 넘거나, formula/rich-text/external link가 실제 source에 나타나거나, untrusted external upload를 지원해야 할 때.
