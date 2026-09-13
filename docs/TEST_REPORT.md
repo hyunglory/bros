@@ -271,4 +271,5 @@
 - 시간·금액 경계: 실제 달력 날짜와 RFC 3339 offset을 검사하고 `+14:00` 초과 offset을 거절한다. 금액은 DB `numeric(20,4)` 범위의 비음수 canonical decimal string이며 가격 존재 시 통화가 필수다.
 - 실행 명령: contracts build/typecheck, 대상 Node test, 루트 `pnpm lint`, 기존 BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
 - 전체 결과: PASS — Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+- 원격 결과: PR #1의 GitHub Actions run 34779705905에서 required check `install / lint / typecheck / test / build` PASS, 실행 시간 1분 39초.
 - 입력 보호: `examples/더망고_상품정보_20260913.xlsx`는 읽거나 수정·stage하지 않았고 원본 Excel은 Git 외부에 유지했다.

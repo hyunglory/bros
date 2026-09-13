@@ -1066,6 +1066,7 @@
 
 - 실행 명령 또는 수동 확인: `pnpm --filter @bros/contracts run build`, contracts typecheck, `node --test packages/contracts/test/source-product.test.mjs`, `pnpm lint`, 기존 BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
 - 결과: PASS — 신규 계약 validation 8개, 전체 Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+- 원격 결과: 구현 commit `fdc3034`의 PR #1 GitHub Actions run 34779705905와 required check `install / lint / typecheck / test / build`가 1분 39초에 PASS했다.
 - 원본 보호: `examples/`는 untracked 상태로 유지했고 Git 변경 집합에 포함하지 않았다.
 
 ### 미해결 사항 및 Blocker
