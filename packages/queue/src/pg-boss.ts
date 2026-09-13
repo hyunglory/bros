@@ -13,6 +13,7 @@ export const queueDefaults = Object.freeze({
   pollingIntervalSeconds: 1,
   stopTimeoutMs: 10000,
   superviseIntervalSeconds: 30,
+  localConcurrency: 1,
 });
 export type QueueAdapterOptions = { [K in keyof typeof queueDefaults]: number };
 
@@ -54,6 +55,7 @@ export function createPgBossQueue(
     pollingIntervalSeconds: [0.5, 60],
     stopTimeoutMs: [1000, 300000],
     superviseIntervalSeconds: [1, 3600],
+    localConcurrency: [1, 100],
   } as const;
   for (const key of Object.keys(bounds) as (keyof typeof bounds)[]) {
     const value = options[key];
@@ -151,7 +153,7 @@ export function createPgBossQueue(
           const workOptions = {
             batchSize: 1,
             includeMetadata: true as const,
-            localConcurrency: 1,
+            localConcurrency: options.localConcurrency,
             pollingIntervalSeconds: options.pollingIntervalSeconds,
           };
           await boss.work<QueuePayload, undefined, typeof workOptions>(
@@ -167,6 +169,7 @@ export function createPgBossQueue(
                     providerId: job.id,
                     data: job.data,
                     attempt: job.retryCount + 1,
+                    retryLimit: job.retryLimit,
                     signal: job.signal,
                   });
                 } catch {

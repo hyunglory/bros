@@ -15,7 +15,8 @@
 | P1-06 Kysely DB Client / Repository 기반 | PASS | DEC-20260912-012, TEST_REPORT P1-06 | 공용 query·transaction·pool lifecycle 검증 완료 |
 | P1-07 API Bootstrap / Liveness / Readiness | PASS | DEC-20260912-013, TEST_REPORT P1-07 | 로컬 HTTP·DB 장애/복구·종료 검증 완료, POSIX 실신호는 Linux CI 후속 확인 |
 | P1-09 Queue Port + pg-boss Adapter | PASS | DEC-20260913-001, TEST_REPORT P1-09 | 트랜잭션 enqueue·retry·프로세스 crash 복구 검증 완료 |
-| P1-10 Worker Bootstrap / system.test | READY | P1-06/09/13 PASS, WBS v0.1 | Worker 시작/종료·handler registry·성공 로그/상태 기록 |
+| P1-10 Worker Bootstrap / system.test | PASS | DEC-20260913-002, TEST_REPORT P1-10 | 실제 Worker·이력·재시도·crash/종료 검증 및 개발 smoke 완료 |
+| P1-11 Admin React/Vite Skeleton | READY | P1-01/08 PASS, API /health 구현 | routing·API client·layout·loading/error·Dashboard 구현 |
 | 그 외 Phase 1 Task | NOT_STARTED | WBS v0.1 | 선행관계에 따라 진행 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`를 사용한다.

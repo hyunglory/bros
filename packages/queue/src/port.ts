@@ -16,6 +16,7 @@ export interface QueueJob {
   providerId: string;
   data: QueuePayload;
   attempt: number;
+  retryLimit: number;
   signal: AbortSignal;
 }
 export interface QueueReceipt {

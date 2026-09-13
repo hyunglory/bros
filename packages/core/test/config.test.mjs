@@ -25,6 +25,7 @@ test("loads development defaults from a valid environment", () => {
     },
     worker: {
       concurrency: 1,
+      shutdownTimeoutMs: 15000,
     },
     storage: {
       driver: "local",
@@ -114,6 +115,7 @@ test("loads explicit production settings without development defaults", () => {
     },
     worker: {
       concurrency: 4,
+      shutdownTimeoutMs: 15000,
     },
     storage: {
       driver: "r2",

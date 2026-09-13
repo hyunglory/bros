@@ -658,3 +658,53 @@
 - 금지 변경: baseline, 열린 코드 정책, 자동승인 OFF, browser 자동 retry 0을 임의로 변경하지 않는다. API에 image/browser 처리나 새로운 업무 테이블을 추가하지 않는다.
 - 완료 조건: 실제 Worker 프로세스로 system.test publish/consume/성공 기록, 실패/retry, DB+queue 자원 정리 및 stop deadline 실패 경로, 전체 품질 검사 PASS와 단계 기록.
 - 재검토가 필요한 조건: 성공 상태 기록에 현재 업무 schema로 표현되지 않는 새 모델이 필요하거나 queue 만료/재시도가 업무·외부 부작용 계약과 충돌할 때.
+
+## DEC-20260913-002 — P1-10 Worker·system.test 업무 이력 및 종료 검증 완료
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P1-10 구현·실제 프로세스/DB 통합 검증
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-10, P1-09 adapter 동시성/시도 metadata 연결
+- 검토 범위와 근거: DEC-20260913-001, WBS P1-10, 설계서 12.17/12.18/13장, 보완 명세 3.2/4장, 기존 schema 및 Worker/Queue 구현, TEST_REPORT P1-10.
+- 상태: ACCEPTED
+- supersedes: 없음. P1-09의 instance 동시성 기본 1은 유지하며 configurable localConcurrency를 추가한다.
+
+### 확정 결정
+- Worker runtime과 process bootstrap/CLI를 분리한다. 명시적 시작에서 baseline 확인·queue 초기화·system.test handler 등록 후 ready가 된다. import는 프로세스 시작이나 signal 등록을 하지 않는다.
+- system.test의 durable 이력은 기존 automation_job(INTERNAL)과 automation_run으로 기록한다. 신규 업무 테이블·baseline migration 변경은 없다. 예약 smoke 정의는 manual 허용/정기 비활성, parallel 허용, cooldown 0, timeout 900초, retry 기본 2다.
+- job_code는 기존 schema에서 고유하지 않다. 전용 advisory transaction lock (0x42524f53,110)과 정의 row lock으로 smoke 정의 생성/중복 요청을 직렬화한다. 복수 또는 호환되지 않는 정의는 임의 선택/수정하지 않고 거절한다. P5의 일반 job_code 정책은 별도다.
+- 실행 생성·enqueue·provider ID 저장은 같은 transaction이며 request_key 재요청은 기존 receipt를 반환한다. CLI 매 호출은 새 요청이다.
+- handler는 일치하는 INTERNAL 정의·provider ID·진행 상태·attempt를 확인하고 RUNNING을 기록한다. platform count 조회 후 SUCCESS 및 안전한 로그/result를 남긴다. 일시 실패는 RETRY_WAIT, 실제 queue retryLimit을 소진하면 FAILED다.
+- SUCCESS의 동일 provider 재전달은 no-op이다. 최종 갱신은 RUNNING/provider ID/attempt 조건으로 수행하여 늦은 시도의 덮어쓰기를 차단한다. crash 후 더 높은 attempt의 복구를 허용한다. 내부 smoke 이상의 외부 부작용 보장은 주장하지 않는다.
+- WORKER_CONCURRENCY는 adapter localConcurrency(1~100)에 반영한다. QueueJob에 실제 retryLimit metadata를 제공해 업무 실패 상태와 provider retry 정책을 맞춘다.
+- 종료는 readiness 해제 → queue drain → 업무 DB pool 순서다. WORKER_SHUTDOWN_TIMEOUT_MS 기본 15000(1000~300000) 내 완료되지 않거나 queue 정리가 실패하면 소유 bootstrap은 exit 1로 종료한다. 진행 handler 아래에서 DB만 먼저 닫지 않는다.
+- P1-10은 로컬 PASS다. 개발 DB의 queue schema, smoke 정의 및 성공 이력을 보존하고 서비스는 중지했다. 다음은 P1-11 Admin Skeleton이다.
+
+### 기각한 선택지와 이유
+- provider completed만 성공 기록으로 사용: 업무 이력의 Source of Truth가 queue 내부 보존 정책에 종속된다.
+- 새 smoke 업무 테이블 추가 또는 baseline 변경: 기존 INTERNAL/run 모델로 표현 가능하다.
+- job_code UNIQUE 가정이나 임의 첫 정의 선택: 실제 schema에 없는 제약을 가정하고 동시 생성/복수 정의를 오인한다.
+- 결과를 publicId만으로 갱신: 이전 attempt가 최신 성공을 덮어쓸 수 있다.
+- queue drain 실패 후 DB만 닫고 정상 종료 보고: handler의 진행 상태를 손상시키고 실패를 숨긴다.
+
+### 변경 파일
+- apps/worker/src/runtime.ts, bootstrap.ts, main.ts, system-test.ts, send-system-test.ts, index.ts
+- packages/core/src/config/index.ts, packages/core/test/config.test.mjs, packages/queue/src/pg-boss.ts, packages/queue/src/port.ts
+- .env.example, package.json, tests/integration/worker.integration.test.mjs, tests/integration/worker-process-fixture.mjs
+- docs/DECISIONS.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/RUNBOOK.md
+
+### 검증 증거
+- 실행 명령 또는 수동 확인: pnpm check, Worker 프로세스 통합 테스트, CLI enqueue 및 개발 DB startWorker smoke, 종료 전 잔여 테스트 DB/업무 테이블 조회.
+- 결과: PASS — unit 18개, integration 52개, skip 0개 및 전체 정적 검사/build. 개발 smoke SUCCESS/attempt 1/정상 종료. 상세는 TEST_REPORT P1-10.
+- 실제 POSIX SIGTERM 및 새 clean clone은 이번 단계 NOT_RUN. 테스트 DB 0개, app 테이블 18개, BROS DB 중지·volume 보존.
+
+### 미해결 사항 및 Blocker
+- P1-10 로컬 blocker 없음. BLK-001 원격 CI/required check 및 Linux 실제 SIGTERM 확인은 유지한다.
+- 현재 registry는 system.test만 등록한다. P5 일반 automation·Browser·취소·schedule reconciliation 및 P6 정기 heartbeat/운영 계정은 미구현이다.
+- P1-11/P1-12와 원격 CI가 남아 있으므로 Phase 1 Gate 전체 PASS는 아니다.
+
+### 다음 작업 인수 조건
+- 작업 범위: P1-11 React/Vite Admin Skeleton — routing, API client, layout, loading/error 처리, Dashboard placeholder와 /health 상태 표시.
+- 금지 변경: baseline 및 기존 코드/재시도/자동승인 정책 변경, 업무 인증 기반을 우회하는 신규 변경 API, browser/image 처리를 API로 이동하지 않는다.
+- 완료 조건: 실제 개발 서버에서 Admin 접근 및 /health 상태 표시, API 장애 UI, build/관련 UI 검증과 전체 품질 검사 PASS, 단계 기록.
+- 재검토가 필요한 조건: Admin 접근 origin/인증·배포 경계가 기존 보완 명세와 충돌하거나 새로운 업무 API가 필요할 때.

@@ -184,3 +184,15 @@
 - 타입 metadata generic 및 lint의 void 표기 문제를 수정한 후 전체 검사에 통과했다. timeout/옵션 범위와 미시작 adapter의 멱등 stop도 unit에서 검증했다.
 - 종료 전 잔여 bros_test_ DB 0개, 개발 app 테이블 18개, 개발 bros_queue 테이블 0개 확인. 테스트 대상은 disposable DB이며 기존 개발 DB에 queue 설치는 하지 않았다. BROS postgres 중지, volume 보존.
 - 미검증: stop deadline 초과 시 소유 Worker 프로세스 종료는 P1-10에서 검증한다. 업무 request_key/CAS/외부 부작용·스케줄은 후속 service 범위다. 원격 CI 및 P1-07 POSIX 실신호는 BLK-001 유지.
+
+## 2026-09-13 — P1-10 완료
+
+- 결과: PASS(로컬). `pnpm check` unit 18개·integration 52개(Node parent 포함), fail/skip 0, lint/typecheck/format/build PASS. 새 의존성 및 baseline 변경 없음.
+- 실제 별도 Worker 프로세스: 미실행 상태 enqueue 후 SUCCESS 및 platformCount "4", 동시 동일 request_key의 동일 receipt, retry 시 RETRY_WAIT 후 attempt 2 SUCCESS, 끝까지 실패 시 attempt 3 FAILED, 원문 오류 미노출 검증.
+- 프로세스 crash: RUNNING 중 SIGKILL → 새 Worker가 큐 만료/재시도 후 attempt 2로 성공. 종료 검증: 진행 작업 완료 후 정상 exit 0, 응답하지 않는 handler에서 1000ms 종료 deadline 후 exit 1.
+- 경쟁·자원 경계: SUCCESS 재전달 시 action 재실행 없음, 오래된 attempt가 새로운 SUCCESS를 덮어쓰지 못함, 등록 실패 시 queue/DB 정리, queue stop 실패 시 소유자가 종료하기 전 DB를 유지, 미시작 Worker의 중복 stop 및 재시작 차단을 검증했다.
+- 초기 enqueue에서 job_code UNIQUE를 잘못 가정한 쿼리가 실패했다. baseline 실제 제약을 확인하고 전용 transaction advisory lock과 모호한 정의 거절로 수정했다. 추가 회귀 테스트의 scope/lint 문제도 수정 후 전체 PASS.
+- Windows에서는 SIGTERM handler를 IPC로 호출하고 crash는 실제 자식 프로세스 강제 종료를 사용했다. POSIX 실제 SIGTERM 분기는 Linux CI에서 확인해야 한다(BLK-001).
+- 개발 DB smoke: send-system-test CLI 접수 → 실제 startWorker 실행 → publicId `01a09846-0c34-7e6d-bf7a-abd8dad5dac5`, provider ID `eb1d0f5f-b3f5-4950-84d9-dd14b99df537`, SUCCESS/attempt 1/result {platformCount:"4"} → WORKER_STOPPED 및 exit 0 확인. bros_queue 및 INTERNAL smoke 정의/성공 이력을 개발 DB에 보존했다.
+- 최종 잔여 bros_test_ DB 0개, app 테이블 18개 유지, BROS postgres 중지 및 volume 보존. 새 clean clone 검사는 별도 실행하지 않았다.
+- 미검증: P5 업무 자동화·Browser handler·schedule reconciliation, P6 운영 heartbeat/권한/배포, 원격 CI/required check. Phase 1 전체 완료로 간주하지 않는다.

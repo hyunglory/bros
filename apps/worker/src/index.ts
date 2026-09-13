@@ -15,3 +15,6 @@ export const workerWorkspaceDependencies = [
 ] as const;
 
 export { createWorkerDataAccess } from "./database.js";
+export * from "./runtime.js";
+export * from "./bootstrap.js";
+export * from "./system-test.js";

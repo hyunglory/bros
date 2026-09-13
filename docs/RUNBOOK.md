@@ -136,13 +136,44 @@ pg-boss 12.31.0의 자체 migration은 명시적인 `start()`에서 `bros_queue`
 
 retry는 pg-boss의 jitter 포함 지수 backoff다. 외부 부작용 보호를 위해 browser.run은 위 옵션과 무관하게 자동 재시도 0회이며 P5에서 검증 후 변경한다. 각 publish에 유효한 옵션을 명시하므로 기존 queue의 생성 시 기본값이 달라도 새 job 설정은 현재 adapter를 따른다. 만료 후 회수는 감시 주기와 retry 지연이 추가로 걸릴 수 있다. 만료는 임의 JS/외부 작업을 강제로 중단하지 못하므로 handler는 전달된 AbortSignal을 준수하고 업무 중복을 방어해야 한다.
 
-동시성은 instance당 queue별 1개, batch size 1이다. 다른 instance와의 병렬 처리는 가능하며 전역 업무 멱등성은 별도다. queue 전용 pool의 max/connection timeout은 DatabaseConfig에서 가져오므로 API/Worker DB pool 외 연결 수를 추가 산정한다. DB_IDLE_TIMEOUT_MS/DB_STATEMENT_TIMEOUT_MS는 이 adapter의 provider pool에 적용하지 않는다. 스케줄러는 비활성화하며 P5 schedule reconciliation에서 확장한다.
+동시성 기본값은 instance당 queue별 1개, batch size 1이다. P1-10에서 localConcurrency 옵션(1~100)을 추가했으며 Worker는 WORKER_CONCURRENCY를 전달한다. 다른 instance와의 병렬 처리는 가능하며 전역 업무 멱등성은 별도다. queue 전용 pool의 max/connection timeout은 DatabaseConfig에서 가져오므로 API/Worker DB pool 외 연결 수를 추가 산정한다. DB_IDLE_TIMEOUT_MS/DB_STATEMENT_TIMEOUT_MS는 이 adapter의 provider pool에 적용하지 않는다. 스케줄러는 비활성화하며 P5 schedule reconciliation에서 확장한다.
 
 업무 쓰기가 있으면 반드시 같은 DB의 `db.transaction(async (tx) => { ... await queue.publish(name, {publicId}, queueTransaction(tx)); ... })`로 기록한다. 공식 fromKysely bridge는 루트 DB를 거절하고 transaction executor를 요구한다. 반환 receipt는 outer transaction commit 전에는 잠정 값이다. enqueue 실패를 callback에서 삼켜 업무만 commit하지 않는다. 새 Outbox는 추가하지 않는다. 같은 publicId를 다시 publish하면 다른 provider job이 생성될 수 있으므로 request_key/업무 잠금으로 중복 소비를 제어한다.
 
 stop은 새 publish/등록을 차단하고 수락한 호출 및 진행 중 handler 정리를 기다린다. 제한 시간 초과·handler 잔류 시 reject하므로 소유 프로세스는 정상 종료로 보고하지 말고 종료 절차를 완료해야 한다(P1-10). adapter 자체는 process.exit하지 않으며 지연된 정리 작업은 계속될 수 있다. 완료 job 보관은 1일, 대기/retry 보관은 14일이고 실제 삭제는 pg-boss maintenance 시점에 따른다. 업무 보존 정책은 업무 테이블에 적용한다.
 
 handler 원문 예외는 provider에 넘기기 전에 고정 오류로 바꾸고 반환값은 저장하지 않는다. provider error/warning 로그도 고정 코드·메시지만 기록한다. 실패 원인 분류 및 업무 상태 기록은 후속 service의 책임이다.
+
+## Worker / system.test — P1-10
+
+루트 `.env` 설정 및 `pnpm db:up`, `pnpm db:migrate` 이후 두 터미널에서 다음 명령을 사용한다. 각 명령은 먼저 빌드한다.
+
+```powershell
+pnpm worker:start
+pnpm worker:test
+```
+
+빌드가 준비되어 있으면 각각 `node --env-file-if-exists=.env apps/worker/dist/main.js`, `node --env-file-if-exists=.env apps/worker/dist/send-system-test.js`로 실행한다. Worker가 꺼져 있어도 접수 가능하며 재시작하면 소비한다. 접수 CLI는 매번 새로운 요청 키를 생성하므로 매 실행이 새 logical test다. 라이브러리 enqueueSystemTest에 같은 requestKey를 전달하면 같은 receipt를 반환한다.
+
+Worker는 baseline 확인 → queue start → 등록된 handler 연결 → WORKER_READY 순서로 시작한다. 현재 registry는 system.test 하나다. DB와 초기화 상태를 조회하는 isReady 함수는 제공하지만 별도 HTTP 포트를 열지 않는다. Browser 스케줄 reconciliation·정기 heartbeat 등 P5/P6 준비 상태는 아직 포함하지 않는다. 다른 큐의 업무 handler를 임의로 성공 처리하지 않는다.
+
+system.test는 automation_job의 예약 job_code/handler_key `system.test`, job_type INTERNAL을 사용한다. 최초 접수 시 enabled=false(정기 실행 없음), allow_manual_run=true, allow_parallel=true, cooldown=0, timeout=900초, max_retries=2인 정의를 만든다. 기존 정의가 여러 개거나 타입/handler/수동·병렬·cooldown 계약이 다르면 덮어쓰지 않고 거절한다. job_code는 baseline에서 UNIQUE가 아니므로 정의 생성과 중복 접수는 전용 transaction advisory lock `(0x42524f53,110)` 및 정의 row lock으로 직렬화한다. 다른 업무의 job_code 정책은 변경하지 않는다.
+
+automation_run 생성과 enqueue 및 provider ID 저장은 같은 transaction이다. publicId는 run을 참조한다. 실행은 provider ID/정의/상태/attempt를 검증하고 RUNNING을 먼저 commit한다. 실제 동작은 platform count 조회이며 성공 시 SUCCESS, result_json.platformCount(string), 시작/종료 시각 및 SYSTEM_TEST_SUCCESS 로그를 남긴다. 일시 실패는 RETRY_WAIT, 마지막 시도 실패는 FAILED다. 마지막 시도 판정은 실제 queue job의 retryLimit을 사용한다.
+
+성공 row의 같은 provider 재전달은 작업을 다시 수행하지 않는다. 결과 갱신은 provider ID·RUNNING 상태·attempt_no를 조건으로 하여 이전 시도가 최신 결과를 덮어쓰지 못하게 한다. 원문 오류는 업무 error_message나 로그에 저장하지 않는다. Worker crash로 남은 RUNNING은 큐 만료/재시도 후 더 높은 attempt가 이어받는다. 이 경로는 내부 읽기 smoke 전용이며 Browser 외부 클릭 복구·실행 취소·일반 automation 정책의 구현을 의미하지 않는다.
+
+SIGTERM/SIGINT 처리 시 readiness를 해제하고 queue를 drain한 뒤 업무 DB pool을 닫는다. WORKER_SHUTDOWN_TIMEOUT_MS는 기본 15000ms, 허용 1000~300000ms다. 종료 성공은 WORKER_STOPPED/exit 0, deadline 또는 queue 정리 실패는 고정 오류 로그/exit 1이다. queue 정리가 실패한 상태에서 DB를 먼저 닫지 않는다. 라이브러리 createWorker.stop의 실패 처리는 소유 프로세스 책임이며 production bootstrap이 종료를 수행한다. Windows SIGTERM 검증 제한은 API 절차와 동일하다.
+
+실행 결과는 다음 조회로 확인한다. queue 내부 completed는 업무 이력의 대체물이 아니다.
+
+```sql
+SELECT r.public_id, r.status, r.attempt_no, r.result_json, r.error_code
+FROM app.automation_run r
+JOIN app.automation_job j ON j.id = r.automation_job_id
+WHERE j.job_code = 'system.test'
+ORDER BY r.created_at DESC LIMIT 10;
+```
 
 ## 공통 API 계약
 

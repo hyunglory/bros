@@ -35,6 +35,7 @@ export interface AppConfig {
   };
   worker: {
     concurrency: number;
+    shutdownTimeoutMs: number;
   };
   storage: StorageConfig;
 }
@@ -213,6 +214,11 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     minimum: 1,
     maximum: 300000,
   });
+  const workerShutdownTimeoutMs = readInteger(environment, "WORKER_SHUTDOWN_TIMEOUT_MS", issues, {
+    defaultValue: 15000,
+    minimum: 1000,
+    maximum: 300000,
+  });
   if (issues.length > 0) {
     throw new ConfigValidationError(issues);
   }
@@ -228,6 +234,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     },
     worker: {
       concurrency: workerConcurrency,
+      shutdownTimeoutMs: workerShutdownTimeoutMs,
     },
     storage:
       storageDriver === "local"
