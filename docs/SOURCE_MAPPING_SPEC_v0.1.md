@@ -1,8 +1,8 @@
 # BROS Source Mapping Spec v0.1
 
-상태: PASS (P2-01) / P2-02 계약 결정 필요
-관련 Task: P2-01
-기준일: 2026-09-13
+상태: PASS (P2-01, P2-02)
+관련 Task: P2-01, P2-02
+기준일: 2026-09-14
 
 ## 1. 목적과 완료 조건
 
@@ -50,10 +50,10 @@ P2-01 완료 조건과 결과는 다음과 같다.
 | `currencyCode` | 아니오 | 없음 | 가격이 없으므로 KRW를 추정하지 않고 null | 0/20 |
 | `identifiers[]` | 아니오 | `Q:Q 내부 상품코드` | 전부 공란; 카테고리코드는 product identifier로 승격하지 않고 `raw`에 보존 | 0/20 |
 | `options[]` | 아니오 | `I:I 옵션수`, `J:J 옵션명 목록`, `K:K 옵션 이미지 URL 목록` | ` | ` 구분자로 같은 순서의 이름·이미지를 pairing; 외부 SKU·옵션별 가격·재고는 없음 | 표본 20개 옵션, pairing 가능 |
-| `images[]` | 아니오 | `M:M 대표이미지 URL`, `K:K 옵션 이미지 URL 목록` | 대표이미지는 `SOURCE_MAIN`; 옵션 이미지는 옵션 순서와 연결하되 최종 하위 타입은 P2-02에서 확정 | 표본 40개 URL |
+| `images[]` | 아니오 | `M:M 대표이미지 URL`, `K:K 옵션 이미지 URL 목록` | 대표이미지는 `MAIN`; 옵션 이미지는 `options[].imageUrl`에 옵션 순서대로 연결 | 표본 40개 URL |
 | `raw` | 예 | `A:U` 입력행 전체 | 원문과 legacy `고유값`을 보존; token/cookie/password/key 탐지 시 입력 거절 | 20/20 |
-| `stockStatus` 제안 | P2-02 | `G:G 재고수`, `H:H 상태` | `재고수 > 0 → IN_STOCK`, `0 → OUT_OF_STOCK`; 수량 31은 정확한 재고수로 단정하지 않음 | 20/20 |
-| 수집 시각 | P2-02 | 행별 필드 없음 | 파일 기준일 2026-09-13은 날짜만 제공; 행별 시각이나 timezone으로 확대 해석하지 않음 | 결정 필요 |
+| `stockStatus` | 아니오 | `G:G 재고수`, `H:H 상태` | `재고수 > 0 → IN_STOCK`, `0 → OUT_OF_STOCK`; 수량 31은 정확한 재고수로 단정하지 않음 | 20/20 |
+| 수집 시각 | import context 필수 | 행별 필드 없음 | adapter 실행 시각은 `collectedAt`, 파일 기준일 2026-09-13은 `sourceAsOfDate`; 행별 수집 시각으로 확대 해석하지 않음 | P2-02 계약 확정 |
 
 `A:A 고유값`은 더망고 export 행의 legacy ID다. 플랫폼 상품 ID의 의미가 아니므로 `C:C 원본상품코드` 결측 시 대체값으로 사용하지 않는다.
 
@@ -116,20 +116,23 @@ P2-01 완료 조건과 결과는 다음과 같다.
 
 4건의 `REJECTED`는 dry-run 실패가 아니라 필수값 거절 규칙이 실제 결측 행에 적용된 결과다. legacy `고유값`을 외부 상품 ID로 대체하면 잘못된 플랫폼 identity가 생성되므로 자동 보정하지 않는다.
 
-## 6. P2-02에서 확정할 계약
+## 6. P2-02 확정 계약
 
-| 결정 항목 | 실제 샘플 근거 | 권장 결정 |
+구현 Source of Truth는 `packages/contracts/src/source-product.ts`다. 구조 검증을 통과한 뒤에도 raw JSON·URL의 민감정보, 중복 식별자와 source 순서를 의미 검증하며 결과에는 원본값을 포함하지 않는다.
+
+| 결정 항목 | 실제 샘플 근거 | 확정 결정 |
 | --- | --- | --- |
-| 수집 시각 | 행별 시각·timezone 없음 | `ImportContext.collectedAt`을 실행 시각으로 필수 주입하고 `sourceAsOfDate=2026-09-13`을 raw metadata에 별도 보존 |
-| 상품 재고 | 0과 양수로 status 판정 가능하나 31의 실제 수량 의미는 불명 | `stockStatus?: UNKNOWN | IN_STOCK | OUT_OF_STOCK` 추가; 정확한 quantity는 계약에 넣지 않음 |
-| 금액 표현 | 실제 가격이 전부 미제공 | 가격은 null; P2-02 타입은 DB `numeric(20,4)` 손실을 막는 decimal string 채택 여부 결정 |
-| `SourceOptionInput` | 이름·순서·이미지는 있으나 외부 SKU, 옵션별 가격·재고 없음 | 최소 `rawOptionName`, `sourceOrder`, 선택 `imageUrl`, `raw` 정의; 안정된 option key 규칙 확정 |
-| `SourceImageInput` | 대표이미지와 옵션이미지 구분 가능 | `sourceUrl`, `imageRole`, `sourceOrder`, 선택 option 연결 정의; DB image type/연결 방식 대조 |
-| 식별자 | 내부 상품코드는 전부 공란 | `identifiers=[]`; 카테고리코드는 `raw.categoryCode`로만 보존 |
+| 수집 시각 | 행별 시각·timezone 없음 | 제품과 분리한 `SourceImportContext.collectedAt`을 RFC 3339 실행 시각으로 필수 주입하고 파일 기준일은 선택 `sourceAsOfDate`로 보존 |
+| 상품 재고 | 0과 양수로 status 판정 가능하나 31의 실제 수량 의미는 불명 | 선택 `stockStatus: UNKNOWN \| IN_STOCK \| OUT_OF_STOCK`; 정확한 quantity는 계약에 넣지 않음 |
+| 금액 표현 | 실제 가격이 전부 미제공 | 선택 가격은 PostgreSQL `numeric(20,4)` 범위의 비음수 canonical decimal string; 가격이 있으면 ISO 4217 형태의 대문자 3자 통화 필수 |
+| `SourceOptionInput` | 이름·순서·이미지는 있으나 외부 SKU, 옵션별 가격·재고 없음 | `rawOptionName`, 0 기반 `sourceOrder`, `raw` 필수; 외부 SKU·가격·재고·이미지는 선택. 안정된 DB option key 생성은 Core Importer 책임 |
+| `SourceImageInput` | 대표이미지와 옵션이미지 구분 가능 | 상품 이미지는 `MAIN \| DETAIL`, URL, 역할별 0 기반 순서, raw 필수. 옵션 이미지는 option에 직접 연결 |
+| 식별자 | 내부 상품코드는 전부 공란 | DB identifier type 집합만 허용하고 이번 XLSX는 `identifiers` 생략; 카테고리코드는 `raw.categoryCode`로만 보존 |
+| 입력 안전성 | 원본 A:U 보존과 자격증명 제외가 모두 필요 | top-level 미정 필드 거절, raw는 JSON-compatible 값만 허용, secret key·URL userinfo·서명 query 입력 거절, validation 결과에는 code와 path만 반환 |
 | 가격·URL 보강 | Excel만으로 실제 가격과 407건 URL을 복구할 수 없음 | 별도 관리자 화면/API source가 확보될 때 보강 Adapter를 분리 |
 
 ## 7. P2-01 판정
 
 P2-01은 **PASS**다. 실제 XLSX 구조, 전체 규모, 필드 mapping과 대표 20건 dry-run이 재현 가능하게 기록됐다. BLK-003은 해소한다.
 
-P2-02는 `stockStatus`, 수집 시각, 옵션·이미지 하위 타입과 decimal 표현을 확정한 뒤 착수한다. 원본상품코드가 없는 407건은 필수 validation에서 거절하거나 별도 보강 절차로 보내며 자동 생성한 ID로 source identity를 만들지 않는다.
+P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계약으로 XLSX Adapter를 구현한다. 원본상품코드가 없는 407건은 필수 validation에서 거절하거나 별도 보강 절차로 보내며 자동 생성한 ID로 source identity를 만들지 않는다.

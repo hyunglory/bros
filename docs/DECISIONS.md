@@ -1021,3 +1021,63 @@
 - 금지 변경: legacy `고유값`을 플랫폼 외부 ID로 승격, 원본 0을 실제 가격으로 저장, KRW 추정, 옵션 이름만으로 외부 SKU ID 생성, 재배포 확인 전 원본 Excel commit.
 - 완료 조건: top-level/option/image 타입, 수집 시각과 재고 정책, decimal 표현, validation 결과가 문서와 코드에서 일치하고 valid/partial/invalid 테스트가 PASS한다.
 - 재검토가 필요한 조건: 실제 가격 source, 행별 수집 시각, 외부 SKU ID, 옵션별 재고/가격 또는 상세 이미지가 추가 제공될 때.
+
+## DEC-20260914-001 — P2-02 SourceProductInput 표준 계약 확정
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-02 Source Product 표준 계약과 validation 경계 구현
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P2-02, 후속 P2-03
+- 검토 범위와 근거: DEC-20260913-008, `docs/SOURCE_MAPPING_SPEC_v0.1.md`, WBS P2-02/P2-03, `docs/DB_MIGRATION_SPEC.md`, TypeBox 공통 계약과 실제 XLSX 20건 dry-run 결과
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260913-008의 P2-02 미확정 항목을 해소한다.
+
+### 확정 결정
+
+- `SourceProductInput` 필수 필드는 `platformCode`, `externalProductId`, `productName`, `raw`다. brand, URL, price/currency, stock, identifier, option, image는 원본에 있을 때만 전달한다.
+- 수집 시각은 제품마다 추정하지 않는다. `SourceImportContext.collectedAt`에 timezone이 명시된 RFC 3339 실행 시각을 필수 주입하고 파일명 등에서 확인된 source 기준일은 선택 `sourceAsOfDate`로 분리한다.
+- 상품과 option 재고는 `UNKNOWN | IN_STOCK | OUT_OF_STOCK`만 사용한다. 이번 XLSX의 수량 31을 정확한 재고량으로 저장하지 않는다.
+- 금액은 PostgreSQL `numeric(20,4)`에 손실 없이 들어가는 비음수 canonical decimal string으로 제한한다. top-level 또는 option 가격이 하나라도 있으면 대문자 3자 `currencyCode`가 필수다.
+- option은 원문 이름, 0 기반 source 순서와 raw를 필수로 갖고 외부 SKU, 가격, 재고, option 이미지 URL은 선택이다. source별 이름에서 DB `option_key`를 안정화하는 책임은 Adapter가 아닌 Core Importer에 둔다.
+- 상품 image는 `MAIN | DETAIL`, 역할별 0 기반 순서, URL과 raw를 갖는다. option 이미지는 `options[].imageUrl`에 직접 연결해 DB source SKU 경계와 맞춘다.
+- identifier type은 현재 DB 계약의 9개 값만 허용한다. top-level과 하위 object의 미정 필드는 거절한다.
+- raw는 JSON-compatible 값만 허용하며 cycle, 비정상 수, prototype object와 secret성 key를 거절한다. URL userinfo와 credential/signature query도 거절하고 validation 실패에는 code와 path만 반환해 원본값을 노출하지 않는다.
+- option sourceOrder와 externalSkuId, image 역할/순서, identifier type/value 중복 및 복수 MAIN image는 명시적 issue code로 거절한다.
+
+### 기각한 선택지와 이유
+
+- 금액을 JavaScript number로 전달: `numeric(20,4)`의 큰 정수와 소수 정밀도를 Adapter 단계에서 잃을 수 있다.
+- 파일 기준일을 모든 행의 수집 시각 자정으로 변환: 원본에 없는 timezone과 행별 수집 시각을 생성한다.
+- legacy `고유값` 또는 option 이름으로 외부 ID를 생성: source identity와 재수집 멱등성을 훼손한다.
+- source DTO에 DB `option_key`를 필수화: source 원문 보존과 Core 정규화 책임이 섞여 Adapter 간 계약이 불안정해진다.
+- schema 구조 검사만 사용하거나 raw를 무제한 허용: JSON 저장 실패, 자격증명 보관, URL parser 예외와 중복 row를 Core/DB까지 늦게 전달한다.
+
+### 변경 파일
+
+- packages/contracts/src/source-product.ts
+- packages/contracts/src/index.ts
+- packages/contracts/test/source-product.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `pnpm --filter @bros/contracts run build`, contracts typecheck, `node --test packages/contracts/test/source-product.test.mjs`, `pnpm lint`, 기존 BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
+- 결과: PASS — 신규 계약 validation 8개, 전체 Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+- 원본 보호: `examples/`는 untracked 상태로 유지했고 Git 변경 집합에 포함하지 않았다.
+
+### 미해결 사항 및 Blocker
+
+- P2-02 blocker는 없다. P2-03 실제 XLSX parsing과 row-level mapping은 아직 구현하지 않았다.
+- 원본상품코드·추정 URL이 없는 전체 407건은 P2-03에서도 자동 ID를 만들 수 없으며 reject 결과로 보존해야 한다.
+- 실제 가격/통화, 행별 수집 시각, 외부 SKU ID와 option별 가격·재고는 이 XLSX에서 복구할 수 없다.
+- 원본 Excel의 재배포 가능 여부는 확인되지 않았으므로 fixture는 원본 행 복제가 아닌 최소 비식별 계약 사례로 작성해야 한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: `gpt-5.6-terra / medium`으로 P2-03 `XlsxImportAdapter`를 구현하고 실제 XLSX 구조를 표준 `SourceProductInput`과 row별 validation 결과로 변환한다.
+- 금지 변경: P2-02 계약을 Adapter 편의로 재해석, legacy ID fallback, export 가격 0이나 KRW 추정, option 이름 기반 external SKU 생성, 원본 Excel 또는 운영 상품 원문을 Git에 추가.
+- 완료 조건: sheet/header 검증, platform mapping, product/option/image/raw 변환, import context 주입, valid/partial/reject fixture와 실제 20건 기대 집계가 자동 테스트에서 재현되고 전체 `pnpm check`가 PASS한다.
+- 재검토가 필요한 조건: Adapter 구현이 현 계약으로 표현할 수 없는 실제 필드를 발견하거나 XLSX parser 의존성·formula/date 처리에서 보안 또는 재현성 문제가 확인될 때. 이 경우 기존 결정을 덮어쓰지 않고 새 결정으로 변경 근거를 남긴다.

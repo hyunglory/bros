@@ -262,3 +262,13 @@
 - 보안 검사: 선택 20행의 field name/value에서 password, authorization, cookie, API key, token 의심값 0건. 이미지 URL query는 변환 파라미터이며 자격증명 파라미터는 확인되지 않았다.
 - 미실행: 추정 상품 URL의 live 접속, 이미지 다운로드, DB insert, Adapter 코드 실행은 P2-01 범위가 아니므로 수행하지 않았다.
 - 결과: PASS — 실제 필드표와 20건 row-level 결과가 작성돼 P2-01 Acceptance Criteria를 충족했다. P2-02 계약 결정은 별도 후속 작업이다.
+
+## 2026-09-14 — P2-02 SourceProductInput 표준 계약
+
+- 대상: `packages/contracts/src/source-product.ts`, public export, `packages/contracts/test/source-product.test.mjs`.
+- 계약 검증: full 입력, partial 입력, 필수값·미정 필드, malformed URL, decimal 범위·통화 의존성, option/image/identifier 중복, raw JSON·민감정보, import timestamp의 8개 테스트 PASS.
+- 보안 경계: raw의 비 JSON 값·cycle·secret key, URL userinfo와 credential/signature query를 거절하며 validation 결과에는 원본값 없이 issue code와 JSON pointer path만 반환함을 확인했다.
+- 시간·금액 경계: 실제 달력 날짜와 RFC 3339 offset을 검사하고 `+14:00` 초과 offset을 거절한다. 금액은 DB `numeric(20,4)` 범위의 비음수 canonical decimal string이며 가격 존재 시 통화가 필수다.
+- 실행 명령: contracts build/typecheck, 대상 Node test, 루트 `pnpm lint`, 기존 BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+- 입력 보호: `examples/더망고_상품정보_20260913.xlsx`는 읽거나 수정·stage하지 않았고 원본 Excel은 Git 외부에 유지했다.

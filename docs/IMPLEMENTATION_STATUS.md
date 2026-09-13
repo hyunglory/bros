@@ -1,6 +1,6 @@
 # BROS 구현 현황
 
-기준일: 2026-09-13
+기준일: 2026-09-14
 
 | Task | 상태 | 근거 | 다음 조치 |
 |---|---|---|---|
@@ -20,5 +20,6 @@
 | P1-12 ObjectStorage Port / Local Adapter | PASS | DEC-20260913-004, TEST_REPORT P1-12 | 원자적 put/get/delete·signed local URL·traversal/symlink 차단 검증 완료 |
 | Phase 1 Gate | PASS | DEC-20260913-006, P1-01~P1-14 PASS, BLK-001 RESOLVED | P2-01과 P5-01 착수 가능 |
 | P2-01 기존 수집 데이터 Discovery | PASS | DEC-20260913-008, SOURCE_MAPPING_SPEC v0.1, BLK-003 RESOLVED | 실제 XLSX 26,375건 inventory와 변형 사례 20건 mapping dry-run 완료 |
+| P2-02 SourceProductInput 표준 계약 | PASS | DEC-20260914-001, 계약 validation 8개, 전체 unit 36개·integration 53개 PASS | `gpt-5.6-terra / medium`으로 P2-03 XlsxImportAdapter 착수 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.
