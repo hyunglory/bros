@@ -17,6 +17,7 @@
 | P1-09 Queue Port + pg-boss Adapter | PASS | DEC-20260913-001, TEST_REPORT P1-09 | 트랜잭션 enqueue·retry·프로세스 crash 복구 검증 완료 |
 | P1-10 Worker Bootstrap / system.test | PASS | DEC-20260913-002, TEST_REPORT P1-10 | 실제 Worker·이력·재시도·crash/종료 검증 및 개발 smoke 완료 |
 | P1-11 Admin React/Vite Skeleton | PASS | DEC-20260913-003, TEST_REPORT P1-11 | 실제 Vite 개발 서버·/health 프록시·정상/오류 UI·build 검증 완료 |
-| 그 외 Phase 1 Task | NOT_STARTED | WBS v0.1 | 선행관계에 따라 진행 |
+| P1-12 ObjectStorage Port / Local Adapter | PASS | DEC-20260913-004, TEST_REPORT P1-12 | 원자적 put/get/delete·signed local URL·traversal/symlink 차단 검증 완료 |
+| Phase 1 Gate | BLOCKED | P1-14 IMPLEMENTED_NOT_VALIDATED, BLK-001 | GitHub remote 연결·실제 CI·required check 검증 필요 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`를 사용한다.

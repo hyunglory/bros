@@ -761,3 +761,58 @@
 - 금지 변경: baseline migration, 기존 UUID/상태/재시도/자동승인 정책, P1-11 same-origin 경계와 Admin에 업무 API·인증 우회를 임의로 추가하지 않는다. 저장 파일이나 URL에 secret·원본 파일명을 노출하지 않는다.
 - 완료 조건: put/get 또는 signed URL 조회/delete lifecycle, path traversal와 root 탈출 차단, 원자적 write 및 실패 정리, provider 이름 없는 Worker 사용 예, 전체 품질 검사 PASS와 단계 기록.
 - 재검토가 필요한 조건: 현재 image storage_key 모델이 안전한 object key를 표현하지 못하거나 local signedUrl 의미가 운영 provider 계약과 양립하지 않을 때.
+
+## DEC-20260913-004 — P1-12 ObjectStorage Port와 안전한 Local Adapter 확정
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P1-12 Storage 계약·Local filesystem 구현 및 보안/회귀 검증
+- 작성 모델/추론 수준: gpt-5.6-sol / high (사용자 선택)
+- 관련 WBS Task: P1-12, 후속 P2-11/P4-11/P5-13/P6-04 저장 경계
+- 검토 범위와 근거: DEC-20260913-003의 인수 조건, WBS P1-12 Acceptance/Test, 설계서 17.9/19장, 보완 명세 2.2의 Local logical root/이미지 저장 metadata, 기존 StorageConfig와 Worker/Image package 의존 경계, TEST_REPORT P1-12.
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- `ObjectStorage`는 provider/bucket, `putObject`, `getObject`, 멱등 `deleteObject`, `getSignedUrl`만 공통 계약으로 노출한다. body와 read 결과는 Web `ReadableStream<Uint8Array>` 경계를 사용하며 저장 결과는 provider, logical bucket, objectKey, byte size다.
+- Local adapter는 `StorageConfig.localRoot`를 절대 root로 고정하되 외부 결과에는 노출하지 않는다. 기본 logical bucket은 `local`, provider는 DB 코드와 같은 `LOCAL`이다. `createObjectStorage` 소비자는 driver/provider별 filesystem API를 알 필요가 없다. 미구현 R2 선택은 명시적 오류다.
+- Object key는 최대 1024자의 `/` 구분 portable ASCII segment로 제한한다. segment는 최대 128자, 영숫자로 시작·종료하고 내부 `A-Za-z0-9._-`만 허용한다. 빈 segment, dot traversal, 역슬래시, URI escape/drive 표현, control 문자와 Windows 예약명은 거절한다. 호출자는 원본 파일명/secret 대신 public ID·hash·revision·고정 artifact 명을 사용한다.
+- put은 target과 같은 parent의 exclusive 임시 파일에 stream을 기록하고 file sync 후 rename한다. 실패 시 임시 파일을 지우고 기존 target을 보존한다. 동시 parent 생성은 EEXIST를 재검증하며 target 교체는 원자적 가시성을 제공한다. 업무 immutable key·중복 수렴은 후속 service의 DB UNIQUE/잠금 책임이다.
+- root 및 모든 ancestor는 실제 directory인지 확인하고 symlink/junction을 거절한다. read는 final target을 no-follow로 열고 regular file만 스트리밍한다. delete는 같은 경계를 적용하고 missing은 성공으로 처리한다. root는 BROS 전용 쓰기 디렉터리여야 하며 다른 로컬 프로세스와의 악의적 TOCTOU 경쟁까지 보장하지 않는다.
+- Local signed URL은 `bros-local://<bucket>/<key>?expires=...&signature=...` 형식, HMAC-SHA256, 1~86400초 만료로 고정한다. 절대 root를 노출하지 않고 같은 adapter의 `getObjectBySignedUrl`에서 변조·만료를 검증한다. 브라우저 직접 URL은 아니며 후속 preview API가 스트림을 전달한다. instance 임시 key로 서명하므로 재시작 후 URL은 무효다.
+- StorageError는 안정된 code/고정 message만 제공하고 원문 filesystem/stream error나 절대 경로를 cause에 보관하지 않는다.
+
+### 기각한 선택지와 이유
+
+- key를 단순 `resolve(root,key)`로만 검사: encoded traversal, 역슬래시와 symlink/junction ancestor를 충분히 차단하지 못한다.
+- 원본 파일명 또는 절대경로를 object key/DB/signed URL에 사용: 개인정보·로컬 구조 노출과 provider 이식성 문제를 만든다.
+- target에 직접 stream 쓰기: 중간 실패나 reader가 부분 파일을 관측할 수 있다.
+- `file://` Local preview URL: 절대 root를 노출하고 만료·변조 검증을 제공하지 못한다.
+- Local adapter 내부 HTTP server 자동 시작: storage import/생성이 port lifecycle과 인증되지 않은 네트워크 listener를 암묵적으로 추가한다.
+- R2 요청을 Local로 자동 fallback: 운영 설정 오류를 숨기고 잘못된 저장 위치에 데이터를 쓴다.
+
+### 변경 파일
+
+- packages/storage/src/port.ts, object-key.ts, local.ts, index.ts
+- packages/storage/test/storage.test.mjs, storage.typecheck.ts
+- packages/storage/package.json, packages/storage/tsconfig.type-tests.json
+- docs/DECISIONS.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/RUNBOOK.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `pnpm --filter @bros/storage run build`, `pnpm --filter @bros/storage run typecheck`, `node --test packages/storage/test/storage.test.mjs`, PostgreSQL healthy 상태에서 `pnpm check`.
+- 결과: PASS — storage 9개, Admin Vitest 6개, 전체 Node unit 28개, integration 53개, fail/skip 0개와 lint/typecheck/format/build 성공.
+- R2/S3, POSIX 권한/실 symlink, HTTP preview와 원격 CI는 NOT_RUN. 테스트는 OS temp root를 제거했고 BROS PostgreSQL은 중지·volume 보존했다.
+
+### 미해결 사항 및 Blocker
+
+- P1-12 로컬 blocker 없음. BLK-001 때문에 P1-14와 Phase 1 Gate는 아직 PASS가 아니다.
+- Local signed URL은 process lifetime 범위다. 장기 URL 요구가 생기면 SecretProvider 기반 signing key와 rotation/expiry 정책을 새 결정으로 추가해야 한다.
+- filesystem root에 다른 계정이 쓰기 가능한 환경의 적극적 race 공격은 범위 밖이다. 배포 권한·volume·retention 및 R2 adapter는 P6에서 검증한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: Phase 1 Gate 최종 판정과 BLK-001 해소 — GitHub remote 연결, branch/PR에서 실제 CI 실행, `quality` required check 설정 및 실패 merge 차단 증거 기록.
+- 금지 변경: 로컬 PASS를 원격 CI PASS로 간주하거나 BLK-001을 근거 없이 해소하지 않는다. baseline, Storage key/서명 계약, 자동승인 OFF와 기존 API/Queue/Worker 정책을 변경하지 않는다.
+- 완료 조건: P1-01~14 Acceptance 증거 재대조, clean remote CI 성공, required check의 의도적 실패 차단 확인, blocker/status/test/decision 갱신 후 Phase 1 Gate 판정.
+- 재검토가 필요한 조건: 사용할 GitHub repository/branch protection 권한이 없거나 CI 환경에서 Windows 전용으로 검증된 filesystem/signal 동작이 달라질 때.

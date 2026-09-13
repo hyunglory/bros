@@ -207,3 +207,14 @@
 - 의존성: `CI=true pnpm install --frozen-lockfile` PASS. 최초 비대화형 실행은 pnpm의 modules purge 확인 정책으로 중단됐으며 CI 모드에서 lockfile 불일치 없이 재실행했다.
 - DB 회귀: 기존 P1-05~10 통합 검사를 위해 BROS PostgreSQL만 기동했고 전체 PASS 후 중지했다. 개발 volume과 기존 업무 데이터는 보존했다.
 - 미검증: 프로덕션 reverse proxy/정적 호스팅, Admin 인증·인가 및 업무 API는 후속 P6/업무 단계 범위다. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-13 — P1-12 완료
+
+- 결과: PASS(로컬). 새 외부 의존성이나 migration 변경 없이 `@bros/storage`의 ObjectStorage Port, Local adapter, object key validator/builder를 구현했다.
+- `pnpm check`: Admin Vitest 6개, Node unit 28개, integration 53개, fail/skip 0개 및 lint/typecheck/format/build PASS.
+- storage 단독 테스트 9개 PASS: portable key와 traversal 변형 차단, buffer/stream put 및 교체, get, 멱등 delete, missing 오류, ancestor junction 탈출 차단, signed URL 정상/변조/만료, provider-neutral Worker 소비, stream 실패 시 기존 target 보존·임시 파일 정리, 8개 동시 디렉터리 생성.
+- 타입 검증: `ObjectStorage`만 받는 Worker artifact 함수가 put/get을 사용하도록 별도 typecheck를 추가했고 Local/R2 분기나 filesystem 경로 없이 컴파일됨을 확인했다.
+- 저장 경계: 파일은 target과 같은 디렉터리의 exclusive 임시 파일에 쓰고 sync 후 rename한다. 반환 metadata와 signed URL에는 logical bucket/object key만 포함한다. 오류 메시지는 입력 key, root 절대경로, 원문 I/O/stream 오류를 포함하지 않는다.
+- Local signed URL은 HMAC과 1~86400초 만료를 적용하고 같은 adapter instance에서 검증·조회한다. 임시 signing key이므로 프로세스 재시작 후 URL 지속성은 보장하지 않는다.
+- 전체 회귀를 위해 BROS PostgreSQL만 기동했고 PASS 후 중지했다. 개발 volume은 보존했고 실제 `./storage`에는 파일을 생성하지 않았으며 테스트별 OS temp root를 정리했다.
+- 미검증: POSIX mode 0700/0600과 symlink 동작은 Windows 환경에서 직접 검증하지 않았다. R2/S3, HTTP preview route, 인증·보존 정책, 이미지 다운로드 크기/MIME/decode 검사는 P2/P4/P5/P6 범위다. 원격 CI/required check는 BLK-001 유지.

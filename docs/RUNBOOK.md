@@ -202,6 +202,23 @@ pnpm admin:dev
 
 프로덕션 정적 산출물은 `pnpm --filter @bros/admin build`의 `apps/admin/dist`에 생성된다. 실제 배포에서는 Admin origin의 `/health`와 `/api`를 API로 라우팅해야 한다. 배포 reverse proxy와 인증 경계는 후속 운영·인증 단계에서 확정한다.
 
+## Local ObjectStorage — P1-12
+
+`createObjectStorage(config.storage)`는 `STORAGE_DRIVER=local`일 때 `STORAGE_LOCAL_ROOT` 아래에 저장하는 `ObjectStorage`를 반환한다. 기본 개발 설정은 논리 bucket `local`, 실제 root `./storage`다. DB에는 반환된 `provider=LOCAL`, `bucket=local`, `objectKey`만 기록하고 절대 경로는 기록하지 않는다. `r2`는 P6-04 구현 전까지 `UNSUPPORTED_STORAGE_DRIVER`로 명시적으로 실패한다.
+
+Object key는 `/`로 구분된 상대 ASCII 경로다. 전체 1~1024자, segment당 1~128자이며 영문자·숫자로 시작하고 끝나야 한다. 내부에는 영문자·숫자·점·밑줄·하이픈만 허용한다. 빈 segment, `.`/`..`, 역슬래시, 절대경로, percent/colon/control 문자와 Windows 예약명은 거절한다. source 원본 파일명이나 secret을 key에 사용하지 말고 public ID, content hash, revision과 고정된 artifact 이름으로 `buildObjectKey(...)`를 구성한다.
+
+`putObject`는 대상 디렉터리 안의 임시 파일에 쓴 뒤 sync와 rename을 수행한다. 쓰기 실패 시 임시 파일을 지우고 기존 target을 보존한다. 같은 key 쓰기는 마지막으로 성공한 원자적 교체가 반영되므로, 업무 계층은 immutable key와 DB UNIQUE/잠금으로 중복 생성을 제어한다. `deleteObject`는 없는 key에도 성공한다. Local root는 BROS 프로세스만 쓸 수 있는 전용 디렉터리로 운영해야 하며 adapter는 root와 하위 경로의 symlink/junction을 거절한다.
+
+`getSignedUrl(key, 1..86400)`은 절대 경로가 없는 `bros-local://local/...` HMAC URL을 반환한다. 브라우저가 직접 여는 URL은 아니며 같은 `LocalObjectStorage` instance의 `getObjectBySignedUrl`로 변조·만료를 검증한 뒤 API preview route가 스트림으로 전달해야 한다. 서명 key는 adapter instance에서 임시 생성되므로 프로세스 재시작 후 기존 Local URL은 무효다. 장기 유지되는 preview URL이나 HTTP route는 P5/P6에서 SecretProvider·인증과 함께 구현한다.
+
+로컬 저장소 전용 검증:
+
+```powershell
+pnpm --filter @bros/storage run build
+node --test packages/storage/test/storage.test.mjs
+```
+
 ## Secret과 로그
 
 - 외부 provider와 browser 자격증명은 `SecretProvider`를 통해 조회한다.
