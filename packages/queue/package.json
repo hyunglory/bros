@@ -19,6 +19,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@bros/core": "workspace:*"
+    "@bros/core": "workspace:*",
+    "@bros/db": "workspace:*",
+    "pg-boss": "12.31.0"
   }
 }

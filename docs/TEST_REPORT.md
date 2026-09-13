@@ -174,3 +174,13 @@
 - 종료: 디버깅 강제 종료로 남은 두 고유 fixture DB는 소유자 bros·연결 0·업무 테이블 0을 확인하고 명시적인 이름으로 정리했다. 최종 잔여 bros_test_ DB 0개, 기존 app 테이블 18개. BROS postgres 중지, volume 보존.
 - 미검증: Linux 실제 SIGTERM·원격 CI/required check(BLK-001), 운영 배포 환경, 후속 인증·업무 API·Queue/Worker. 테스트용 contract/failure/held route는 배포 app에 등록하지 않는다.
 - 최종 정리 보완: 프로세스 테스트 실패 시에도 자식 종료를 DB 삭제보다 먼저 수행하도록 hook 순서를 보완했다. 해당 프로세스 테스트 2개 재실행 PASS, DB 재중지 완료.
+
+## 2026-09-13 — P1-09 완료
+
+- 결과: PASS. pg-boss 12.31.0을 정확히 고정했다. 기존 Node 24.14.1 / pnpm 11.19.0 / PostgreSQL 18.6 환경 사용.
+- `pnpm check`: unit 18개, integration 43개(Node parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. `pnpm install --frozen-lockfile` PASS. 이번 단계의 fresh clone은 별도 실행하지 않았다.
+- 큐 단독 통합 검증 8개 PASS: 5개 이름·payload/ID 경계, browser 재시도 0, 업무+enqueue commit/rollback 가시성, 생산자 종료 후 보존, 두 소비자의 provider ID별 선점, retry/backoff/최종 실패·원문 예외 미보관, handler 완료를 기다리는 정상 stop.
+- 실제 별도 프로세스를 SIGKILL로 종료했다. enqueue 직전 및 enqueue 후 commit 전의 crash에서 미커밋 업무·큐 row가 남지 않았다. active job의 소비자 crash 후 expiration/retry를 통해 새 소비자가 attempt 2로 완료했다. 업무의 exactly-once 보장을 의미하지 않는다.
+- 타입 metadata generic 및 lint의 void 표기 문제를 수정한 후 전체 검사에 통과했다. timeout/옵션 범위와 미시작 adapter의 멱등 stop도 unit에서 검증했다.
+- 종료 전 잔여 bros_test_ DB 0개, 개발 app 테이블 18개, 개발 bros_queue 테이블 0개 확인. 테스트 대상은 disposable DB이며 기존 개발 DB에 queue 설치는 하지 않았다. BROS postgres 중지, volume 보존.
+- 미검증: stop deadline 초과 시 소유 Worker 프로세스 종료는 P1-10에서 검증한다. 업무 request_key/CAS/외부 부작용·스케줄은 후속 service 범위다. 원격 CI 및 P1-07 POSIX 실신호는 BLK-001 유지.

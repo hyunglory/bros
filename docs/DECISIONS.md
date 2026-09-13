@@ -610,3 +610,51 @@
 - 금지 변경: 적용된 baseline, DEC-20260912-010 코드 정책, API/Worker 처리 경계 및 자동승인 기본 OFF를 변경하지 않는다. P1-10 Worker bootstrap은 별도 단계다.
 - 완료 조건: enqueue/consume/retry/restart recovery 통합 검증, 종료 및 자원 정리, 전체 품질 검사 PASS와 단계 기록.
 - 재검토가 필요한 조건: queue 재시도와 업무 멱등성·외부 부작용 계약이 충돌하거나 pg-boss가 별도 schema/권한 결정을 요구할 때.
+
+## DEC-20260913-001 — P1-09 QueuePort·pg-boss 구현 및 crash 복구 검증 완료
+
+- 일자: 2026-09-13
+- 종료 단계/분야: P1-09 구현·DB 통합 검증
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 추론 수준 미노출)
+- 관련 WBS Task: P1-09
+- 검토 범위와 근거: DEC-20260912-013, 설계서 13.2, WBS P1-09/10, 보완 명세 4장, 설치된 pg-boss 12.31.0 API/types/종료 구현, 공식 [트랜잭션 adapter 계약](https://pgboss.io/api/adapters), TEST_REPORT P1-09.
+- 상태: ACCEPTED
+- supersedes: 없음. 후속 구현 결정이며 baseline/기존 코드 정책은 유지한다.
+
+### 확정 결정
+- QueuePort는 start/publish/work/stop 및 string provider ID를 제공한다. pg-boss 12.31.0 adapter는 명시적 start에서 bros_queue schema의 vendor migration을 실행한다. 업무 app 및 baseline과 분리한다.
+- 5개 문서상 queue 이름을 고정한다. payload는 UUIDv7 publicId 참조만 받고 원문 데이터·secret·handler 반환값을 provider에 저장하지 않는다. 원문 handler 예외도 고정 오류로 변환한다.
+- 기본 retry 2회, 지연 5초, jitter 포함 exponential backoff cap 300초, active 만료 900초, polling 1초, 감시 30초, stop 대기 10000ms다. 검증된 adapter options로 조정하며 browser.run 자동 retry는 부작용 안전 경로가 생기기 전까지 0회다.
+- queue별 instance 동시성 1/batch 1이다. 큐 pool은 별도 소유하며 DatabaseConfig의 max/connectionTimeoutMs를 사용한다. 완료 보관 1일·대기/retry 보관 14일, scheduler OFF다. 시간·SQL timeout 적용 범위 및 상세 한도는 RUNBOOK에 명시했다.
+- 공식 fromKysely bridge로 업무 쓰기와 enqueue가 같은 tx에 참여한다. commit 전 receipt는 잠정 값이며 실패 시 둘 다 rollback한다. 신규 Outbox 또는 임의 재조정 로직을 추가하지 않는다.
+- start/stop은 멱등, 종료/실패 instance는 재사용하지 않는다. stop은 새 호출 차단 후 진행 작업을 기다리고 deadline/잔류 handler 시 reject한다. 소유 Worker는 이를 정상 종료로 기록하지 않아야 한다.
+- 작업 선점은 업무 exactly-once 보장이 아니다. 중복 publish·crash 재전달을 전제로 후속 service가 request_key/상태/외부 부작용을 검증한다.
+- P1-09는 PASS, P1-10은 READY다. 개발 DB의 queue schema 설치는 Worker 시작 단계에서 수행하며 이번 검증은 disposable DB만 사용했다.
+
+### 기각한 선택지와 이유
+- 업무 commit과 별도 enqueue 또는 즉시 Outbox 추가: 설치 버전이 동일 tx를 지원하므로 유실 구간이나 새 업무 테이블을 만들 이유가 없다.
+- queue ID를 UUID 타입으로 고정: provider 구현 세부를 업무 저장 계약에 강제한다.
+- 큐 선점을 exactly-once로 해석: crash 후 외부 부작용은 DB transaction만으로 복원할 수 없다.
+- browser.run에 일반 자동 retry 적용: 외부 클릭 결과 불명확 상태에서 중복 실행 위험이 있다.
+- 원문 오류·payload 보관 및 무제한 종료 대기: 민감정보 노출 및 배포/복구 지연 위험이 있다.
+
+### 변경 파일
+- packages/queue/package.json, packages/queue/src/index.ts, packages/queue/src/port.ts, packages/queue/src/pg-boss.ts, packages/queue/test/queue.test.mjs
+- pnpm-lock.yaml, tests/integration/queue.integration.test.mjs, tests/integration/queue-process-fixture.mjs
+- docs/DECISIONS.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/RUNBOOK.md
+
+### 검증 증거
+- 실행 명령 또는 수동 확인: pnpm check, pnpm install --frozen-lockfile, disposable DB atomic enqueue/소비/retry/stop, 별도 프로세스 SIGKILL·재기동, 종료 전 metadata 조회.
+- 결과: PASS — unit 18개, integration 43개, skip 0개와 전체 정적 검사/build. queue 단독 8개 PASS. fresh clone은 이번 단계 NOT_RUN.
+- 최종 테스트 DB 0개, 개발 app 테이블 18개·bros_queue 테이블 0개. BROS DB 중지, volume 보존.
+
+### 미해결 사항 및 Blocker
+- P1-09 blocker 없음. BLK-001 원격 CI/required check 유지.
+- Worker 프로세스 bootstrap·stop deadline 시 종료·성공 업무 로그/상태 기록은 P1-10에서 검증한다. 이번 소비 프로세스는 테스트 fixture다.
+- 운영 schema migration 계정과 최소 권한 분리는 P6, 스케줄 및 browser 재시도 안전 조건은 P5에서 확정한다.
+
+### 다음 작업 인수 조건
+- 작업 범위: P1-10 Worker startup/shutdown, handler registry, system.test 성공 로그/상태 기록, 미실행 후 재기동 처리 및 실패 retry.
+- 금지 변경: baseline, 열린 코드 정책, 자동승인 OFF, browser 자동 retry 0을 임의로 변경하지 않는다. API에 image/browser 처리나 새로운 업무 테이블을 추가하지 않는다.
+- 완료 조건: 실제 Worker 프로세스로 system.test publish/consume/성공 기록, 실패/retry, DB+queue 자원 정리 및 stop deadline 실패 경로, 전체 품질 검사 PASS와 단계 기록.
+- 재검토가 필요한 조건: 성공 상태 기록에 현재 업무 schema로 표현되지 않는 새 모델이 필요하거나 queue 만료/재시도가 업무·외부 부작용 계약과 충돌할 때.

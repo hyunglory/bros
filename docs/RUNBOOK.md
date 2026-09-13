@@ -116,6 +116,34 @@ Windows에서는 콘솔 Ctrl+C(SIGINT)를 사용한다. Windows의 child.kill(SI
 
 오류는 형식/JSON/지원하지 않는 content type 400, 크기 초과 413, 없는 경로 404, 예기치 않은 예외 500, readiness/종료 중 503으로 고정 메시지를 반환한다. 요청마다 서버가 새 requestId를 생성하고 `x-request-id`로 반환하며 외부 입력 requestId를 신뢰하지 않는다. 완료 로그에는 requestId·statusCode·elapsedMs만 남기며 raw URL/body/header/SQL/DB 오류를 기록하지 않는다. 현재 공개 route는 두 probe뿐이며 업무 route의 인증·인가는 후속 구현 범위다.
 
+## QueuePort / pg-boss — P1-09
+
+`@bros/queue`의 `createPgBossQueue(config.database, overrides?)`로 adapter를 만들고 `start()` 후 `publish`/`work`를 호출한다. 종료 시 `stop()`을 await한다. import/생성만으로 DB에 접속하지 않는다. 같은 instance의 start/stop은 중복 호출 가능하며 종료·시작 실패 후에는 새 instance를 만든다. 동일 instance에서 같은 queue의 handler를 중복 등록하면 실패한다.
+
+pg-boss 12.31.0의 자체 migration은 명시적인 `start()`에서 `bros_queue` schema에 실행된다. 최초 시작 계정에는 DB CONNECT 및 schema 생성 권한, 이후에는 pg-boss 객체 사용·migration 권한이 필요하다. `app`과 `bros_migrations` 및 적용된 baseline은 변경하지 않는다. 운영 migration 계정/최소권한 분리는 P6에서 확정한다. 이번 검증은 disposable DB에서 수행했으며 기존 개발 DB에는 아직 bros_queue를 설치하지 않았다.
+
+큐 이름은 `system.test`, `product.import`, `identifier.resolve`, `thumbnail.generate`, `browser.run`이다. payload는 `{publicId: UUIDv7}` 참조만 허용하며 업무 원문·secret은 포함하지 않는다. 반환 `{provider,providerId}`의 ID는 string이다. provider 완료 상태를 업무 성공·감사 이력의 원천으로 사용하지 않는다.
+
+| adapter 옵션 | 기본값 | 허용 범위 |
+|---|---|---|
+| retryLimit | 2회 재시도(최대 3회 실행) | 0~10 |
+| retryDelay | 5초 | 1~3600 |
+| retryDelayMax | 300초 | 1~86400, retryDelay 이상 |
+| expireInSeconds | 900초 | 1~86400 |
+| pollingIntervalSeconds | 1초 | 0.5~60 |
+| superviseIntervalSeconds | 30초 | 1~3600 |
+| stopTimeoutMs | 10000ms | 1000~300000 |
+
+retry는 pg-boss의 jitter 포함 지수 backoff다. 외부 부작용 보호를 위해 browser.run은 위 옵션과 무관하게 자동 재시도 0회이며 P5에서 검증 후 변경한다. 각 publish에 유효한 옵션을 명시하므로 기존 queue의 생성 시 기본값이 달라도 새 job 설정은 현재 adapter를 따른다. 만료 후 회수는 감시 주기와 retry 지연이 추가로 걸릴 수 있다. 만료는 임의 JS/외부 작업을 강제로 중단하지 못하므로 handler는 전달된 AbortSignal을 준수하고 업무 중복을 방어해야 한다.
+
+동시성은 instance당 queue별 1개, batch size 1이다. 다른 instance와의 병렬 처리는 가능하며 전역 업무 멱등성은 별도다. queue 전용 pool의 max/connection timeout은 DatabaseConfig에서 가져오므로 API/Worker DB pool 외 연결 수를 추가 산정한다. DB_IDLE_TIMEOUT_MS/DB_STATEMENT_TIMEOUT_MS는 이 adapter의 provider pool에 적용하지 않는다. 스케줄러는 비활성화하며 P5 schedule reconciliation에서 확장한다.
+
+업무 쓰기가 있으면 반드시 같은 DB의 `db.transaction(async (tx) => { ... await queue.publish(name, {publicId}, queueTransaction(tx)); ... })`로 기록한다. 공식 fromKysely bridge는 루트 DB를 거절하고 transaction executor를 요구한다. 반환 receipt는 outer transaction commit 전에는 잠정 값이다. enqueue 실패를 callback에서 삼켜 업무만 commit하지 않는다. 새 Outbox는 추가하지 않는다. 같은 publicId를 다시 publish하면 다른 provider job이 생성될 수 있으므로 request_key/업무 잠금으로 중복 소비를 제어한다.
+
+stop은 새 publish/등록을 차단하고 수락한 호출 및 진행 중 handler 정리를 기다린다. 제한 시간 초과·handler 잔류 시 reject하므로 소유 프로세스는 정상 종료로 보고하지 말고 종료 절차를 완료해야 한다(P1-10). adapter 자체는 process.exit하지 않으며 지연된 정리 작업은 계속될 수 있다. 완료 job 보관은 1일, 대기/retry 보관은 14일이고 실제 삭제는 pg-boss maintenance 시점에 따른다. 업무 보존 정책은 업무 테이블에 적용한다.
+
+handler 원문 예외는 provider에 넘기기 전에 고정 오류로 바꾸고 반환값은 저장하지 않는다. provider error/warning 로그도 고정 코드·메시지만 기록한다. 실패 원인 분류 및 업무 상태 기록은 후속 service의 책임이다.
+
 ## 공통 API 계약
 
 - 외부 리소스 ID는 UUIDv7 `publicId`만 사용한다. 내부 BIGINT ID를 요청·응답에 넣지 않는다.
