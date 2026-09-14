@@ -9,6 +9,15 @@ export type {
   ProfileSessionResult,
   SessionManager,
 } from "./session-manager.js";
+export { createFlowRunner, FlowRunnerError } from "./flow-registry.js";
+export type {
+  BrowserFlowCleanupContext,
+  BrowserFlowContext,
+  BrowserFlowHandler,
+  BrowserFlowStep,
+  FlowRunner,
+  FlowRunRequest,
+} from "./flow-registry.js";
 
 export const browserPackageName = "@bros/browser" as const;
 export const browserWorkspaceDependencies = [corePackageName] as const;
