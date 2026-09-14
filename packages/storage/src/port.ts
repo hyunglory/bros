@@ -5,6 +5,8 @@ export type ObjectBody = Uint8Array | ReadableStream<Uint8Array>;
 
 export interface PutObjectInput {
   body: ObjectBody;
+  contentHash?: string;
+  contentType?: string;
   key: string;
 }
 
@@ -29,6 +31,7 @@ export type StorageErrorCode =
   | "INVALID_SIGNED_URL"
   | "INVALID_SIGNED_URL_EXPIRY"
   | "OBJECT_NOT_FOUND"
+  | "STORAGE_AUTH_FAILED"
   | "STORAGE_IO_ERROR"
   | "UNSUPPORTED_STORAGE_DRIVER";
 

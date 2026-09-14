@@ -1,4 +1,4 @@
-import { createRedactedLogger } from "@bros/core";
+import { createRedactedLogger, EnvSecretProvider } from "@bros/core";
 import type { AppConfig } from "@bros/core";
 import { createPgBossQueue } from "@bros/queue";
 import { createSchedulerService } from "@bros/queue";
@@ -28,7 +28,9 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
   const logger = options.logger ?? createRedactedLogger();
   const browserExecutors =
     options.browserExecutors ??
-    createDefaultBrowserRunExecutors(createObjectStorage(config.storage));
+    createDefaultBrowserRunExecutors(
+      createObjectStorage(config.storage, { secretProvider: new EnvSecretProvider(process.env) }),
+    );
   const scheduler = createSchedulerService({
     flowRegistry: {
       registeredHandlerKeys: () => browserExecutors.map((executor) => executor.handlerKey).sort(),

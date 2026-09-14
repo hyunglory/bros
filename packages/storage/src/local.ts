@@ -2,10 +2,11 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { StorageConfig } from "@bros/core";
+import type { SecretProvider, StorageConfig } from "@bros/core";
 import { validateObjectKey } from "./object-key.js";
 import { StorageError } from "./port.js";
 import type { ObjectBody, ObjectStorage, PutObjectInput, StoredObject } from "./port.js";
+import { createR2ObjectStorage } from "./r2.js";
 
 const LOCAL_PROVIDER = "LOCAL" as const;
 const DEFAULT_BUCKET = "local";
@@ -28,9 +29,19 @@ export function createLocalObjectStorage(options: LocalObjectStorageOptions): Lo
   return new LocalObjectStorageAdapter(options);
 }
 
-export function createObjectStorage(config: StorageConfig): ObjectStorage {
+export function createObjectStorage(
+  config: StorageConfig,
+  options: { secretProvider?: SecretProvider } = {},
+): ObjectStorage {
   if (config.driver === "local") {
     return createLocalObjectStorage({ root: config.localRoot });
+  }
+
+  if (config.driver === "r2") {
+    if (!options.secretProvider) {
+      throw new StorageError("STORAGE_AUTH_FAILED", "Object storage authentication is required");
+    }
+    return createR2ObjectStorage({ ...config, secretProvider: options.secretProvider });
   }
 
   throw new StorageError(

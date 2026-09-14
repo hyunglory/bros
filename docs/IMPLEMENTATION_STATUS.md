@@ -35,5 +35,6 @@
 | P2-14 Import 관리 UI/API | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-013, cursor pagination·상태/건수·안전한 실패 원인·업무/처리 상태 분리·명시적 resume/replay·local 인증 fence PASS; 전체 pnpm check PASS(Admin 13·unit 71·integration 99) | 원격 CI 미실행; P2-15 MASTER 상품관리 API/UI 또는 P2-16 Brand Review 로컬 착수 가능 |
 | P5-06 Demo Flow/Test Harness + P5-09/10 evidence | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014/015, actual Chromium evidence와 disposable PostgreSQL/pg-boss manual success/failure·receipt 멱등성 PASS | 원격 CI PASS 후 상태 확정 |
 | P6-01 인증 경계 + P5 durable DB/Queue 연결 | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014/015, Caddy Basic Auth actor/token overwrite·Authorization upstream 차단·loopback proxy token·same-origin JSON gate·artifact signed preview API·browser.run Worker/DB 실제 검증 PASS | 원격 CI 미실행; R2 storage와 실제 HTTPS staging 배포는 후속 검증 |
+| P6-04 Production R2 ObjectStorage Adapter | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-016, SecretProvider 기반 S3-compatible R2 put/get/delete·SHA-256/content-type metadata·503 retry·최대 7일 presigned GET URL·API/Worker runtime adapter 교체 계약 PASS | 실제 R2 account/bucket, wrong credential 403, public HTTPS/remote CI는 NOT_RUN |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

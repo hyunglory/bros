@@ -14,6 +14,8 @@ export type StorageConfig =
     }
   | {
       driver: "r2";
+      bucket: string;
+      endpoint: string;
     };
 
 export interface DatabaseConfig {
@@ -191,6 +193,40 @@ function readPublicOrigin(
   }
 }
 
+function readR2Endpoint(environment: EnvironmentSource, issues: string[]): string {
+  const configured = readText(environment, "STORAGE_R2_ENDPOINT", issues, { required: true });
+  if (!configured) return "";
+  try {
+    const parsed = new URL(configured);
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.username ||
+      parsed.password ||
+      parsed.port ||
+      parsed.pathname !== "/" ||
+      parsed.search ||
+      parsed.hash ||
+      !parsed.hostname.endsWith(".r2.cloudflarestorage.com")
+    ) {
+      throw new Error();
+    }
+    return parsed.origin;
+  } catch {
+    issues.push("STORAGE_R2_ENDPOINT must be an HTTPS Cloudflare R2 S3 API origin");
+    return "";
+  }
+}
+
+function readR2Bucket(environment: EnvironmentSource, issues: string[]): string {
+  const bucket = readText(environment, "STORAGE_R2_BUCKET", issues, { required: true });
+  if (!bucket) return "";
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) || bucket.includes("..")) {
+    issues.push("STORAGE_R2_BUCKET must be a valid private R2 bucket name");
+    return "";
+  }
+  return bucket;
+}
+
 export function loadConfig(environment: EnvironmentSource): AppConfig {
   const issues: string[] = [];
   const appEnvironment = readChoice(environment, "APP_ENV", appEnvironments, issues, {
@@ -245,6 +281,13 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
           defaultValue: production ? undefined : "./storage",
           required: production,
         })
+      : undefined;
+  const storageR2 =
+    storageDriver === "r2"
+      ? {
+          bucket: readR2Bucket(environment, issues),
+          endpoint: readR2Endpoint(environment, issues),
+        }
       : undefined;
 
   validateDatabaseUrl(databaseUrl, issues);
@@ -331,7 +374,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     storage:
       storageDriver === "local"
         ? { driver: storageDriver, localRoot: storageLocalRoot ?? "" }
-        : { driver: storageDriver },
+        : { driver: storageDriver, ...(storageR2 ?? { bucket: "", endpoint: "" }) },
   };
 }
 

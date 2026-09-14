@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify, { LogController } from "fastify";
 import type { FastifyBaseLogger } from "fastify";
 import type { AppConfig } from "@bros/core";
-import { createRedactedLogger } from "@bros/core";
+import { createRedactedLogger, EnvSecretProvider } from "@bros/core";
 import { createPgBossQueue } from "@bros/queue";
 import type { QueuePort } from "@bros/queue";
 import { createObjectStorage } from "@bros/storage";
@@ -152,9 +152,9 @@ export function createApiApp(
   });
   const artifactPreview =
     options.artifactPreview ??
-    (config.storage.driver === "local"
-      ? createArtifactPreviewPort(createObjectStorage(config.storage))
-      : undefined);
+    createArtifactPreviewPort(
+      createObjectStorage(config.storage, { secretProvider: new EnvSecretProvider(process.env) }),
+    );
   if (artifactPreview === undefined) registerArtifactPreviewRoutes(app, {});
   else registerArtifactPreviewRoutes(app, { preview: artifactPreview });
   app.addHook("preClose", async () => {

@@ -1876,3 +1876,54 @@
 - 금지 변경: client actor/token header 신뢰, Basic Auth Authorization upstream 전달, queue payload에 secret/raw input 추가, local unauthenticated production 허용.
 - 완료 조건: public staging에서 TLS, 401, spoofed header overwrite, direct API port 차단, authenticated artifact preview와 browser run evidence를 확인하고 remote CI를 통과한다.
 - 재검토가 필요한 조건: Caddy auth 방식, API deployment topology, storage provider, multi-role/RBAC 요구가 변경될 때.
+
+## DEC-20260914-016 — P6-04 SecretProvider 기반 private R2 ObjectStorage Adapter
+
+- 일자: 2026-09-14
+- 종료 단계/분야: Phase 6 P6-04 운영 ObjectStorage 구현 및 local contract 검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-04, P1-12, P1-13, P5-10, P6-01
+- 검토 범위와 근거: AGENTS.md, DEC-20260913-004, DEC-20260912-006, DEC-20260914-014/015, WBS P6-04 acceptance/test, ObjectStorage port·Local adapter, API/Worker runtime 조립부, Cloudflare R2 S3 API/presigned URL 및 AWS SDK v3 공식 문서
+- 상태: ACCEPTED
+- supersedes: DEC-20260913-004와 DEC-20260914-014/015의 “R2 adapter 미구현” 상태만 대체한다. Local adapter 보안 계약, artifact authorization 및 P6-01 proxy trust boundary는 유지한다.
+
+### 확정 결정
+
+- `STORAGE_DRIVER=r2`는 HTTPS Cloudflare account S3 API origin(`STORAGE_R2_ENDPOINT`)과 portable private bucket(`STORAGE_R2_BUCKET`)을 모두 요구한다. custom/public domain, path/query/user-info endpoint는 config에서 거절한다.
+- `createObjectStorage(config.storage, { secretProvider })`가 Local 또는 R2 adapter를 선택한다. R2 access key와 secret key는 기존 `SecretProvider`의 승인 key만으로 lazy resolve하며 config/DB/log/signed URL에 저장하지 않는다. API/Worker runtime 조립부만 `EnvSecretProvider(process.env)`를 주입하고 Browser/업무 코드는 provider 구현을 알지 못한다.
+- R2 adapter는 S3-compatible `put/get/delete`와 GET presigned URL을 제공한다. PUT은 `contentType`과 호출자가 공급한 SHA-256을 object metadata로 전달하며, SDK의 최대 3회 transient retry를 사용한다. GET presigned URL은 1~604800초로 제한하고 artifact preview API는 기존 300초 authorization capability를 유지한다.
+- Adapter는 public ACL을 설정하지 않는다. private bucket 생성/정책은 운영 배포 책임이며, missing/invalid credential은 stable `STORAGE_AUTH_FAILED`, missing object는 `OBJECT_NOT_FOUND`로 외부 세부 오류 없이 mapping한다.
+
+### 기각한 선택지와 이유
+
+- R2 credential을 typed config 또는 `.env.example` non-secret setting에 추가: P1-13 SecretProvider/redaction 경계를 위반하고 노출 면적을 넓힌다.
+- R2 endpoint에 custom/public domain을 허용: presigned URL의 S3 API origin 요구와 private object boundary를 흐리므로 기각한다.
+- API/Worker 업무 handler마다 R2 client를 직접 생성: Local↔R2 교체 acceptance 및 ObjectStorage port 분리를 훼손한다.
+- R2 오류 원문, endpoint query, SigV4 signature를 그대로 surface: credential/signed URL 노출 위험이 있어 stable StorageError만 반환한다.
+
+### 변경 파일
+
+- `.env.example`, `pnpm-lock.yaml`
+- `packages/core/src/config/index.ts`, `packages/core/test/config.test.mjs`
+- `packages/storage/package.json`, `packages/storage/src/port.ts`, `packages/storage/src/local.ts`, `packages/storage/src/r2.ts`, `packages/storage/src/index.ts`, `packages/storage/test/storage.test.mjs`
+- `packages/browser/src/artifact-service.ts`
+- `apps/api/src/app.ts`, `apps/worker/src/runtime.ts`
+- `docs/IMPLEMENTATION_STATUS.md`, `docs/RUNBOOK.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: core/storage/browser/API/Worker build, storage typecheck, core config/security 15개, storage 11개, browser artifact 6개, API security 2개, actual Chromium artifact integration 1개, `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`(Admin 13개·Node 100개), 변경 파일 Prettier check, `git diff --check`.
+- 결과: IMPLEMENTED_NOT_VALIDATED — mock S3 contract의 retry/metadata/stream/delete/presigned expiry와 missing credential mapping, existing artifact/API security/Chromium regression은 PASS. 실제 R2 account/bucket, wrong credential 401/403, remote CI와 public staging은 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- Cloudflare account ID, private bucket 및 scoped API credential이 제공되지 않아 real R2 PUT/GET/DELETE, 401/403 credential failure, signed URL browser fetch는 실행하지 않았다.
+- root `pnpm format:check`는 이번 변경과 무관한 `apps/admin` 11개 기존 formatting drift로 FAIL한다. P6-04 변경 파일은 formatter를 적용했고 lint/typecheck/unit은 PASS다.
+- P6-05 retention cleanup은 R2 object metadata/listing 및 hold 정책의 상세 설계가 필요하다. P6-10 public Docker/HTTPS는 P6-02/P6-06과 external staging authority가 남아 있다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P6-04 real R2 staging validation 또는 P6-05 artifact retention/cleanup 설계·구현. external R2 authority가 없으면 P6-05의 provider-neutral policy부터 진행한다.
+- 금지 변경: R2 bucket public-read/ACL 설정, secret·presigned URL 로그/DB 저장, API/Worker 업무 코드의 provider 직접 의존, client actor/token 신뢰, local unauthenticated production 허용.
+- 완료 조건: real private R2 bucket에서 put/get/delete, metadata, 300초 preview URL, wrong credential 401/403 mapping과 no-public-ACL를 확인하거나, P6-05의 retention/hold/delete audit 계약과 test를 완성한다.
+- 재검토가 필요한 조건: custom domain artifact delivery, direct client upload, multipart large object, key rotation without restart, cross-region S3 provider 또는 object legal hold 요구가 생길 때.

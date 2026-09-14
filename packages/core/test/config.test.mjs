@@ -133,6 +133,8 @@ test("loads explicit production settings without development defaults", () => {
     API_PUBLIC_ORIGIN: "https://admin.example.test",
     WORKER_CONCURRENCY: "4",
     STORAGE_DRIVER: "r2",
+    STORAGE_R2_ENDPOINT: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    STORAGE_R2_BUCKET: "private-artifacts",
   });
 
   assert.deepEqual(config, {
@@ -162,9 +164,48 @@ test("loads explicit production settings without development defaults", () => {
     },
     importer: { chunkSize: 100, concurrency: 2, maxQueuedBatches: 32 },
     storage: {
+      bucket: "private-artifacts",
       driver: "r2",
+      endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
     },
   });
+});
+
+test("requires a private R2 bucket and HTTPS account S3 API origin", () => {
+  const base = {
+    DATABASE_URL: "postgresql://localhost/bros",
+    STORAGE_DRIVER: "r2",
+  };
+  assert.throws(
+    () => loadConfig(base),
+    (error) => {
+      assert.ok(error instanceof ConfigValidationError);
+      assert.deepEqual(error.issues, [
+        "STORAGE_R2_BUCKET is required",
+        "STORAGE_R2_ENDPOINT is required",
+      ]);
+      return true;
+    },
+  );
+  for (const environment of [
+    {
+      ...base,
+      STORAGE_R2_BUCKET: "Private_Artifacts",
+      STORAGE_R2_ENDPOINT: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    },
+    {
+      ...base,
+      STORAGE_R2_BUCKET: "private-artifacts",
+      STORAGE_R2_ENDPOINT: "http://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    },
+    {
+      ...base,
+      STORAGE_R2_BUCKET: "private-artifacts",
+      STORAGE_R2_ENDPOINT: "https://storage.example.test/custom-domain",
+    },
+  ]) {
+    assert.throws(() => loadConfig(environment), ConfigValidationError);
+  }
 });
 
 test("does not include an invalid environment value in the error", () => {

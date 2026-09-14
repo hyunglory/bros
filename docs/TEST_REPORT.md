@@ -391,3 +391,11 @@
 - Caddy 2 컨테이너로 운영 `ops/Caddyfile`을 environment substitution 후 `caddy validate` PASS했다. 임시 loopback staging proxy/반사 upstream smoke에서 unauthenticated `/api/*`는 401, forged actor/token은 Basic Auth username/host token으로 overwrite, Basic Auth `Authorization`은 upstream에 미전달됨을 확인했다.
 - 발견·수정: 같은 request header에 `header_up -Field`와 `header_up Field value`를 함께 선언하면 Caddy header operation 순서상 set 값도 제거됐다. actor/token은 set만으로 기존 값을 overwrite하므로 delete 선언을 제거하고 `header_up -Authorization`을 별도로 추가했다. 이후 실제 smoke와 API security regression 2개 PASS, lint PASS, `git diff --check` PASS.
 - 잔여: remote CI와 실제 public HTTPS/DNS·firewall staging, R2 adapter는 NOT_RUN이다. local proxy smoke의 HTTP transport는 production TLS certificate issuance를 대신하지 않는다.
+
+## 2026-09-14 — P6-04 Production R2 ObjectStorage Adapter
+
+- 단위/계약: `packages/storage/test/storage.test.mjs` 11개 PASS. R2 S3-compatible adapter가 private logical bucket으로 PUT/GET/DELETE를 수행하고, 첫 503 뒤 SDK retry로 성공하며 `content-type`과 `x-amz-meta-content-sha256`를 전달함을 mock request handler에서 확인했다. GET response stream, 최대 7일 URL 상한, SigV4 300초 presigned GET URL 및 signed URL에 secret 값이 포함되지 않음을 확인했다.
+- secret/config: `packages/core/test/config.test.mjs` 및 `packages/core/test/security.test.mjs` 15개 PASS. R2 endpoint는 HTTPS account S3 API origin, bucket은 portable private bucket name으로 제한하며, 누락 access/secret key는 `STORAGE_AUTH_FAILED`로 mapping했다. 실제 잘못된 R2 credential의 401/403은 account credential이 없어 NOT_RUN이다.
+- 회귀: storage/core/browser/API/Worker build·storage typecheck·Browser artifact service 6개·API security 2개 PASS. 실제 Chromium artifact integration 1개는 sandbox의 `spawn EPERM` 이후 승인된 동일 명령에서 PASS했다.
+- 품질: `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`(Admin 13개·Node 100개), 변경 파일 Prettier check, `git diff --check` PASS. root `pnpm format:check`는 이번 변경과 무관한 Admin 11개 파일의 기존 formatting drift로 FAIL했다.
+- 실제 Cloudflare R2 account/bucket PUT/GET/DELETE와 real credential failure, remote CI, public HTTPS staging은 NOT_RUN이다.

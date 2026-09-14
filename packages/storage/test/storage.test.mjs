@@ -3,16 +3,20 @@ import { Buffer } from "node:buffer";
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { ReadableStream } from "node:stream/web";
 import test from "node:test";
 import { TextEncoder } from "node:util";
+import { URL } from "node:url";
 import {
   StorageError,
   buildObjectKey,
   createLocalObjectStorage,
   createObjectStorage,
+  createR2ObjectStorage,
   validateObjectKey,
 } from "../dist/index.js";
+import { EnvSecretProvider } from "../../core/dist/index.js";
 
 async function createFixture(context, options = {}) {
   const root = await mkdtemp(join(tmpdir(), "bros-storage-"));
@@ -237,8 +241,94 @@ test("concurrent writes can create the same directory without a race failure", a
   }
 });
 
-test("rejects unsupported drivers without reading provider secrets", () => {
-  assert.throws(() => createObjectStorage({ driver: "r2" }), {
-    code: "UNSUPPORTED_STORAGE_DRIVER",
+test("uses the R2 S3 contract with retries, private metadata, and expiring signed URLs", async () => {
+  const attempts = { put: 0 };
+  const requests = [];
+  const storage = createR2ObjectStorage({
+    bucket: "private-artifacts",
+    endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    requestHandler: {
+      async handle(request) {
+        requests.push({ headers: request.headers, method: request.method });
+        if (request.method === "PUT") {
+          attempts.put += 1;
+          if (attempts.put === 1)
+            return { response: { body: Readable.from([]), headers: {}, statusCode: 503 } };
+          return { response: { body: Readable.from([]), headers: {}, statusCode: 200 } };
+        }
+        if (request.method === "GET") {
+          return {
+            response: {
+              body: Readable.from([Buffer.from("from-r2")]),
+              headers: { "content-length": "7" },
+              statusCode: 200,
+            },
+          };
+        }
+        return { response: { body: Readable.from([]), headers: {}, statusCode: 204 } };
+      },
+    },
+    secretProvider: new EnvSecretProvider({
+      BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID: "r2-access-key",
+      BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY: "r2-secret-key",
+    }),
   });
+
+  const stored = await storage.putObject({
+    body: new TextEncoder().encode("payload"),
+    contentHash: "a".repeat(64),
+    contentType: "application/json",
+    key: "automation/2026/09/14/run-id/result.json",
+  });
+  assert.deepEqual(stored, {
+    bucket: "private-artifacts",
+    objectKey: "automation/2026/09/14/run-id/result.json",
+    provider: "R2",
+    size: 7,
+  });
+  assert.equal(attempts.put, 2);
+  const put = requests.find((request) => request.method === "PUT");
+  assert.equal(put.headers["content-type"], "application/json");
+  assert.equal(put.headers["x-amz-meta-content-sha256"], "a".repeat(64));
+  assert.equal(
+    (
+      await readStream(await storage.getObject("automation/2026/09/14/run-id/result.json"))
+    ).toString(),
+    "from-r2",
+  );
+  await storage.deleteObject("automation/2026/09/14/run-id/result.json");
+  assert.equal(requests.at(-1).method, "DELETE");
+
+  const signedUrl = new URL(
+    await storage.getSignedUrl("automation/2026/09/14/run-id/result.json", 300),
+  );
+  assert.equal(signedUrl.protocol, "https:");
+  assert.equal(signedUrl.searchParams.get("X-Amz-Expires"), "300");
+  assert.equal(signedUrl.toString().includes("r2-secret-key"), false);
+  await assert.rejects(storage.getSignedUrl("automation/2026/09/14/run-id/result.json", 604_801), {
+    code: "INVALID_SIGNED_URL_EXPIRY",
+  });
+});
+
+test("maps missing R2 credentials to a stable storage authentication error", async () => {
+  const storage = createR2ObjectStorage({
+    bucket: "private-artifacts",
+    endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    secretProvider: new EnvSecretProvider({}),
+  });
+  await assert.rejects(storage.getSignedUrl("automation/2026/09/14/run-id/result.json", 60), {
+    code: "STORAGE_AUTH_FAILED",
+  });
+});
+
+test("requires a SecretProvider when selecting the R2 driver", () => {
+  assert.throws(
+    () =>
+      createObjectStorage({
+        bucket: "private-artifacts",
+        driver: "r2",
+        endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+      }),
+    { code: "STORAGE_AUTH_FAILED" },
+  );
 });

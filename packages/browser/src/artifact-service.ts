@@ -1,5 +1,6 @@
 import { maskSensitiveText, secretRedactionCensor } from "@bros/core";
 import { buildObjectKey, validateObjectKey } from "@bros/storage";
+import { createHash } from "node:crypto";
 import type { ObjectStorage, StoredObject } from "@bros/storage";
 import type { Page } from "playwright";
 
@@ -99,6 +100,14 @@ export class BrowserArtifactServiceError extends Error {
 
 function artifactFilename(kind: BrowserArtifactKind): string {
   return kind === "trace" ? "trace.zip" : kind === "result" ? "result.json" : `${kind}.png`;
+}
+
+function artifactContentType(kind: BrowserArtifactKind): string {
+  return kind === "trace"
+    ? "application/zip"
+    : kind === "result"
+      ? "application/json"
+      : "image/png";
 }
 
 function assertRunPublicId(runPublicId: string): void {
@@ -239,7 +248,14 @@ export function createBrowserArtifactService(options: {
     retention: string,
   ): Promise<StoredBrowserArtifact> => {
     try {
-      const stored = await options.storage.putObject({ body, key });
+      const stored = await options.storage.putObject({
+        body,
+        contentType: artifactContentType(kind),
+        key,
+        ...(body instanceof Uint8Array
+          ? { contentHash: createHash("sha256").update(body).digest("hex") }
+          : {}),
+      });
       return asStoredArtifact(stored, kind, retention);
     } catch {
       throw new BrowserArtifactServiceError("ARTIFACT_UPLOAD_FAILED");
