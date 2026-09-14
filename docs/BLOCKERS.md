@@ -1,6 +1,6 @@
 # BROS Blocker
 
-기준일: 2026-09-13
+기준일: 2026-09-14
 
 ## BLK-001 — P1-14 원격 CI 실행 및 merge 차단 검증
 
@@ -34,3 +34,13 @@
 - 해소 조건: 비밀·개인정보를 제거한 실제 샘플 최소 20건과 저장 위치/형식/전체 규모/필드 의미 제공 → field inventory → 20건 mapping dry-run → Source Mapping Spec 확정.
 - 해소 근거: `examples/더망고_상품정보_20260913.xlsx`를 읽기 전용 분석해 상품 26,375건과 옵션 상품 3,722건을 확인하고, 변형 사례를 포함한 20건 mapping dry-run을 완료했다. 결과는 MAPPED 8건, MAPPED_WITH_REVIEW 8건, 필수 `externalProductId` 결측에 따른 REJECTED 4건이며 유효 source identity 중복과 옵션-이미지 pairing mismatch는 0건이다.
 - 후속 범위: BLK-003 해소는 P2-02 계약 구현 완료를 의미하지 않는다. `stockStatus`, 수집 시각, 옵션·이미지 하위 타입과 가격 decimal 표현은 Source Mapping Spec 6장에서 확정한 뒤 구현한다.
+
+## BLK-004 — Phase 2 현재 revision의 원격 CI 증거 부재
+
+- 상태: OPEN — DEC-20260914-016, 2026-09-14
+- 관련 Task: P2-05, P2-07~P2-16, Phase 2 Gate
+- 근거: `646cb49c8217358f2075d8df746adf6d1bb404d0`에 대한 GitHub check-runs 조회가 HTTP 422 `No commit found`다. 조회한 최근 5개 run 중 최근 성공 34794445556은 P2-04 SHA `8c799a3`이므로 현재 구현을 검증하지 않는다.
+- 영향: 로컬 Admin 27·unit 76·integration 110과 실제 XLSX 20행 재import는 PASS지만 공식 Gate는 `IMPLEMENTED_NOT_VALIDATED`다. 판정 상세는 `docs/PHASE2_GATE.md`.
+- 해소 조건: 공개 변경 범위를 확인한 현재 revision의 원격 required check `install / lint / typecheck / test / build` 성공 → 새 Decision과 Task/Gate 상태 갱신. 실패/취소/이전 SHA의 성공으로 대신하지 않는다.
+- 이번 실행: GitHub read-only 조회만 수행했다. 원본 XLSX·raw 출력은 공개 fixture에 넣지 않았고 push/CI 실행/설정 변경도 하지 않았다.
+- 구분: Phase 1 BLK-001은 RESOLVED를 유지한다. 기존 branch protection 증거와 신규 Phase 2 코드의 CI 미실행은 별개의 사항이다.

@@ -1899,3 +1899,61 @@
 - 금지 변경: Gate 증거를 만들기 위해 실제 sample 원본 수정/저장소 추가, unknown/fuzzy 자동 승인, 자동 신규 BRAND 생성, 자동승인 기본 OFF 변경, 기존 MASTER 링크 강제 교체, 완료 item 이력 재사용, 별도 P5 worktree 수정.
 - 완료 조건: 실제 sample import와 재import의 행 수·Source/Master/SKU/Image 수렴, unresolved 검수 분리, batch/item 집계와 raw/SHA 근거, 전체 회귀를 재현 가능한 명령으로 기록하고 Phase 2 Gate를 PASS/조건부/보류 중 하나로 판정한다.
 - 재검토가 필요한 조건: Gate가 실제 sample의 누락된 platform seed/alias/identifier나 pipeline 성능 문제로 실패하거나, 여러 unresolved item의 bulk alias 재처리가 Pilot 필수 운영 조건으로 확인될 때.
+
+## DEC-20260914-016 — Phase 2 Gate 조건부 판정과 실제 XLSX 재import 증거
+
+- 일자: 2026-09-14
+- 종료 단계/분야: Phase 2 Gate 검토·실제 XLSX end-to-end 재import 로컬 검증·인수 기록
+- 작성 모델/추론 수준: GPT-6 기반 Codex / 시스템 설정(정확한 추론 수준 미노출)
+- 관련 WBS Task: P2-01~P2-16, Phase 2 Gate, 후속 P3/P4/P6
+- 검토 범위와 근거: AGENTS.md, `doc/README.md`, `doc/BROS_구현_보완_명세_v0.2.md` 6장, `doc/BROS_브랜드_리셀_OS_MVP_개발_WBS_v0.1.md` Phase 2 Gate, `doc/BROS_개발_운영_구성_지침_v0.1.md` 12장, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 5장, DEC-20260914-005~015, 현재 importer/Worker/API/Admin 구현과 integration, 구현 HEAD `646cb49c8217358f2075d8df746adf6d1bb404d0`.
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-015의 Gate 판정 인수 작업을 완료한다. 기존 P2 도메인 결정과 원격 검증 대기 상태를 유지하며 공식 Gate PASS로 대체하지 않는다.
+
+### 확정 결정
+
+- Phase 2 Gate는 **조건부 통과 — 공식 PASS 보류**, 상태 `IMPLEMENTED_NOT_VALIDATED`다. 실제 표본 재import와 전체 로컬 회귀는 PASS지만 현재 revision의 원격 CI 증거가 없어 BLK-004를 등록한다. Waiver나 배포 승인으로 해석하지 않는다.
+- 실제 XLSX 검증은 이전 P2-01의 대표 20행을 유지한다. 전체 26,375행은 adapter mapping inventory이며 DB 영속화 검증 규모가 아니다. 원본 bytes/SHA와 모든 raw를 보존하고 상품명·브랜드를 임의 보완하지 않는다.
+- `scripts/verify-phase2-sample.mjs`로 새 일회용 DB에서 실제 adapter→validation→pg-boss→Worker pipeline→조회 API를 실행한다. Worker runtime 2개는 같은 프로세스의 독립 pool/consumer다. 실제 별도 프로세스 crash 증거는 기존 integration으로 구분한다. 업로드 UI/API E2E로 주장하지 않는다.
+- 최초·동일 수집 시각 재import·동시 두 reimport·새 수집 시각 reimport의 5회에서 Source 16·이미지 메타데이터 35와 공개 UUID가 수렴했다. 이전 완료 item은 불변이며 새로운 수집 시각은 Source freshness에 반영된다. 독립 batch/item/검수 이력의 증가는 정상이다. 같은 batch 반복 enqueue는 기존 receipt를 재사용한다.
+- 실제 표본 16행은 승인 BRAND/명시 식별자 근거가 없어 REVIEW_REQUIRED로 분리됐다. 외부 상품 ID가 없는 4행은 FAILED이고 Source를 만들지 않는다. Queue SUCCESS와 batch PARTIAL_FAILED가 동시에 성립하며 이를 전건 상품 성공으로 해석하지 않는다.
+- 실제 MASTER/SKU/Source SKU 0건은 안전한 미연결 결과다. WBS의 양성 관계 생성·경합·MASTER 관리 관계 추적은 합성 integration/API/Admin PASS로 별도 증명한다. 운영자가 확인한 브랜드·식별자가 있는 실제 추가 표본의 양성 검증은 현재 증거 제한으로 남긴다.
+- 공개 CI에 원본 XLSX를 추가하지 않는다. 성공 출력은 집계·SHA·표본 locator만, 실패 출력은 checkpoint와 스크립트의 고정 code만 허용한다. 원본 행/상품 ID/상품명/URL/driver error를 출력하지 않는다.
+
+### 기각한 선택지와 이유
+
+- 실제 XLSX에 alias/품번을 만들어 MASTER/SKU 생성 성공을 얻기: 실제 샘플의 의미를 바꾸고 미확인 브랜드·식별자 오염을 일으킨다.
+- Import Item/검수 row 증가를 도메인 멱등성 실패로 판정: 검수와 감사 단위가 독립 import item이며 완료 이력 불변 계약과 충돌한다. Source/이미지 identity 수렴과 batch receipt replay를 별도 검증한다.
+- 이전 SHA의 CI PASS로 현재 Phase 2 PASS 선언: 현재 구현 SHA는 원격 조회에서 존재하지 않아 새 코드 검증 증거가 아니다.
+- 20행 결과를 26,375행 전체 E2E 또는 P6 성능 PASS로 확장: 전체 파일은 mapping만 했고 운영 하드웨어·동시 Provider 부하·이미지 다운로드는 실행하지 않았다.
+- MASTER/SKU 0건을 양성 관계 PASS로 표시: 실데이터 검증과 합성 관계 테스트를 혼동하므로 증거를 분리한다.
+
+### 변경 파일
+
+- `scripts/verify-phase2-sample.mjs`
+- `docs/PHASE2_GATE.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/BLOCKERS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`, `docs/DECISIONS.md`
+- 도메인 코드/DB schema/원본 XLSX/별도 P5 worktree 변경 없음.
+
+### 검증 증거
+
+- `TEST_DATABASE_URL`을 loopback 55438의 이번 작업 전용 PostgreSQL 18.6에 지정해 `node scripts/verify-phase2-sample.mjs 'examples/더망고_상품정보_20260913.xlsx'` exit 0. 최종 완료 시각 2026-09-14T13:10:30.351Z, SHA와 수집 context/표본 locator/플랫폼별 결과는 `docs/PHASE2_GATE.md`에 기록했다.
+- 5회 누적 10 batches/100 items/미결 검수 80 items, 도메인 Source 16/images 35/MASTER·SKU·Source SKU 0. input integrity/raw/image metadata/public UUID/same-time·concurrent·later reimport/prior item/repeated enqueue/aggregate/unknown non-creation/API trace 모두 PASS.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 각각 exit 0. Admin Vitest 27·Node unit 76, fail/skip 0.
+- integration 21개 파일을 `node --test --test-concurrency=1`로 실행해 110개(parent 포함) PASS, fail/skip 0, 147,423ms. 합성 1k Worker 처리 53,892ms와 실제 Worker crash/재전달·Queue·DB 제약·관계 경합 회귀 포함.
+- 최종 실패 로그 제한 보완 뒤 실제 XLSX 스크립트, script Prettier check와 `pnpm lint`를 다시 PASS했다. `git diff --check` PASS.
+- read-only `gh run list --repo hyunglory/bros --limit 5 --json databaseId,headSha,status,conclusion`: 최근 성공은 34794445556/P2-04 `8c799a3`. `gh api repos/hyunglory/bros/commits/646cb49/check-runs`는 HTTP 422 No commit found. 원격 CI 실행 NOT_RUN.
+- 전용 컨테이너 내 잔존 `bros_test_*` DB count 0 확인 후 `docker stop bros-phase2-gate` 성공(`--rm`). 기존 DB/다른 컨테이너는 변경하지 않았다.
+- 결과: 로컬 PASS, 공식 Gate `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- BLK-004 OPEN: 현재 구현과 검증 문서를 포함하는 원격 revision의 required check PASS 필요. 이번 요청에서 public push/CI 실행/branch protection 변경은 수행하지 않았다. Phase 1 BLK-001은 RESOLVED를 유지한다.
+- 실제 샘플의 양성 MASTER/SKU 관계, 전체 파일 영속화, 이미지 다운로드/객체 저장, 브라우저 XLSX 업로드는 NOT_RUN이다. WBS 관계 검증에 사용한 합성 증거와 분리한다.
+- P6 인증·actor·Origin/CSRF·직접 API 포트 차단 및 운영 성능은 기존 범위로 유지한다. 현재 로컬 업무 API를 외부에 배포하지 않는다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 공개 변경 범위를 확인하고 현재 revision의 원격 CI/required check를 검증해 BLK-004를 해소한 뒤 P2 관련 Task와 Phase 2 Gate 상태를 새 Decision으로 확정한다.
+- 금지 변경: 원본 XLSX/raw 출력 공개 추가, unknown 브랜드/식별자 추정 생성, 자동승인 기본 OFF 변경, 기존 완료 item 재사용, 기존 MASTER 링크 강제 교체, 별도 P5 worktree 변경, 과거 CI 결과로 현재 SHA PASS 선언.
+- 완료 조건: 대상 revision의 required check `install / lint / typecheck / test / build` PASS와 결과 URL/SHA를 기록하고 BLK-004·Gate·관련 구현 상태를 일치시킨다. 코드 수정이 생기면 영향 회귀 및 실데이터 재검증 필요성을 판단한다.
+- 재검토가 필요한 조건: Linux 병렬 integration 실패, 실제 양성 관계 샘플 제공, 전체 파일 처리에서 자원/성능 문제, 반복 검수량으로 bulk 작업이 필요할 때. Gate 확정 전에는 WBS가 허용한 병렬 Track만 독립 진행한다.

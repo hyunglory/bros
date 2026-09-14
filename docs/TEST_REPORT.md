@@ -390,3 +390,13 @@
 - 계약/Admin: strict 공개 projection과 UUIDv7, 목록·active BRAND 검색, operation header, versioned approve/reject payload, 내부/raw 필드 거절을 확인했다. Admin은 기본 미결 목록, 검색/filter, 기존 BRAND·scope·사유 선택, 승인 후 재처리 batch 표시, 브랜드 선택 없는 거절, 409 새로고침을 검증했다. Admin Vitest 27개와 Node unit 76개가 PASS했다.
 - PostgreSQL 18 전용 통합 9개(parent 포함) PASS: 안전한 목록 projection과 기본 disabled fence, 승인 alias·결정 snapshot·Queue receipt·1건 재처리의 단일 transaction, 승인 후 exact resolution과 실제 Source→MASTER pipeline 완료, duplicate alias 재사용, 서로 다른 item의 동일 alias/다른 BRAND 경합 수렴, 비활성 platform 차단, platform alias의 global 우선, 거절의 무 alias/무 재처리, Queue 실패 전체 rollback을 확인했다.
 - 전체 통합 21개 파일을 Windows에서 순차 실행해 110개(parent 포함), fail/skip 0으로 PASS했다. P2-13 1,000건 실제 Worker import와 실제 프로세스 강제 종료 후 재전달, Queue crash/expiry, Worker 종료 회귀도 통과했다. lint/typecheck/format/build를 함께 재검증했으며 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — Phase 2 Gate와 실제 XLSX 재import
+
+- 구현 기준 `646cb49`, 신규 `scripts/verify-phase2-sample.mjs`; 상세 입력 SHA·표본 행·5회 결과·재현 절차는 `docs/PHASE2_GATE.md`.
+- 실제 XLSX 전체 26,375행은 mapping inventory만 실행했다. 영속화는 기존 대표 20행으로 제한했다. 최종 실행 2026-09-14T13:10:30.351Z, PostgreSQL 18.6, 원본 SHA 전후 일치.
+- 실제 pg-boss와 독립 pool을 쓰는 Worker runtime 2개로 최초/동일 시각 재import/동시 2회/새 수집 시각 재import를 완료했다. 회차마다 유효 16행 REVIEW_REQUIRED, 필수 외부 ID 없는 4행 FAILED이며 Queue SUCCESS와 pipeline 완료를 확인했다. batch 업무 상태는 PARTIAL_FAILED다.
+- Source 16·이미지 메타데이터 35와 공개 UUID는 5회 모두 동일했다. raw/context/locator/mappedInput, 원본 이미지 URL·등록 metadata, 이전 완료 item 이력을 보존했고 새 수집 시각은 Source freshness에 반영됐다. 동일 batch 반복 enqueue는 동일 receipt를 반환했다.
+- 독립 실행 이력은 10 batches/100 items로 누적되고 미결 검수 80 items를 API cursor로 중복 없이 조회했다. BRAND/alias/MASTER/SKU/Source SKU는 0건이다. 승인 브랜드·명시 식별자가 없는 표본이므로 실제 양성 MASTER/SKU 연결 증거는 없으며 해당 관계는 합성 integration/API/Admin 증거로 구분했다. 이미지 다운로드/객체 저장/브라우저 XLSX 업로드는 NOT_RUN.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 각각 exit 0. Admin 27·Node unit 76, fail/skip 0. integration 21개 파일을 `node --test --test-concurrency=1`로 실행해 110개(parent 포함) PASS, fail/skip 0, 147,423ms. 합성 1k Worker 처리 53,892ms 및 실제 Worker crash/재전달 회귀도 PASS.
+- 원격 현재 SHA check-runs 조회는 HTTP 422 No commit found. push/원격 CI 실행 NOT_RUN. 판정은 조건부 통과/공식 PASS 보류, BLK-004 OPEN이다.

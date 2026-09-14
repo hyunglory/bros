@@ -338,3 +338,9 @@ P2-14와 같은 loopback 개발 설정에서 `http://127.0.0.1:5173/brand-review
 승인 성공 응답의 `reprocessBatchPublicId`를 Import 관리 화면에서 조회한다. 원본 item은 `REVIEW_REQUIRED` 이력으로 남고 새 batch가 Source→MASTER→SKU→Image→Tracking 단계를 수행한다. 이미 다른 MASTER와 연결된 Source는 자동 교체되지 않고 재처리 결과가 다시 검수로 남을 수 있다. 거절은 재처리를 만들지 않는다.
 
 현재 결정 actor는 `LOCAL_ADMIN`이며 사용자 신원을 뜻하지 않는다. 이 화면과 API도 P6-01의 Caddy 인증·Origin/CSRF·보증 actor가 적용되기 전에는 외부 주소에 배포하지 않는다.
+
+## 실제 XLSX 재import 검증 — Phase 2 Gate
+
+[Phase 2 Gate 보고서](PHASE2_GATE.md)의 재현 절차를 사용한다. `scripts/verify-phase2-sample.mjs`는 기존 대표 20행을 새 임시 DB에서 실제 Queue/Worker로 5회 처리하고 raw·Source/이미지 UUID·이력·집계·검수 API를 비교한다. 전체 XLSX의 영속화나 MASTER/SKU 양성 관계를 검증하는 스크립트로 해석하지 않는다.
+
+사전 조건은 build 완료, 로컬 원본 XLSX, CREATEDB 가능한 일회용 `TEST_DATABASE_URL`이다. 출력은 집계/SHA/표본 locator로 제한하며 XLSX를 공개 CI fixture에 추가하지 않는다. 실행 완료 후 이 작업 전용 컨테이너만 종료한다. 서로 다른 batch의 검수 이력 증가는 정상이며 동일 Source/이미지의 중복 생성 여부와 구분한다.
