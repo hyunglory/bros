@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@bros/core": "workspace:*"
+    "@bros/core": "workspace:*",
+    "playwright": "1.63.0"
   }
 }
