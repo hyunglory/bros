@@ -1,3 +1,6 @@
+import { mapBrowserError } from "./error-taxonomy.js";
+import type { BrowserErrorCode } from "./error-taxonomy.js";
+
 export type BrowserFlowStep = "prepare" | "authenticate" | "execute" | "verify";
 
 export interface BrowserFlowContext {
@@ -154,5 +157,3 @@ export function createFlowRunner(handlers: readonly BrowserFlowHandler[]): FlowR
     },
   };
 }
-import { mapBrowserError } from "./error-taxonomy.js";
-import type { BrowserErrorCode } from "./error-taxonomy.js";
