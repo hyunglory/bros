@@ -1,13 +1,13 @@
 # Phase 2 Gate — 실제 XLSX 재import 검증
 
-기준일: 2026-09-14. 판정: **조건부 통과 — 공식 PASS 보류** (`IMPLEMENTED_NOT_VALIDATED`).
+기준일: 2026-09-14. 판정: **PASS**.
 
-P2-01~16 구현의 로컬 회귀와 실제 대표 20행의 재import 검증은 완료했다. 현재 구현 revision의 원격 CI 증거가 없으므로 전체 Phase 2를 PASS로 변경하지 않는다. 이 판정은 Waiver나 운영 배포 승인이 아니다. 결정 기록은 `DEC-20260914-016`, 남은 조건은 `BLK-004`다.
+P2-01~16 구현의 로컬 회귀와 실제 대표 20행의 재import 검증, 그리고 현재 revision의 Linux required check가 완료됐다. 이 판정은 Phase 2 Gate의 PASS이며 Waiver나 운영 배포 승인은 아니다. 결정 기록은 `DEC-20260914-017`, BLK-004는 해소됐다.
 
 ## 판정 근거와 범위
 
 - 기준: `doc/BROS_브랜드_리셀_OS_MVP_개발_WBS_v0.1.md`의 Phase 2 Gate(835~849행), `doc/BROS_구현_보완_명세_v0.2.md` 6장, `docs/DECISIONS.md` DEC-20260914-015 인수 조건.
-- 구현 기준: `646cb49c8217358f2075d8df746adf6d1bb404d0` (`codex/p1-foundation`). 이번 변경은 검증 스크립트와 증거 문서이며 도메인 구현을 변경하지 않았다.
+- 구현 기준: `cc605d0c6bd51173da32ab3e08a145158de6fddc` (`codex/p1-foundation`, PR #1). 이번 변경은 검증 스크립트와 증거 문서이며 도메인 구현을 변경하지 않았다.
 - 실행: Windows/Node 24, 격리 PostgreSQL **18.6**, 실제 XlsxImportAdapter → validation/raw persistence → pg-boss → Worker의 Source/MASTER/SKU/Image/Tracking pipeline → Fastify 조회 API. Worker runtime 두 개는 같은 Node 프로세스에서 독립 DB pool과 Queue consumer를 사용한다.
 - XLSX 업로드 endpoint 또는 브라우저 업로드 E2E가 아니다. 현재 업로드 endpoint는 없으며 검증 스크립트가 내부 validation/enqueue 계약을 호출한다. API 확인은 Fastify `inject`이고 UI는 별도 Admin 테스트 증거다.
 
@@ -59,8 +59,9 @@ FAILED 4행은 모두 `MISSING_EXTERNAL_PRODUCT_ID`이며 Source를 만들지 �
 - `node --test --test-concurrency=1`로 integration 21개 파일 **110개(parent 포함)** PASS, 실패/skip 0, 147,423ms. 이번에는 Windows 순차 실행이며 Linux CI와 동일 실행 환경이라는 주장을 하지 않는다.
 - 합성 1,000행의 실제 Worker 처리 **53,892ms** 및 실제 Worker 프로세스 강제 종료/재전달 복구도 회귀 PASS. 20행 실데이터 실행 시간이나 P6 운영 성능 목표 검증과 구분한다.
 - read-only `gh run list`: 조회한 최근 5개 중 가장 최근 성공은 run **34794445556**, SHA `8c799a3413e0a4903c751c1cc89fdba64078275b` (P2-04). 더 최근 run 34795563889은 cancelled였다.
-- `gh api repos/hyunglory/bros/commits/646cb49/check-runs`는 **HTTP 422, No commit found for SHA: 646cb49**. 현재 구현 기준 SHA는 원격에 없어 원격 검증 상태는 NOT_RUN이다. 이번 작업의 push/workflow 실행/required check 설정 변경은 없다.
-- Phase 1 BLK-001의 기존 required check/실패 PR 차단 완료 기록을 유지한다. 그것이 현재 Phase 2 revision의 CI 통과 증거를 대신하지 않는다.
+- PR #1의 SHA `cc605d0c6bd51173da32ab3e08a145158de6fddc`에서 GitHub Actions run [34849017954](https://github.com/hyunglory/bros/actions/runs/34849017954)가 SUCCESS했다. Ubuntu runner/PostgreSQL 18.6 service에서 install, lint, typecheck, unit·integration test, format check, build가 모두 완료됐다.
+- PR #1은 `mergeStateStatus=CLEAN`이며 check `install / lint / typecheck / test / build`가 SUCCESS다. ruleset 23149676 `main required quality`는 기본 브랜치에 해당 strict required check를 적용하고 bypass actor가 없다.
+- Phase 1 BLK-001의 기존 실패 PR 차단 증거를 유지하며, 이 run을 current Phase 2 revision의 별도 CI 통과 증거로 기록한다.
 
 ## 재현 절차
 
@@ -93,9 +94,7 @@ docker stop bros-phase2-gate
 
 ## 다음 조치와 완료 조건
 
-1. 공개 원격에 전달할 변경 범위를 확인하고 현재 구현 및 검증 문서를 포함한 revision을 원격 CI로 검증한다. 원본 XLSX와 raw 출력은 포함하지 않는다.
-2. 해당 revision의 required check `install / lint / typecheck / test / build` 성공을 확인한다. 실패나 취소는 PASS로 취급하지 않는다.
-3. BLK-004를 해소하고 새 결정 기록에서 관련 P2 Task와 Phase 2 Gate 상태를 확정한다. 코드 수정이 생겼으면 영향 회귀와 실데이터 검증의 재실행 필요성을 판단한다.
-4. 실제 양성 MASTER/SKU 관계 표본은 확인 가능한 브랜드/식별자 근거가 생겼을 때 보강한다. 전체 26,375행 영속화·이미지 다운로드·P6 인증/성능은 이번 PASS 증거로 주장하지 않는다.
+1. 코드 수정이 생기면 영향을 받은 로컬·Linux CI 회귀와 실제 XLSX 재import 재실행 필요성을 판단한다. 원본 XLSX와 raw는 계속 공개하지 않는다.
+2. 실제 양성 MASTER/SKU 관계 표본은 확인 가능한 브랜드/식별자 근거가 생겼을 때 보강한다. 전체 26,375행 영속화·이미지 다운로드·P6 인증/성능은 이번 PASS 증거로 주장하지 않는다.
 
-Gate 확정 전 Phase 3/4 전체 착수 완료를 선언하지 않는다. WBS가 허용한 Phase 5 병렬 Track은 기존 Phase 1 Gate 근거로 계속 가능하다.
+Phase 3/4는 Phase 2 Gate PASS를 근거로 착수할 수 있다. P6 인증·운영 성능 등의 별도 Gate 조건은 완료로 해석하지 않는다.

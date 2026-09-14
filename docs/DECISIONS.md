@@ -1957,3 +1957,50 @@
 - 금지 변경: 원본 XLSX/raw 출력 공개 추가, unknown 브랜드/식별자 추정 생성, 자동승인 기본 OFF 변경, 기존 완료 item 재사용, 기존 MASTER 링크 강제 교체, 별도 P5 worktree 변경, 과거 CI 결과로 현재 SHA PASS 선언.
 - 완료 조건: 대상 revision의 required check `install / lint / typecheck / test / build` PASS와 결과 URL/SHA를 기록하고 BLK-004·Gate·관련 구현 상태를 일치시킨다. 코드 수정이 생기면 영향 회귀 및 실데이터 재검증 필요성을 판단한다.
 - 재검토가 필요한 조건: Linux 병렬 integration 실패, 실제 양성 관계 샘플 제공, 전체 파일 처리에서 자원/성능 문제, 반복 검수량으로 bulk 작업이 필요할 때. Gate 확정 전에는 WBS가 허용한 병렬 Track만 독립 진행한다.
+
+## DEC-20260914-017 — BLK-004 해소와 Phase 2 Gate PASS 확정
+
+- 일자: 2026-09-14
+- 종료 단계/분야: Phase 2 Gate 원격 CI 검증·최종 상태 확정
+- 작성 모델/추론 수준: GPT-5 기반 Codex / 시스템 설정(정확한 추론 수준 미노출)
+- 관련 WBS Task: P2-05, P2-07~P2-16, Phase 2 Gate, 후속 P3/P4
+- 검토 범위와 근거: AGENTS.md, `docs/PHASE2_GATE.md`, `docs/BLOCKERS.md` BLK-004, `docs/TEST_REPORT.md`, DEC-20260914-016, PR #1, GitHub Actions run 34849017954, ruleset 23149676.
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-016의 BLK-004 원격 검증 대기 상태만 대체한다. 실제 XLSX 표본 범위와 P6 미완료 범위는 유지한다.
+
+### 확정 결정
+
+- `cc605d0c6bd51173da32ab3e08a145158de6fddc`를 `codex/p1-foundation` 원격 branch에 fast-forward push한 PR #1에서 GitHub Actions run 34849017954가 SUCCESS했다. current PR head와 run head SHA가 일치하고 PR은 `CLEAN`이다.
+- required check `install / lint / typecheck / test / build`가 current SHA에서 SUCCESS했으며, main ruleset 23149676은 해당 strict check를 요구하고 bypass actor가 없다. 따라서 BLK-004를 RESOLVED로 전환한다.
+- P2-05·P2-07~P2-16 및 Phase 2 Gate를 PASS로 전환한다. P2-01~04/P2-06의 기존 PASS와 함께 Phase 2 WBS Gate 조건의 구현·로컬 실데이터·합성 관계/경합·Linux CI 증거가 충족됐다.
+- Gate PASS는 실제 표본의 브랜드·식별자 근거가 없는 MASTER/SKU 양성 관계, 전체 XLSX 영속화, 이미지 객체 저장, P6 인증·성능을 완료했다는 선언이 아니다. 해당 항목은 보고서의 명시된 제한으로 남긴다.
+
+### 기각한 선택지와 이유
+
+- P2-04 이하의 과거 성공 run으로 Gate PASS: current Phase 2 SHA와 일치하지 않아 증거가 될 수 없다.
+- PR이 CLEAN이라는 사실만으로 PASS: required check의 current SHA SUCCESS와 strict ruleset 확인이 별도로 필요하다.
+- 실제 XLSX 원본을 CI fixture에 포함: 공개 저장소의 raw 노출 위험이 있어 기존 opt-in 로컬 검증 경계를 유지한다.
+
+### 변경 파일
+
+- `docs/PHASE2_GATE.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/BLOCKERS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`, `docs/DECISIONS.md`
+- 도메인 코드, DB schema, 원본 XLSX, CI ruleset 변경 없음.
+
+### 검증 증거
+
+- `git push origin HEAD:codex/p1-foundation`: `811f4c4..cc605d0` fast-forward 성공.
+- GitHub Actions run 34849017954: job `install / lint / typecheck / test / build`, current SHA `cc605d0c6bd51173da32ab3e08a145158de6fddc`, SUCCESS. install, lint, typecheck, unit/integration tests, format check, build 전체 성공.
+- PR #1: `mergeStateStatus=CLEAN`, status check SUCCESS. ruleset API: id 23149676, active, default branch strict required check 동일, bypass actors 없음.
+- 결과: PASS. BLK-004 RESOLVED.
+
+### 미해결 사항 및 Blocker
+
+- Phase 2 Gate blocker 없음.
+- 실제 양성 MASTER/SKU 표본, 전체 XLSX 처리, 이미지 download/object storage, P6 인증·운영 성능은 NOT_RUN이며 Gate PASS를 대체하거나 훼손하는 blocker로 분류하지 않는다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: Phase 3 Identifier Resolver의 P3-01부터 계약·입력 경계·평가 기반을 구현한다.
+- 금지 변경: 실제 XLSX/raw 공개 추가, 확인되지 않은 identifier/brand 자동 확정, 자동승인 기본 OFF 변경, Phase 2 PASS 근거를 전체 파일/P6 완료로 확대, 별도 P5 worktree 변경.
+- 완료 조건: P3-01의 계약·validation·unit/integration 근거와 새 Decision을 남긴다.
+- 재검토가 필요한 조건: 확인 가능한 identifier 정답 표본·외부 resolver credential·provider 정책이 필요하거나, Phase 2 실제 재import에서 새 입력 계약 문제가 발견될 때.

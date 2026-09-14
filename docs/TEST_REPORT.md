@@ -399,4 +399,11 @@
 - Source 16·이미지 메타데이터 35와 공개 UUID는 5회 모두 동일했다. raw/context/locator/mappedInput, 원본 이미지 URL·등록 metadata, 이전 완료 item 이력을 보존했고 새 수집 시각은 Source freshness에 반영됐다. 동일 batch 반복 enqueue는 동일 receipt를 반환했다.
 - 독립 실행 이력은 10 batches/100 items로 누적되고 미결 검수 80 items를 API cursor로 중복 없이 조회했다. BRAND/alias/MASTER/SKU/Source SKU는 0건이다. 승인 브랜드·명시 식별자가 없는 표본이므로 실제 양성 MASTER/SKU 연결 증거는 없으며 해당 관계는 합성 integration/API/Admin 증거로 구분했다. 이미지 다운로드/객체 저장/브라우저 XLSX 업로드는 NOT_RUN.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 각각 exit 0. Admin 27·Node unit 76, fail/skip 0. integration 21개 파일을 `node --test --test-concurrency=1`로 실행해 110개(parent 포함) PASS, fail/skip 0, 147,423ms. 합성 1k Worker 처리 53,892ms 및 실제 Worker crash/재전달 회귀도 PASS.
-- 원격 현재 SHA check-runs 조회는 HTTP 422 No commit found. push/원격 CI 실행 NOT_RUN. 판정은 조건부 통과/공식 PASS 보류, BLK-004 OPEN이다.
+- 당시 원격 현재 SHA check-runs 조회는 HTTP 422 No commit이었다. 이후 결과는 아래 BLK-004 해소 기록을 따른다.
+
+## 2026-09-14 — BLK-004 원격 CI / Phase 2 Gate 최종 확정
+
+- PR #1 branch `codex/p1-foundation`에 current SHA `cc605d0c6bd51173da32ab3e08a145158de6fddc`를 fast-forward push했다. `examples/` 원본 XLSX와 raw는 포함하지 않았다.
+- GitHub Actions [run 34849017954](https://github.com/hyunglory/bros/actions/runs/34849017954)는 pull request event에서 Ubuntu/PostgreSQL 18.6으로 `install / lint / typecheck / test / build`를 SUCCESS로 완료했다. job 시작 13:24:14Z, 완료 13:26:52Z.
+- PR #1 current head는 위 SHA, `mergeStateStatus=CLEAN`, required check conclusion SUCCESS다. active ruleset 23149676은 default branch에 strict 같은 check를 요구하며 bypass actor가 없다.
+- 결과: BLK-004 RESOLVED. P2-05·P2-07~16과 Phase 2 Gate는 PASS. 실제 XLSX 표본의 양성 MASTER/SKU 관계 부재와 전체 파일/이미지 download/P6 범위는 PASS 근거를 과장하지 않는 제한으로 유지한다.

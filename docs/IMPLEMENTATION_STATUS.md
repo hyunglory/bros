@@ -24,17 +24,17 @@
 | P2-03 XlsxImportAdapter | PASS | DEC-20260914-002, 실제 XLSX 26,375행 read-only mapping, unit 41개·integration 53개 PASS | P2-04 Import Validation / Raw 보존 착수 |
 | P2-04 Import Validation / Raw 보존 | PASS | DEC-20260914-003, mapped/rejected row 이력·secret-safe raw persistence, unit 42개·integration 55개 PASS | P2-05 Brand Normalizer 또는 P2-06 Source Product Upsert 착수 |
 | P2-06 Source Product Upsert | PASS | DEC-20260914-004, identity idempotency·newer source update·terminal batch aggregate, unit 42개·integration 57개 PASS | P2-05 Brand Normalizer 또는 P2-07 Identifier Extractor 착수 |
-| P2-05 Brand Normalizer | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-005/007, 승인 alias exact resolution·platform precedence·unknown non-creation, 최신 로컬 unit 55개·integration 59개 PASS | 공개 원격 CI PASS 후 상태 확정 |
-| P2-07 Embedded Identifier Extractor | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-006/007, explicit/raw allowlist extraction·provenance·bounded traversal, 최신 로컬 unit 55개·integration 59개 PASS | 공개 원격 CI PASS 후 상태 확정 |
-| P2-08 MASTER Matcher v1 | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-007, exact/ambiguous/conflict/variant/truncation/evidence unit 및 PostgreSQL read-only discovery PASS, 최종 unit 55개·integration 59개 PASS | 공개 원격 CI PASS 후 상태 확정; P2-09는 로컬 구현 착수 가능 |
-| P2-09 MASTER Creator / Race Control | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-008, identity lock·재조회·원자적 생성/연결·replay·review·retry 통합 12개 시나리오 PASS; 전체 unit 57개·integration 72개 및 pnpm check PASS | 원격 CI 미실행; P2-10 SKU Normalizer / Mapper 로컬 착수 가능 |
-| P2-10 SKU Normalizer / Mapper | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-009, deterministic option key·SKU/source SKU upsert·replay·collision review 및 PostgreSQL 재import 통합 PASS | 원격 CI 미실행; P2-11 이미지 등록 또는 P2-12 pipeline completion 로컬 착수 가능 |
-| P2-11 Source Image Registrar | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-010, immutable source revision·option SKU ownership·replay/concurrency/rollback PostgreSQL 통합 PASS | 원격 CI 미실행; P2-12 pipeline completion 로컬 착수 가능 |
-| P2-12 Import Batch / Item Tracking | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-011, mixed outcome 집계·item 단위 실패 격리·동시 기록·replay·stage completeness PostgreSQL 통합 PASS; 전체 unit 66개·integration 89개 PASS | 원격 CI 미실행; P2-13 Product Import Queue / Chunk Processor 로컬 착수 가능 |
-| P2-13 Product Import Queue / Chunk Processor | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-012, 원자적 접수·상한·chunk 100/concurrency 2·1k import·실패 격리·실제 Worker crash 복구 PASS; 전체 pnpm check PASS(unit 68·integration 97) | 원격 CI 미실행; P2-14 Import 관리 UI/API 로컬 착수 가능 |
-| P2-14 Import 관리 UI/API | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-013, cursor pagination·상태/건수·안전한 실패 원인·업무/처리 상태 분리·명시적 resume/replay·local 인증 fence PASS; 전체 pnpm check PASS(Admin 13·unit 71·integration 99) | 원격 CI 미실행; P2-15 MASTER 상품관리 API/UI 또는 P2-16 Brand Review 로컬 착수 가능 |
-| P2-15 MASTER 상품관리 API/UI | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014, MASTER 목록 cursor/filter·공개 UUID 상세 관계·안전한 기본정보 CAS 수정·필드 전후값 감사 기록·missing relation/동시 충돌 PASS; 전체 pnpm check PASS(Admin 20·unit 73·integration 101) | 원격 CI 미실행; P2-16 Brand Review 후 Phase 2 Gate 판정 가능 |
-| P2-16 Brand Alias / Unresolved Brand Review | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-015, unresolved 목록·active BRAND 검색·alias 승인/거절·version/alias 경합·Queue 원자 접수·불변 원본과 새 1건 재처리·platform precedence PASS; 로컬 Admin 27·unit 76·integration 110 PASS | 원격 CI 미실행; Phase 2 Gate 조건부 판정은 DEC-20260914-016 |
-| Phase 2 Gate | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-016, PHASE2_GATE.md: 실제 20행 5회 재import·동시 처리·raw/UUID 보존 PASS; Admin 27·unit 76·integration 110 PASS | 조건부 통과, 공식 PASS 보류. BLK-004: 현재 revision 원격 CI 검증 필요; 실제 MASTER/SKU 양성 관계는 표본 근거 부족으로 합성 증거와 구분 |
+| P2-05 Brand Normalizer | PASS | DEC-20260914-005/007/017, 승인 alias exact resolution·platform precedence·unknown non-creation, local·Linux CI PASS | Phase 2 Gate PASS |
+| P2-07 Embedded Identifier Extractor | PASS | DEC-20260914-006/007/017, explicit/raw allowlist extraction·provenance·bounded traversal, local·Linux CI PASS | Phase 2 Gate PASS |
+| P2-08 MASTER Matcher v1 | PASS | DEC-20260914-007/017, exact/ambiguous/conflict/variant/truncation/evidence와 PostgreSQL discovery, Linux CI PASS | Phase 2 Gate PASS |
+| P2-09 MASTER Creator / Race Control | PASS | DEC-20260914-008/017, identity lock·원자적 생성/연결·replay·review·retry, Linux CI PASS | Phase 2 Gate PASS |
+| P2-10 SKU Normalizer / Mapper | PASS | DEC-20260914-009/017, deterministic SKU/source SKU upsert·replay·collision review, Linux CI PASS | Phase 2 Gate PASS |
+| P2-11 Source Image Registrar | PASS | DEC-20260914-010/017, immutable revision·option ownership·replay/concurrency/rollback, Linux CI PASS | Phase 2 Gate PASS |
+| P2-12 Import Batch / Item Tracking | PASS | DEC-20260914-011/017, item terminal 결과·집계·replay·stage completeness, Linux CI PASS | Phase 2 Gate PASS |
+| P2-13 Product Import Queue / Chunk Processor | PASS | DEC-20260914-012/017, atomic admission·chunk·1k import·Worker crash recovery, Linux CI PASS | Phase 2 Gate PASS |
+| P2-14 Import 관리 UI/API | PASS | DEC-20260914-013/017, pagination·safe projection·resume/replay·local fence, Linux CI PASS | Phase 2 Gate PASS |
+| P2-15 MASTER 상품관리 API/UI | PASS | DEC-20260914-014/017, 공개 관계 trace·CAS edit·audit, Linux CI PASS | Phase 2 Gate PASS |
+| P2-16 Brand Alias / Unresolved Brand Review | PASS | DEC-20260914-015/017, alias review·경합·Queue 원자 접수·재처리, Linux CI PASS | Phase 2 Gate PASS |
+| Phase 2 Gate | PASS | DEC-20260914-016/017, PHASE2_GATE.md 및 CI run 34849017954 | 실제 20행 재import와 모든 WBS 조건 증거, current SHA Linux required check PASS |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

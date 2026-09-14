@@ -37,10 +37,10 @@
 
 ## BLK-004 — Phase 2 현재 revision의 원격 CI 증거 부재
 
-- 상태: OPEN — DEC-20260914-016, 2026-09-14
+- 상태: RESOLVED — DEC-20260914-017, 2026-09-14
 - 관련 Task: P2-05, P2-07~P2-16, Phase 2 Gate
 - 근거: `646cb49c8217358f2075d8df746adf6d1bb404d0`에 대한 GitHub check-runs 조회가 HTTP 422 `No commit found`다. 조회한 최근 5개 run 중 최근 성공 34794445556은 P2-04 SHA `8c799a3`이므로 현재 구현을 검증하지 않는다.
-- 영향: 로컬 Admin 27·unit 76·integration 110과 실제 XLSX 20행 재import는 PASS지만 공식 Gate는 `IMPLEMENTED_NOT_VALIDATED`다. 판정 상세는 `docs/PHASE2_GATE.md`.
-- 해소 조건: 공개 변경 범위를 확인한 현재 revision의 원격 required check `install / lint / typecheck / test / build` 성공 → 새 Decision과 Task/Gate 상태 갱신. 실패/취소/이전 SHA의 성공으로 대신하지 않는다.
-- 이번 실행: GitHub read-only 조회만 수행했다. 원본 XLSX·raw 출력은 공개 fixture에 넣지 않았고 push/CI 실행/설정 변경도 하지 않았다.
+- 해소 결과: `cc605d0c6bd51173da32ab3e08a145158de6fddc`를 PR #1 branch에 fast-forward push했다. GitHub Actions run 34849017954가 Ubuntu/PostgreSQL service에서 `install / lint / typecheck / test / build`를 SUCCESS로 완료했고 PR #1은 `CLEAN`이다.
+- protection 근거: ruleset 23149676 `main required quality`는 기본 브랜치에 strict required status check `install / lint / typecheck / test / build`를 적용하며 bypass actor가 없다.
+- 공개 범위: 원본 XLSX·raw는 push하지 않았고, Gate script·보고서와 기존 구현 커밋만 포함했다.
 - 구분: Phase 1 BLK-001은 RESOLVED를 유지한다. 기존 branch protection 증거와 신규 Phase 2 코드의 CI 미실행은 별개의 사항이다.
