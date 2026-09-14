@@ -291,3 +291,10 @@
 - 거절 경계: Adapter 거절, 재검증 계약 실패, batch platform mismatch는 `FAILED` item과 안전한 code/path로 남긴다. raw에서 secret성 key가 나오면 `raw: null`을 저장하고 원문 secret·URL은 item/error message에 넣지 않는다.
 - 통합 검증: 일회용 PostgreSQL DB에서 mapped/rejected row의 locator·context·raw·issue 보존, platform mismatch 거절, secret raw 미보존, source_product 0건을 확인했다.
 - 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 55개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-06 Source Product Upsert
+
+- 대상: `createSourceProductUpsertService`의 PENDING item 소비, `(platform_id, external_product_id)` idempotency, source freshness와 batch terminal aggregate.
+- identity 검증: 첫 batch의 두 identity는 `CREATED`되고, 같은 identity의 새 `collectedAt` title·price·currency는 `UPDATED`된다. 같은 identity의 과거 입력은 최신 source 값을 보존하고 `MATCHED`된다.
+- batch 검증: mapped/rejected mixed batch는 valid row를 `SUCCEEDED`, 기존 rejected row를 `FAILED`로 유지하고 `PARTIAL_FAILED` 및 count 합계·finished_at을 기록한다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 57개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.

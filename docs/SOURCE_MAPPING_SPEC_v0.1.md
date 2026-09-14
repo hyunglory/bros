@@ -1,7 +1,7 @@
 # BROS Source Mapping Spec v0.1
 
-상태: PASS (P2-01, P2-02, P2-03, P2-04)
-관련 Task: P2-01, P2-02, P2-03, P2-04
+상태: PASS (P2-01, P2-02, P2-03, P2-04, P2-06)
+관련 Task: P2-01, P2-02, P2-03, P2-04, P2-06
 기준일: 2026-09-14
 
 ## 1. 목적과 완료 조건
@@ -156,3 +156,12 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - 필수 `platformCode`·`externalProductId`·`productName` 결측 및 adapter issue는 거절한다. 브랜드·식별자·가격·이미지 결측은 유효 입력으로 수용한다.
 - `REJECTED` 행도 raw JSON secret 검사를 다시 통과해야 한다. cookie/token/password 등 secret성 key나 비 JSON raw가 발견되면 어떤 원문값도 저장하지 않고 `raw: null`과 safe issue code/path만 남긴다.
 - P2-04는 `source_product`를 생성·갱신하지 않는다. `(platform_id, external_product_id)` 멱등 upsert와 batch terminal aggregate는 P2-06의 책임이다.
+
+## 10. P2-06 Source Product Upsert
+
+`createSourceProductUpsertService`는 `RUNNING` batch를 transaction으로 잠그고 P2-04의 `PENDING` item만 소비한다. `(platform_id, external_product_id)` unique key에 `INSERT ... ON CONFLICT DO NOTHING`을 사용한 뒤, 기존 행은 source 수집 시각이 같거나 새 경우에만 update한다.
+
+- 첫 입력은 `CREATED`, 새롭거나 같은 `collectedAt`의 기존 identity는 `UPDATED`, 더 오래된 입력은 최신 source를 보존하고 `MATCHED`로 item 이력에 남긴다. identity가 다시 유입돼도 `source_product`는 중복 생성되지 않는다.
+- source raw는 이미 안전 검사를 거친 `mappedInput.raw`만 `source_product.raw_json`에 쓴다. 원본 row envelope·locator·validation issue는 계속 `import_item.raw_json`에 보존한다.
+- P2-06은 brand master나 SKU/image/identifier를 만들지 않는다. `brandName`은 `raw_brand_name`에만 보존하며 P2-05가 alias resolution을 담당한다.
+- 모든 PENDING item이 처리된 뒤 item status를 재집계해 batch를 `SUCCEEDED`/`PARTIAL_FAILED`/`FAILED`로 전이하고 count 합계 및 `finished_at`을 한 transaction으로 기록한다.

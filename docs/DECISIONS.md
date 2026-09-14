@@ -1203,3 +1203,58 @@
 - 금지 변경: legacy ID fallback, 가격 0·KRW 추정, raw secret 재보존, P2-04만으로 source_product 생성 완료 표시, batch platform 혼합.
 - 완료 조건: 같은 import 재실행에서 source_product 중복이 없고 변경 title/price와 last_seen이 결정한 정책으로 반영되며, batch terminal counts와 row action/status가 PostgreSQL integration test 및 전체 `pnpm check`에서 검증된다.
 - 재검토가 필요한 조건: importer가 한 batch에 여러 platform을 가져야 하거나 source raw retention 기간/삭제 요구가 확정되거나 untrusted upload를 지원해야 할 때.
+
+## DEC-20260914-004 — P2-06 Source Product Upsert 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-06 source product idempotent upsert와 import batch completion
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본
+- 관련 WBS Task: P2-06, 후속 P2-05/P2-07/P2-08
+- 검토 범위와 근거: DEC-20260914-001~003, `docs/SOURCE_MAPPING_SPEC_v0.1.md`, WBS P2-06, `docs/DB_MIGRATION_SPEC.md` source_product/import_batch/import_item, baseline migration의 unique·status CHECK
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-003의 P2-06 인수 조건을 구현으로 완료한다.
+
+### 확정 결정
+
+- `createSourceProductUpsertService`는 public batch ID로 `RUNNING` batch를 row lock하고 PENDING item을 동일 transaction에서 처리한다. terminal batch는 재실행하지 않는다.
+- source identity는 DB의 `(platform_id, external_product_id)` unique key다. insert conflict 후 생성 여부를 판정하고, 동시/반복 import가 source_product를 중복 생성하지 못하게 한다.
+- input `collectedAt`이 기존 `source_product.collected_at`과 같거나 새 경우에만 product URL/name/brand/price/currency/stock/raw와 collected_at/last_seen_at을 갱신한다. 더 오래된 입력은 source 값·last_seen을 되돌리지 않고 `MATCHED` item으로만 기록한다.
+- 유효 row는 `CREATED`, `UPDATED`, `MATCHED`와 `SUCCEEDED`로 완료한다. persisted mapped input/context/platform/identity가 일치하지 않으면 secret 값을 노출하지 않는 `PERSISTED_INPUT_INVALID` failed item으로 전환한다.
+- PENDING 처리가 끝나면 모든 item status를 재집계하여 batch를 `SUCCEEDED`, `PARTIAL_FAILED`, `FAILED` 중 하나로 전이하고 count 합계와 finished_at을 기록한다.
+- P2-06은 brand master, source SKU, product image, identifier, MASTER match를 만들지 않는다. source brand는 raw_brand_name에만 보존한다.
+
+### 기각한 선택지와 이유
+
+- application pre-read만으로 create/update 판정: concurrent import에서 두 caller가 모두 부재를 관찰할 수 있다. DB unique conflict가 identity의 최종 보호여야 한다.
+- 더 오래된 source도 항상 덮어쓰기: 늦게 도착한 과거 export가 최신 상품명·가격·raw를 되돌린다.
+- P2-04 실패 row를 P2-06에서 자동 보정: source identity 추정과 raw 안전 결정을 위반하며 item failure 이력을 훼손한다.
+- P2-06에서 brand·SKU·image를 동시에 생성: P2-05/P2-07/P2-10의 독립 검증과 책임 경계를 흐린다.
+
+### 변경 파일
+
+- packages/importer/src/source-product-upsert.ts
+- packages/importer/src/index.ts
+- tests/integration/source-product-upsert.integration.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- integration: disposable PostgreSQL에서 첫 identity 2건 create, 새 timestamp title/price/currency update, 과거 timestamp MATCHED와 source preservation, source_product duplicate 0, mixed batch terminal count/finished_at을 확인했다.
+- 실행 명령: 기존 BROS PostgreSQL을 health 상태로 시작하고 test DSN을 process에만 주입한 `pnpm check`.
+- 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 57개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+### 미해결 사항 및 Blocker
+
+- P2-06 blocker는 없다. 실제 mixed-platform XLSX orchestration entry point는 아직 없어 caller가 platform별 batch를 분리해야 한다.
+- item별 DB write failure의 savepoint/retry policy와 source raw retention 기간은 후속 운영/ingestion 범위에서 결정한다.
+- P2-05 Brand Normalizer, P2-07 Identifier Extractor, P2-08 MASTER Matcher는 아직 구현하지 않았다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-05 Brand Normalizer 또는 P2-07 Embedded Identifier Extractor를 독립적으로 구현한다. P2-08은 두 결과와 P2-06 source_product를 읽기 전까지 착수하지 않는다.
+- 금지 변경: legacy ID fallback, 가격 0·KRW 추정, source_product에 자동 MASTER 연결, 과거 source로 최신값 회귀, raw secret 재보존.
+- 완료 조건: P2-05는 승인 alias만 brand에 연결하고 unknown brand를 자동 생성하지 않으며, P2-07은 source field/raw의 identifier 후보를 provenance와 함께 추출하는 테스트를 갖는다.
+- 재검토가 필요한 조건: source freshness를 collectedAt이 아닌 sourceAsOfDate로 비교해야 하거나, parallel item failure를 계속 처리하는 savepoint policy가 필요하거나, multi-platform batch schema가 필요할 때.
