@@ -1838,3 +1838,64 @@
 - 금지 변경: unknown/fuzzy alias 자동 승인·신규 BRAND 자동 생성, MASTER 직접 brand 변경, Source raw 삭제, alias source precedence 완화, 자동승인 기본 OFF 변경, 인증 없는 non-loopback route, 별도 P5 worktree 수정.
 - 완료 조건: alias approve/reject, duplicate/race, platform-specific alias precedence, 승인된 alias만 이후 동일 표기를 resolve, 영향 Source 재처리 이력, 공개 UUID API/UI와 전체 회귀가 실제 PostgreSQL에서 통과한다.
 - 재검토가 필요한 조건: alias 승인이 기존 MASTER/Source를 즉시 재매핑해야 하거나, P2-15의 metadata 감사 이력을 별도 append-only audit table로 옮겨야 할 때.
+
+## DEC-20260914-015 — P2-16 승인 alias와 새 batch 재처리 경계 확정
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-16 Brand Alias / Unresolved Brand Review API·Admin UI·로컬 검증
+- 작성 모델/추론 수준: GPT-6 기반 Codex / 시스템 설정(정확한 추론 수준 미노출)
+- 관련 WBS Task: P2-16, 후속 Phase 2 Gate/P3-01/P6-01
+- 검토 범위와 근거: AGENTS.md, WBS P2-16 및 Phase 2 Gate, 구현 보완 명세 2.1~2.2/3.1~3.2, 설계서 Brand/Import/권한 경계, DEC-20260914-005/008/012~014, baseline `brand_alias` unique scope와 기존 P2-05/P2-09/P2-13 구현.
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-014의 P2-16 인수 조건을 완료한다. P2-05 exact alias/platform precedence, P2-09 완료 item 불변·기존 MASTER 링크 보호, P2-13 Queue receipt fence와 P2-14 local 인증 경계를 유지한다.
+
+### 확정 결정
+
+- 검수 대상 ID는 별도 review table ID가 아니라 `REVIEW_REQUIRED` import item의 공개 UUID다. 대상은 현재 Source가 존재하고 `raw_json.masterCreation.input.brand.status=UNRESOLVED`이며 공백이 아닌 `raw_brand_name`을 가진 item으로 제한한다. 목록은 `(created_at,public_id)` 내림차순 opaque cursor와 decision/platform/상품·브랜드 검색 allowlist를 사용한다.
+- `brand_alias`는 승인된 alias만 담는 기존 물리 계약을 유지해 migration을 추가하지 않는다. 미결 상태는 P2-09 이력으로 표현하고 승인/거절은 기존 item envelope의 `brandReview`에 actor source `LOCAL_ADMIN`, version, 시각, 사유, 정규 alias와 선택 BRAND snapshot을 한 번만 추가한다. 결정 후 같은 item을 다시 변경하지 않는다.
+- 승인은 기존 active BRAND만 선택한다. P2-05와 같은 NFKC·trim·연속 공백 통합·소문자 exact key를 사용하고 scope는 `PLATFORM` 또는 `GLOBAL`이다. 비활성 platform/BRAND를 차단하며 fuzzy/부분일치와 신규 BRAND 자동 생성은 없다. platform scope가 global보다 우선한다.
+- 승인 transaction은 원본 item row lock, scope+alias advisory transaction lock, alias 재조회/생성, Queue backpressure 확인, 단일 item `BRAND_REVIEW_REPROCESS` batch 생성, `product.import` enqueue와 receipt 저장, 원본 item 결정 기록을 함께 commit한다. Queue 접수 실패를 포함한 어느 단계의 실패도 alias·결정·batch를 부분 저장하지 않는다.
+- 같은 scope+alias가 같은 BRAND에 있으면 재사용하고 다른 BRAND면 409 `BRAND_ALIAS_CONFLICT`로 끝낸다. 서로 다른 review item의 동시 승인은 alias advisory lock 뒤 재조회하므로 한 alias가 두 BRAND로 갈라지지 않는다. 같은 review item의 stale `expectedVersion`도 409다.
+- 재처리는 검수한 Source item 한 건마다 새 batch/item을 만든다. 검증된 envelope에서 과거 source/MASTER/SKU/image/tracking/review stage 결과만 제거하고 validation/context/mapped input/raw는 유지한다. 원본 item status와 판단 근거는 바꾸지 않는다. 새 item은 기존 P2-06~13 pipeline을 다시 거치며 현재 Source가 이미 다른 MASTER에 연결됐으면 P2-09 보호 규칙에 따라 자동 교체하지 않는다.
+- 거절은 alias와 재처리 batch를 만들지 않고 사유·시각·version만 원본 item에 기록한다. 재검토가 필요하면 원본 결정을 덮어쓰지 않고 새 import batch/item을 사용한다.
+- API는 review/Source/platform/BRAND/reprocess batch의 공개 UUID와 운영 판단 필드만 반환한다. BIGINT PK/FK, 원본 raw, Queue provider/receipt는 노출하지 않는다. Admin `/brand-reviews`는 기본 미결 목록, 검색/filter, active BRAND 검색, scope·사유 입력, 승인/거절과 409 새로고침을 제공한다.
+
+### 기각한 선택지와 이유
+
+- `brand_alias`에 PENDING/REJECTED row를 저장하거나 review table을 즉시 추가: 현재 테이블의 “존재하면 승인됨” 계약을 깨고 P2-05 조회 조건과 migration을 함께 바꿔야 한다. 불변 import item이 이미 판단 원인과 actor 결정을 보존하므로 P2-16 범위에서는 필요하지 않다.
+- 승인 전에 alias만 저장한 뒤 별도 Queue 접수: Queue 실패 시 이후 입력은 resolve되지만 선택한 Source가 재처리되지 않는 부분 성공이 생긴다.
+- 원본 `REVIEW_REQUIRED` item을 PENDING으로 되돌려 재사용: 완료 item 불변성, 당시 판단 재현성, batch 집계와 Worker replay fence를 훼손한다.
+- 같은 표기의 모든 과거 item을 한꺼번에 재처리: scope가 다른 platform, 이미 결정된 item, 오래된 Source snapshot까지 의도 없이 포함할 수 있다. 운영자가 확인한 item만 새 batch로 만들고 나머지는 목록에서 독립 검수한다.
+- 거절 alias 또는 blacklist를 `brand_alias`에 기록: 승인 alias만 자동 resolve한다는 테이블 의미와 충돌한다. 반복 오탐의 별도 차단 정책은 실데이터 근거가 생길 때 새 설계로 추가한다.
+- MASTER 상품관리 PATCH로 brand_id 직접 변경: Source 재처리·alias precedence·기존 링크 충돌 보호와 불변 import 이력을 우회한다.
+
+### 변경 파일
+
+- `packages/contracts/src/brand-review.ts`, `packages/contracts/src/index.ts`, `packages/contracts/test/brand-review.test.mjs`
+- `packages/importer/src/brand-review.ts`, `packages/importer/src/index.ts`, `packages/importer/test/brand-review.test.mjs`
+- `apps/api/src/brand-review.ts`, `apps/api/src/app.ts`
+- `apps/admin/src/api/brand-reviews.ts`, `apps/admin/src/api/brand-reviews.test.ts`, `apps/admin/src/pages/BrandReviewsPage.tsx`, `apps/admin/src/pages/BrandReviewsPage.test.tsx`, `apps/admin/src/App.tsx`, `apps/admin/src/App.test.tsx`, `apps/admin/src/components/AppShell.tsx`, `apps/admin/src/styles.css`
+- `tests/integration/brand-review-api.integration.test.mjs`
+- `docs/SOURCE_MAPPING_SPEC_v0.1.md`, `docs/RUNBOOK.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- P2-16 전용 PostgreSQL 18 integration 9개(parent 포함) PASS: 안전한 cursor/filter projection과 기본 disabled fence, 승인 alias·불변 결정·Queue receipt·새 batch의 단일 transaction, 실제 재처리 pipeline 완료, duplicate 재사용, 서로 다른 item의 alias 경합, 비활성 platform, platform/global precedence, 거절, Queue 실패 rollback을 확인했다.
+- 전체 순차 integration 21개 파일 110개(parent 포함), fail/skip 0 PASS. P2-13 1,000건 실제 Worker import, 실제 프로세스 강제 종료 후 provider 재전달, Queue crash/expiry, Worker 안전 종료를 포함한다.
+- Admin Vitest 27개, Node unit 76개, fail/skip 0 PASS. 패키지/API/Admin build·typecheck, lint, format check PASS.
+- 전체 병렬 integration은 Windows에서 프로세스 suite가 결과 출력 없이 장기 대기해 중단했다. 같은 21개 파일을 `--test-concurrency=1`로 모두 통과시켜 코드 실패와 구분했다.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN. 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 구현 blocker 없음. public remote push/CI는 이번 요청에서 수행하지 않았다.
+- Phase 2 Gate의 “실제 샘플 데이터 Import 성공”과 “재 Import 멱등성”은 P2-01 실제 XLSX discovery/mapping dry-run과 synthetic pipeline 증거를 구분해 별도 판정해야 한다. P2-16 완료만으로 Gate PASS를 선언하지 않는다.
+- Caddy Basic Auth, 보증된 사용자 actor, Origin/CSRF, 직접 API 포트 차단과 인증 실패 UX는 P6-01까지 NOT_RUN이다. 현재 `LOCAL_ADMIN`을 사용자 신원으로 해석하지 않으며 업무 API를 외부 주소에 배포하지 않는다.
+- 승인된 alias와 같은 표기의 다른 미결 item은 자동 bulk 재처리하지 않는다. Pilot에서 검수량과 반복 작업 비용을 측정한 뒤 scope·snapshot·결정 상태를 제한한 bulk 작업이 필요하면 별도 계약으로 추가한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: Phase 2 Gate를 WBS 항목별 증거로 판정한다. 실제 XLSX sample의 validation→Source→MASTER→SKU→Image→Tracking 실행과 같은 파일 재import 멱등성을 격리 DB에서 검증하고, P2-05~16의 원격 CI 상태와 남은 운영 제한을 구분한다.
+- 금지 변경: Gate 증거를 만들기 위해 실제 sample 원본 수정/저장소 추가, unknown/fuzzy 자동 승인, 자동 신규 BRAND 생성, 자동승인 기본 OFF 변경, 기존 MASTER 링크 강제 교체, 완료 item 이력 재사용, 별도 P5 worktree 수정.
+- 완료 조건: 실제 sample import와 재import의 행 수·Source/Master/SKU/Image 수렴, unresolved 검수 분리, batch/item 집계와 raw/SHA 근거, 전체 회귀를 재현 가능한 명령으로 기록하고 Phase 2 Gate를 PASS/조건부/보류 중 하나로 판정한다.
+- 재검토가 필요한 조건: Gate가 실제 sample의 누락된 platform seed/alias/identifier나 pipeline 성능 문제로 실패하거나, 여러 unresolved item의 bulk alias 재처리가 Pilot 필수 운영 조건으로 확인될 때.

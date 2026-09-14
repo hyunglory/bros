@@ -34,6 +34,12 @@ export function AppShell({ children }: PropsWithChildren) {
             </span>
             MASTER 상품
           </NavLink>
+          <NavLink className="nav-item" to="/brand-reviews">
+            <span className="nav-icon" aria-hidden="true">
+              ≋
+            </span>
+            브랜드 검수
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">

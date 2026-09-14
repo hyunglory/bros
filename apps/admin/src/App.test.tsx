@@ -22,6 +22,15 @@ describe("App routes", () => {
     expect(screen.getByRole("heading", { name: "MASTER 상품관리" })).toBeVisible();
   });
 
+  it("registers the unresolved brand review route", () => {
+    render(
+      <MemoryRouter initialEntries={["/brand-reviews"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "미해결 브랜드 검수" })).toBeVisible();
+  });
+
   it("renders a fallback page for unknown routes", () => {
     render(
       <MemoryRouter initialEntries={["/missing"]}>

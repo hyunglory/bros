@@ -319,3 +319,22 @@ PATCH는 `Content-Type: application/json`, `X-BROS-Operation: product-update`, �
 변경 이력은 기존 `product_master.metadata_json`을 보존하면서 `managementChanges`에 시각, local actor source, 변경 사유, 필드별 이전값·이후값을 추가한다. 현재 actor source는 loopback 개발 fence를 뜻한다. P6-01 적용 시 proxy가 보증하는 사용자 actor로 확장해야 한다.
 
 API와 화면에는 BIGINT PK, MASTER metadata, Source raw, Identifier evidence, storage bucket/object key가 나오지 않는다. Source 이미지는 자동 inline fetch 대신 원본 링크를 눌렀을 때만 연다. 브랜드 연결 변경과 Identifier 값/검증 상태 변경은 이 화면에서 하지 않으며 각각 P2-16과 Phase 3 검수 흐름을 사용한다.
+
+## 미해결 브랜드 검수 — P2-16
+
+P2-14와 같은 loopback 개발 설정에서 `http://127.0.0.1:5173/brand-reviews`로 접근한다. 기본 화면은 미결 건만 보여주며 상품·원본 브랜드와 플랫폼으로 검색할 수 있다.
+
+| Method / path | 용도 |
+|---|---|
+| `GET /api/v1/brand-reviews?decision=&platform=&query=&limit=&cursor=` | unresolved brand 검수 목록과 결정 상태 조회 |
+| `GET /api/v1/brands?query=&limit=` | 연결할 active 표준 BRAND 검색 |
+| `POST /api/v1/brand-reviews/:publicId/approve` | alias 승인과 1건 재처리 batch의 원자적 Queue 접수 |
+| `POST /api/v1/brand-reviews/:publicId/reject` | alias 없이 거절 결정 기록 |
+
+승인은 `Content-Type: application/json`, `X-BROS-Operation: brand-review-approve`와 `{ expectedVersion, brandPublicId, scope, changeReason }`를 요구한다. scope는 현재 플랫폼만 적용하는 `PLATFORM`이 기본이며, 여러 플랫폼에서 같은 표기와 같은 BRAND임을 확인한 경우에만 `GLOBAL`을 선택한다. 거절은 `X-BROS-Operation: brand-review-reject`와 `{ expectedVersion, changeReason }`를 사용한다.
+
+409는 다른 운영자가 먼저 결정했거나 같은 scope의 alias가 다른 BRAND에 이미 연결됐거나 platform/BRAND가 비활성 상태임을 뜻한다. 목록을 새로고침해 현재 결정을 확인한다. 429는 Import Queue 접수 상한이므로 실행 중 batch가 끝난 뒤 다시 승인한다. 503에서는 alias가 부분 저장되지 않으며 Queue/DB readiness를 복구한 뒤 같은 version으로 재시도한다.
+
+승인 성공 응답의 `reprocessBatchPublicId`를 Import 관리 화면에서 조회한다. 원본 item은 `REVIEW_REQUIRED` 이력으로 남고 새 batch가 Source→MASTER→SKU→Image→Tracking 단계를 수행한다. 이미 다른 MASTER와 연결된 Source는 자동 교체되지 않고 재처리 결과가 다시 검수로 남을 수 있다. 거절은 재처리를 만들지 않는다.
+
+현재 결정 actor는 `LOCAL_ADMIN`이며 사용자 신원을 뜻하지 않는다. 이 화면과 API도 P6-01의 Caddy 인증·Origin/CSRF·보증 actor가 적용되기 전에는 외부 주소에 배포하지 않는다.

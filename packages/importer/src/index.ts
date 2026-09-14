@@ -1,4 +1,5 @@
 export * from "./brand-normalizer.js";
+export * from "./brand-review.js";
 export * from "./embedded-identifier-extractor.js";
 export * from "./import-validation.js";
 export * from "./image-registrar.js";

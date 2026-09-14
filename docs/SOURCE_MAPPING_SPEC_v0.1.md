@@ -262,3 +262,16 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - item 상세는 입력 행 번호, 외부 상품 ID, 연결된 source UUID, 최종 상태/action, 안정된 오류 code/message만 보여준다. 오류 message는 응답에서 512자로 제한한다.
 - retry API의 `replay`는 기존 receipt 상태를 반환하며 publish하지 않는다. `resume`은 FAILED/RETRY_WAIT 등 미완료 처리에 새 receipt를 발급하고 기존 receipt를 fence한다. P2-12에서 확정된 item 결과는 초기화하지 않으며 업무 실패 상품을 다시 검증하려면 새 batch가 필요하다.
 - XLSX 파일 업로드와 새 batch 생성은 WBS P2-14의 명시 범위·Acceptance Criteria에 포함되지 않아 이번 API에 추가하지 않았다. 25MB binary 수신, ObjectStorage 원본 보존, validation+enqueue 원자성, 운영 인증 경계를 함께 확정하는 후속 설계가 필요하다.
+
+## 20. P2-16 Brand Alias / Unresolved Brand Review
+
+검수 대상은 P2-09가 `REVIEW_REQUIRED`로 끝낸 item 중 `raw_json.masterCreation.input.brand.status=UNRESOLVED`이고 현재 Source의 `raw_brand_name`이 남아 있는 건이다. 기존 item은 당시 판단의 불변 이력으로 유지하고, 사람의 결정은 원본 envelope에 `brandReview`로 한 번만 추가한다.
+
+- 승인 입력은 대상 item 공개 UUID, 기존 active BRAND 공개 UUID, `PLATFORM` 또는 `GLOBAL` scope, 현재 review version, 변경 사유다. alias key는 P2-05와 같은 NFKC·trim·연속 공백 통합·소문자 규칙만 사용한다. fuzzy/부분일치나 신규 BRAND 자동 생성은 하지 않는다.
+- 같은 scope와 정규화 alias의 advisory transaction lock을 얻은 뒤 기존 alias를 재조회한다. 같은 BRAND면 재사용하고 다른 BRAND면 `BRAND_ALIAS_CONFLICT`로 차단한다. 비활성 platform/BRAND도 승인할 수 없다.
+- 승인은 alias 쓰기, 기존 item의 immutable 결정 이력, 검증된 원본 envelope를 복제한 1건 `BRAND_REVIEW_REPROCESS` batch/item 생성, `product.import` Queue 접수를 한 DB transaction에서 처리한다. Queue 접수나 receipt 저장이 실패하면 alias와 결정도 함께 rollback한다.
+- 재처리 item에서는 과거 `sourceUpsert`, `masterCreation`, `skuMapping`, `imageRegistration`, `pipelineTracking`, `brandReview` stage 결과만 제거한다. validation/context/mapped input과 원본 raw는 유지하며 현재 P2-06~13 pipeline이 새 판단을 기록한다. 원본 review item의 status와 과거 stage 결과는 변경하지 않는다.
+- 거절은 alias나 재처리 batch를 만들지 않고 사유·시각·version을 원본 item에 기록한다. 결정된 item은 다시 승인/거절할 수 없고 stale version은 409다. 재검토가 필요하면 원 데이터를 새 batch/item으로 다시 수집한다.
+- 목록과 Admin은 내부 BIGINT, Source/import raw, Queue provider/receipt를 반환하지 않는다. 공개 UUID, 상품/플랫폼/원본 브랜드, 미해결 사유, 결정 snapshot과 재처리 batch 공개 UUID만 제공한다.
+
+P2-16은 확정된 alias가 이후 동일 표기를 자동 resolve하도록 만드는 운영 경계다. 이미 다른 MASTER에 연결된 Source를 직접 교체하지 않으며 기존 P2-09의 `EXISTING_LINK_CONFLICT` 보호를 그대로 따른다.

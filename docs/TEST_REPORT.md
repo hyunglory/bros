@@ -383,3 +383,10 @@
 - PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond의 cursor page, 5종 filter, MASTER→Brand/SKU/Identifier/Source/Source SKU/Image 공개 UUID 연결, 관계 없는 MASTER의 빈 배열, malformed UUID/cursor, 변경 header, 기본 disabled fence를 확인했다. 동일 version 동시 PATCH는 정확히 1건만 200이고 나머지는 409/actualVersion이며, 성공 건은 version 증가·정규화된 이름·필드별 전후값/사유를 보존한다.
 - Admin Vitest는 목록/검색 client, 상세 관계, 관계 없음, versioned edit, 409 후 최신 상세 reload를 검증했다. Source 이미지는 브라우저가 자동 요청하지 않도록 명시적 원본 링크로 제공한다.
 - 최종 `pnpm check` exit 0: Admin Vitest 20개, Node unit 73개, integration 101개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 감사 전후값 보강 뒤 P2-15 전용 PostgreSQL 통합 2개와 lint/typecheck/format/build를 다시 PASS했다. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-16 Brand Alias / Unresolved Brand Review
+
+- 대상: unresolved brand review domain, `GET /api/v1/brand-reviews`, `GET /api/v1/brands`, approve/reject API, Admin `/brand-reviews`, 기존 P2-05/P2-13 재사용 경계.
+- 계약/Admin: strict 공개 projection과 UUIDv7, 목록·active BRAND 검색, operation header, versioned approve/reject payload, 내부/raw 필드 거절을 확인했다. Admin은 기본 미결 목록, 검색/filter, 기존 BRAND·scope·사유 선택, 승인 후 재처리 batch 표시, 브랜드 선택 없는 거절, 409 새로고침을 검증했다. Admin Vitest 27개와 Node unit 76개가 PASS했다.
+- PostgreSQL 18 전용 통합 9개(parent 포함) PASS: 안전한 목록 projection과 기본 disabled fence, 승인 alias·결정 snapshot·Queue receipt·1건 재처리의 단일 transaction, 승인 후 exact resolution과 실제 Source→MASTER pipeline 완료, duplicate alias 재사용, 서로 다른 item의 동일 alias/다른 BRAND 경합 수렴, 비활성 platform 차단, platform alias의 global 우선, 거절의 무 alias/무 재처리, Queue 실패 전체 rollback을 확인했다.
+- 전체 통합 21개 파일을 Windows에서 순차 실행해 110개(parent 포함), fail/skip 0으로 PASS했다. P2-13 1,000건 실제 Worker import와 실제 프로세스 강제 종료 후 재전달, Queue crash/expiry, Worker 종료 회귀도 통과했다. lint/typecheck/format/build를 함께 재검증했으며 원격 CI는 NOT_RUN이다.

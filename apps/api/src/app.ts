@@ -12,6 +12,7 @@ import {
   ReadyResponseSchema,
 } from "@bros/contracts";
 import { createApiDataAccess } from "./database.js";
+import { registerBrandReviewRoutes } from "./brand-review.js";
 import { registerImportManagementRoutes } from "./import-management.js";
 import { registerProductManagementRoutes } from "./product-management.js";
 
@@ -141,6 +142,11 @@ export function createApiApp(
     },
   );
   registerImportManagementRoutes(app, data.database, {
+    enabled: businessEnabled,
+    ...(queue ? { queue } : {}),
+    maxQueuedBatches: config.importer.maxQueuedBatches,
+  });
+  registerBrandReviewRoutes(app, data.database, {
     enabled: businessEnabled,
     ...(queue ? { queue } : {}),
     maxQueuedBatches: config.importer.maxQueuedBatches,
