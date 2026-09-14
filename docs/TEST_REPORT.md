@@ -306,3 +306,12 @@
 - 전용 PostgreSQL 통합 검증: platform alias가 동일 normalized alias의 global alias보다 우선함, active brand의 한글 alias가 전역으로 연결됨, unknown/blank/unknown platform/inactive brand가 `UNRESOLVED`이며 brand를 생성하지 않음을 확인했다.
 - 실행 결과: unit 44개 PASS, P2-05 전용 integration 1개 PASS, lint·typecheck·format check·production build PASS.
 - 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check`의 종료 증거와 원격 CI는 아직 PASS가 아니다. P2-06 원격 run `34795563889`는 `cancelled`로 종료되어 성공 근거로 사용하지 않는다.
+
+## 2026-09-14 — P2-07 Embedded Identifier Extractor
+
+- 대상: `extractEmbeddedIdentifiers`의 explicit `identifiers[]`와 nested raw JSON allowlist key 후보화.
+- 추출 경계: `MODEL_NO`, `STYLE_CODE`, `PRODUCT_NO`, `MPN`, `GTIN`, `EAN`, `UPC`, `BARCODE`, `BRAND_CODE`의 승인 raw key만 후보화한다. 임의 문자열/상품명/숫자 raw 값의 regex 추정은 하지 않는다.
+- provenance: source field JSON pointer 또는 raw JSON pointer를 후보별로 모두 보존한다. 같은 type·normalized value는 하나의 후보로 합치며 provenance만 누적한다.
+- 안전 경계: identifier value는 NFKC·trim·공백 통합·대문자 norm을 사용하고, traversal depth/node/candidate 상한에 걸리면 `truncated: true`로 이후 단계의 자동 확정을 막을 수 있게 한다.
+- 실행 결과: nested raw JSON, 중복 provenance, unknown/numeric non-inference, traversal determinism/boundary를 포함한 Node unit 47개 PASS. importer build PASS.
+- 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check` 종료 증거와 원격 CI PASS는 P2-05와 함께 아직 없다.

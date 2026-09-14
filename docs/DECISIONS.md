@@ -1311,3 +1311,55 @@
 - 금지 변경: unknown alias 자동 생성, fuzzy alias 자동연결, source_product에 MASTER 자동 연결, raw secret 재보존.
 - 완료 조건: P2-07은 candidate value/norm/type/provenance를 안전하게 추출하고, P2-16은 승인 alias만 이후 resolve되며 재처리 이력을 보존한다.
 - 재검토가 필요한 조건: alias의 언어별 transliteration 또는 punctuation-insensitive matching을 도입하려면 labeled data의 오매칭 기준과 human approval policy를 먼저 결정해야 한다.
+
+## DEC-20260914-006 — P2-07 Embedded Identifier Extractor 구현 및 검증 상태 기록
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-07 explicit/raw embedded identifier candidate extraction
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본
+- 관련 WBS Task: P2-07, 후속 P2-08/P3-01
+- 검토 범위와 근거: DEC-20260914-001/002/004/005, WBS P2-07, `packages/contracts/src/source-product.ts`, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 3·12장, `docs/DB_MIGRATION_SPEC.md` identifier candidate schema
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- explicit `SourceProductInput.identifiers[]`와 nested raw JSON allowlist key에 붙은 string만 candidate로 추출한다. raw text 전체나 product name을 regex/fuzzy matching하지 않는다.
+- raw key는 NFKC 및 공백/underscore/hyphen 차이를 정규화하여 MODEL_NO, STYLE_CODE, PRODUCT_NO, MPN, GTIN, EAN, UPC, BARCODE, BRAND_CODE에만 map한다.
+- candidate norm은 NFKC, trim, 연속 공백 통합, 대문자화다. candidate type+norm이 같으면 하나의 candidate로 합치고 explicit field/raw JSON pointer provenance를 모두 유지한다.
+- raw numeric identifier 값은 leading zero 손실을 안전하게 복원할 수 없으므로 후보로 사용하지 않는다. raw traversal은 depth 16, node 10,000, candidate 128 상한을 넘으면 `truncated: true`를 반환한다.
+- P2-07은 product_identifier, identifier_resolve_run, identifier_candidate, source_product를 쓰지 않고 MASTER 연결이나 자동 승인도 수행하지 않는다.
+
+### 기각한 선택지와 이유
+
+- 상품명·free text에서 형식 추정: 문자열 우연 일치와 브랜드/모델 충돌을 candidate evidence로 오인할 수 있다.
+- raw number를 string으로 변환: leading zero 및 원래 표기 손실을 되돌릴 수 없다.
+- P2-07에서 identifier candidate DB row까지 생성: resolve run lifecycle·rank·decision/evidence schema는 P3 resolver 책임이며 source input extraction을 앞당겨 결합한다.
+
+### 변경 파일
+
+- packages/importer/src/embedded-identifier-extractor.ts
+- packages/importer/src/index.ts
+- packages/importer/test/embedded-identifier-extractor.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- unit: explicit/raw candidate, duplicate provenance, arbitrary/numeric raw non-inference, deterministic traversal/truncation을 포함한 Node unit 47개 PASS.
+- build: `pnpm --filter @bros/importer run build` PASS.
+- 결과: IMPLEMENTED_NOT_VALIDATED — P2-05와 함께 전체 `pnpm check`의 종료 증거 및 원격 CI PASS가 없다.
+
+### 미해결 사항 및 Blocker
+
+- P2-07 code/target test blocker는 없다. `truncated: true` 입력을 P2-08/P3 resolver가 자동 확정 금지 또는 review-required로 해석하는 정책은 그 단계에서 구현한다.
+- 첫 실제 XLSX는 내부 상품코드가 모두 공란이므로 P2-07 후보 0건은 정상 결과이며, 새로운 source가 allowlist 밖의 identifier field를 제공하면 새 alias 결정이 필요하다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-08 MASTER Matcher를 P2-05/P2-06/P2-07 결과 위에서 설계·구현하거나 P2-16 unresolved brand review를 구현한다.
+- 금지 변경: free-text identifier 자동추정, numeric raw 복원, identifier 자동 승인, product_identifier/master 자동 생성.
+- 완료 조건: P2-08은 hard conflict와 evidence 부족을 review로 남기고, candidate provenance 및 brand resolution을 재현 가능한 판단 입력으로 보존한다.
+- 재검토가 필요한 조건: 실제 source가 barcode array/object 또는 새로운 identifier header를 제공하거나 candidate 제한을 넘는 raw payload가 확인될 때.

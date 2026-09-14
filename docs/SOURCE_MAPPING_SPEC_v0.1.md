@@ -173,3 +173,11 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - alias lookup key는 Unicode NFKC, trim, 연속 공백 통합, 대소문자 정규화를 적용한 `alias_norm`이다. 구두점 제거·유사도 검색·부분일치는 수행하지 않는다.
 - active platform의 platform-scoped alias를 먼저 조회하고, 없을 때 active brand의 global alias를 조회한다. 같은 표기가 플랫폼별로 다를 수 있다는 DB unique scope를 그대로 따른다.
 - 빈 브랜드, 미등록 platform, 비활성 platform, 승인 alias 부재(비활성 brand 포함)는 `UNRESOLVED`이며 새로운 brand/alias를 자동 생성하지 않는다. P2-16이 사람이 alias를 승인하는 경로를 담당한다.
+
+## 12. P2-07 Embedded Identifier Extractor
+
+`extractEmbeddedIdentifiers`는 source 계약의 explicit `identifiers[]`와 nested `raw` JSON에서 allowlist key에 직접 연결된 문자열만 후보화한다. 이 단계는 product identifier나 identifier candidate DB row를 만들지 않고, P2-08/P3 resolver가 소비할 type·value·normalized value·provenance를 반환한다.
+
+- allowlist는 `modelNo`/`모델번호`/`품번`, `styleCode`/`스타일코드`, `productNo`/`상품번호`, `mpn`, `gtin`, `ean`, `upc`, `barcode`/`바코드`, `brandCode`/`브랜드코드`다. key의 NFKC·공백/underscore/hyphen 차이만 흡수한다.
+- 임의 product name/free text와 numeric raw value는 후보로 추론하지 않는다. 숫자 raw는 leading zero 손실 여부를 판단할 수 없으므로 문자열 source만 수용한다.
+- candidate는 type+normalized value로 중복 제거하고 explicit field 및 raw JSON pointer provenance를 전부 남긴다. traversal 상한에 걸린 결과는 `truncated: true`여서 후속 단계가 자동 승인하면 안 된다.
