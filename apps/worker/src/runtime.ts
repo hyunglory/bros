@@ -1,6 +1,9 @@
 import { createRedactedLogger } from "@bros/core";
 import type { AppConfig } from "@bros/core";
+import { createFlowRunner } from "@bros/browser";
+import type { BrowserFlowHandler } from "@bros/browser";
 import { createPgBossQueue } from "@bros/queue";
+import { createSchedulerService } from "@bros/queue";
 import type { QueuePort, QueueName, QueueJob } from "@bros/queue";
 import { createWorkerDataAccess } from "./database.js";
 import { createSystemTestHandler } from "./system-test.js";
@@ -9,6 +12,7 @@ import { createProductImportHandler } from "./product-import.js";
 
 export interface WorkerOptions {
   queue?: QueuePort;
+  browserFlows?: readonly BrowserFlowHandler[];
   systemTestAction?: SystemTestAction;
   logger?: ReturnType<typeof createRedactedLogger>;
 }
@@ -21,6 +25,28 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
     options.queue ??
     createPgBossQueue(config.database, { localConcurrency: config.worker.concurrency });
   const logger = options.logger ?? createRedactedLogger();
+  const flowRunner = createFlowRunner(options.browserFlows ?? []);
+  const scheduler = createSchedulerService({
+    flowRegistry: flowRunner,
+    queue,
+    repository: {
+      listBrowserJobs: async () =>
+        data.database.db
+          .selectFrom("app.automation_job")
+          .select(["public_id", "handler_key", "cron_expression", "timezone", "enabled"])
+          .where("job_type", "=", "BROWSER")
+          .execute()
+          .then((jobs) =>
+            jobs.map((job) => ({
+              cronExpression: job.cron_expression,
+              enabled: job.enabled,
+              handlerKey: job.handler_key,
+              publicId: job.public_id,
+              timezone: job.timezone,
+            })),
+          ),
+    },
+  });
   const action: SystemTestAction =
     options.systemTestAction ??
     (async () => {
@@ -62,6 +88,7 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
             .limit(0)
             .execute();
           await queue.start();
+          await scheduler.reconcile();
           for (const [name, handler] of registry)
             await queue.work(
               name,

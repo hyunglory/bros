@@ -3,7 +3,13 @@ import { createRedactedLogger } from "@bros/core";
 import type { DatabaseConfig } from "@bros/core";
 import type { DbTransaction } from "@bros/db";
 import { queueNames } from "./port.js";
-import type { QueueName, QueuePayload, QueuePort, QueueTransaction } from "./port.js";
+import type {
+  QueueName,
+  QueuePayload,
+  QueuePort,
+  QueueSchedule,
+  QueueTransaction,
+} from "./port.js";
 
 export const queueDefaults = Object.freeze({
   retryLimit: 2,
@@ -42,6 +48,20 @@ function requirePayload(name: QueueName, data: QueuePayload) {
   validate(name, data);
 }
 
+function requireSchedule(schedule: QueueSchedule): void {
+  if (
+    typeof schedule.key !== "string" ||
+    schedule.key.trim() === "" ||
+    typeof schedule.cron !== "string" ||
+    schedule.cron.trim() === "" ||
+    typeof schedule.timezone !== "string" ||
+    schedule.timezone.trim() === ""
+  ) {
+    throw new Error("Invalid queue schedule");
+  }
+  requirePayload("browser.run", schedule.data);
+}
+
 export function createPgBossQueue(
   database: DatabaseConfig,
   overrides: Partial<QueueAdapterOptions> = {},
@@ -78,7 +98,7 @@ export function createPgBossQueue(
     application_name: "bros-queue",
     superviseIntervalSeconds: options.superviseIntervalSeconds,
     monitorIntervalSeconds: options.superviseIntervalSeconds,
-    schedule: false,
+    schedule: true,
     persistWarnings: false,
   });
   boss.on("error", () => logger.error({ code: "QUEUE_PROVIDER_ERROR" }, "Queue provider failed"));
@@ -111,6 +131,25 @@ export function createPgBossQueue(
     return result;
   }
   return {
+    getSchedules(name) {
+      return perform(async () => {
+        validate(name);
+        try {
+          return (await boss.getSchedules(name)).map((schedule) => {
+            const queueSchedule: QueueSchedule = {
+              cron: schedule.cron,
+              data: schedule.data as QueuePayload,
+              key: schedule.key,
+              timezone: schedule.timezone,
+            };
+            requireSchedule(queueSchedule);
+            return queueSchedule;
+          });
+        } catch {
+          throw new Error("Queue schedule lookup failed");
+        }
+      });
+    },
     start() {
       if (state === "running" || state === "starting") return starting ?? Promise.resolve();
       if (state !== "idle")
@@ -141,6 +180,22 @@ export function createPgBossQueue(
           return { provider: "pg-boss" as const, providerId: id };
         } catch {
           throw new Error("Queue publish failed");
+        }
+      });
+    },
+    schedule(name, schedule) {
+      return perform(async () => {
+        validate(name);
+        requireSchedule(schedule);
+        try {
+          await boss.schedule(name, schedule.cron, schedule.data, {
+            ...settings(name),
+            key: schedule.key,
+            missed: "skip",
+            tz: schedule.timezone,
+          });
+        } catch {
+          throw new Error("Queue schedule failed");
         }
       });
     },
@@ -216,6 +271,17 @@ export function createPgBossQueue(
         }),
       ]).finally(() => clearTimeout(deadline));
       return stopping;
+    },
+    unschedule(name, key) {
+      return perform(async () => {
+        validate(name);
+        if (typeof key !== "string" || key.trim() === "") throw new Error("Invalid queue schedule");
+        try {
+          await boss.unschedule(name, key);
+        } catch {
+          throw new Error("Queue unschedule failed");
+        }
+      });
     },
   };
 }
