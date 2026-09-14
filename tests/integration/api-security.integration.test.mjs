@@ -92,8 +92,10 @@ test("proxy-authenticated business and artifact routes reject spoofing and cross
 test("Caddy protects all browser-visible routes and replaces caller actor headers", async () => {
   const caddyfile = await readFile(new URL("../../ops/Caddyfile", import.meta.url), "utf8");
   assert.match(caddyfile, /basic_auth/);
-  assert.match(caddyfile, /header_up -X-BROS-Actor/);
+  assert.match(caddyfile, /header_up -Authorization/);
   assert.match(caddyfile, /header_up X-BROS-Actor "\{http\.auth\.user\.id\}"/);
   assert.match(caddyfile, /header_up X-BROS-Proxy-Token/);
+  assert.doesNotMatch(caddyfile, /header_up -X-BROS-Actor/);
+  assert.doesNotMatch(caddyfile, /header_up -X-BROS-Proxy-Token/);
   assert.match(caddyfile, /reverse_proxy 127\.0\.0\.1:/);
 });

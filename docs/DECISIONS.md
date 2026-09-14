@@ -1831,3 +1831,48 @@
 - 금지 변경: API 직접 노출, client actor header 신뢰, queue payload에 credential/input 원문 추가, artifact raw error/secret 저장, local unauthenticated mode의 production 허용.
 - 완료 조건: `TEST_DATABASE_URL`로 P6 durable integration PASS, Caddy config validate 및 staging에서 spoofed actor/direct port/cross-origin mutation 거절, authenticated artifact preview와 manual/scheduled browser run evidence 확인.
 - 재검토가 필요한 조건: 다중 role/RBAC, cookie session, 외부 artifact 공유, R2/S3 preview 방식, browser retry 또는 scheduled run deduplication 보장 수준이 바뀔 때.
+
+## DEC-20260914-015 — P6-01 disposable DB/pg-boss와 Caddy staging 검증
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P6-01 local runtime verification 및 Caddy upstream header transport 보정
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-01, P5-06, P5-07, P5-09, P5-10
+- 검토 범위와 근거: DEC-20260914-014, `tests/integration/browser-durable.integration.test.mjs`, `tests/integration/worker.integration.test.mjs`, `ops/Caddyfile`, 실제 Docker PostgreSQL 18.6·pg-boss·Caddy 2 staging 실행 결과
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-014의 Caddy actor/token header transport 구성만 대체한다. P6-01의 loopback proxy trust boundary와 P5 durable 계약은 유지한다.
+
+### 확정 결정
+
+- Caddy upstream에서 `header_up X-BROS-Actor <authenticated-user>`와 `header_up X-BROS-Proxy-Token <host-secret>`만 사용한다. `header_up`의 set은 기존 client header를 overwrite하므로 같은 header의 delete와 set을 함께 두지 않는다.
+- `Authorization` Basic Auth credential은 API upstream으로 전달하지 않는다. Caddy에서 `header_up -Authorization`으로 제거하고, API는 actor/token만 신뢰한다.
+- P6 durable DB/Queue path는 disposable PostgreSQL 18.6과 실제 pg-boss consumer에서 수동 success/failure, receipt replay fencing, terminal `automation_run` evidence까지 검증됐다.
+
+### 기각한 선택지와 이유
+
+- actor/token header를 delete 후 set으로 방어: 실제 Caddy runtime에서 final set 값까지 제거되어 인증된 upstream identity가 없어지므로 기각했다.
+- Basic Auth Authorization을 upstream에 그대로 전달: API가 필요로 하지 않는 password-derived credential을 전달하므로 기각했다.
+- static Caddyfile assertion만으로 header transport를 승인: handler operation 순서 문제를 발견하지 못했으므로 실제 proxy/upstream smoke를 필수 증거로 채택했다.
+
+### 변경 파일
+
+- `ops/Caddyfile`
+- `tests/integration/api-security.integration.test.mjs`
+- `docs/DECISIONS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: disposable PostgreSQL 18.6 `--rm` container에서 browser durable integration 1개 및 Worker integration 9개, Caddy 2 `validate`, Basic Auth/reverse-proxy upstream reflection smoke, `pnpm lint`, API security regression 2개, `git diff --check`.
+- 결과: IMPLEMENTED_NOT_VALIDATED — local DB/Queue/Caddy validation과 smoke는 PASS. remote CI, public HTTPS/DNS/firewall staging 및 R2 adapter는 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- 실제 public hostname의 certificate issuance, network firewall에 의한 API direct port 차단, production host secret injection은 local Docker smoke에서 확인할 수 없다.
+- R2 ObjectStorage driver와 production artifact preview endpoint는 구현·검증되지 않았다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: public staging HTTPS/DNS/firewall smoke와 remote CI, R2 adapter 또는 storage provider 결정.
+- 금지 변경: client actor/token header 신뢰, Basic Auth Authorization upstream 전달, queue payload에 secret/raw input 추가, local unauthenticated production 허용.
+- 완료 조건: public staging에서 TLS, 401, spoofed header overwrite, direct API port 차단, authenticated artifact preview와 browser run evidence를 확인하고 remote CI를 통과한다.
+- 재검토가 필요한 조건: Caddy auth 방식, API deployment topology, storage provider, multi-role/RBAC 요구가 변경될 때.

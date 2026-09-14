@@ -1,27 +1,26 @@
 {
-  email {$BROS_ACME_EMAIL}
+	email {$BROS_ACME_EMAIL}
 }
 
 {$BROS_PUBLIC_HOST} {
-  encode zstd gzip
+	encode zstd gzip
 
-  basic_auth {
-    {$BROS_ADMIN_USERNAME} {$BROS_ADMIN_PASSWORD_HASH}
-  }
+	basic_auth {
+		{$BROS_ADMIN_USERNAME} {$BROS_ADMIN_PASSWORD_HASH}
+	}
 
-  @api path /api/*
-  handle @api {
-    reverse_proxy 127.0.0.1:{$BROS_API_PORT} {
-      header_up -X-BROS-Actor
-      header_up -X-BROS-Proxy-Token
-      header_up X-BROS-Actor "{http.auth.user.id}"
-      header_up X-BROS-Proxy-Token "{$BROS_PROXY_AUTH_TOKEN}"
-    }
-  }
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:{$BROS_API_PORT} {
+			header_up -Authorization
+			header_up X-BROS-Actor "{http.auth.user.id}"
+			header_up X-BROS-Proxy-Token "{$BROS_PROXY_AUTH_TOKEN}"
+		}
+	}
 
-  handle {
-    root * /srv/bros-admin
-    try_files {path} /index.html
-    file_server
-  }
+	handle {
+		root * /srv/bros-admin
+		try_files {path} /index.html
+		file_server
+	}
 }

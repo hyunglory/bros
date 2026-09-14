@@ -383,3 +383,11 @@
 - Durable demo: `browser.run` queue payload는 public run UUID만 보낸다. `enqueueBrowserRun`은 manual request key·run row·queue receipt를 같은 DB transaction으로 기록하며 Worker는 receipt ownership을 재검증한 후 status/attempt/current step·URL/error/screenshot/trace/result를 갱신한다. scheduled delivery도 automation job public ID에서 `SCHEDULED` run을 만든다. 실제 demo는 start/final 또는 failure PNG, Playwright trace, secret-redacted result JSON을 저장한다.
 - 실행 결과: `pnpm lint`, 변경 파일 Prettier check, `pnpm typecheck`, `pnpm build`, config/artifact unit + API security + Chromium demo integration 총 21개 PASS. Browser durable 실행은 PNG signature와 ZIP trace signature까지 확인했다.
 - 미실행: `TEST_DATABASE_URL`과 Docker daemon이 이 작업 환경에 없어 `tests/integration/browser-durable.integration.test.mjs`의 disposable PostgreSQL/pg-boss 수동·실패 run 검증 및 전체 `pnpm test`는 NOT_RUN이다. Caddy binary도 없어 `caddy validate --config ops/Caddyfile --adapter caddyfile`는 NOT_RUN이다. 이 항목들은 성공으로 간주하지 않는다.
+
+## 2026-09-14 — P6-01 disposable DB/pg-boss 및 Caddy staging 검증
+
+- disposable PostgreSQL 18.6 컨테이너(별도 이름·포트, `--rm`)에서 `tests/integration/browser-durable.integration.test.mjs` PASS: manual success/failure run, 같은 request key의 receipt 멱등성, pg-boss delivery, `automation_run` terminal status/evidence, PNG/ZIP/result artifact를 확인했다.
+- 같은 DB에서 `tests/integration/worker.integration.test.mjs` 9개 PASS: system.test atomic enqueue, retry, crash/restart, graceful shutdown, stale attempt fencing과 scheduler가 요구하는 QueuePort mock 회귀를 확인했다.
+- Caddy 2 컨테이너로 운영 `ops/Caddyfile`을 environment substitution 후 `caddy validate` PASS했다. 임시 loopback staging proxy/반사 upstream smoke에서 unauthenticated `/api/*`는 401, forged actor/token은 Basic Auth username/host token으로 overwrite, Basic Auth `Authorization`은 upstream에 미전달됨을 확인했다.
+- 발견·수정: 같은 request header에 `header_up -Field`와 `header_up Field value`를 함께 선언하면 Caddy header operation 순서상 set 값도 제거됐다. actor/token은 set만으로 기존 값을 overwrite하므로 delete 선언을 제거하고 `header_up -Authorization`을 별도로 추가했다. 이후 실제 smoke와 API security regression 2개 PASS, lint PASS, `git diff --check` PASS.
+- 잔여: remote CI와 실제 public HTTPS/DNS·firewall staging, R2 adapter는 NOT_RUN이다. local proxy smoke의 HTTP transport는 production TLS certificate issuance를 대신하지 않는다.
