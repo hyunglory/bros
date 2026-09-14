@@ -8,6 +8,7 @@ import {
   SourceProductInputSchema,
   validateSourceImportContext,
   validateSourceProductInput,
+  validateSourceRawJson,
 } from "../dist/source-product.js";
 
 function issueCodes(result) {
@@ -192,6 +193,23 @@ test("rejects non-JSON raw values and secret-bearing inputs without exposing val
     "SENSITIVE_FIELD",
     "INVALID_RAW_JSON",
   ]);
+  assert.doesNotMatch(JSON.stringify(result), new RegExp(secretValue));
+});
+
+test("validates rejected-row raw payloads without requiring a product input", () => {
+  assert.deepEqual(validateSourceRawJson({ cells: { name: "product" } }), {
+    ok: true,
+    value: { cells: { name: "product" } },
+  });
+
+  const secretValue = "must-not-appear";
+  const result = validateSourceRawJson({
+    cells: {
+      cookie: secretValue,
+      image: `https://example.com/image.jpg?token=${secretValue}`,
+    },
+  });
+  assert.deepEqual(issueCodes(result), ["SENSITIVE_FIELD", "SENSITIVE_URL_QUERY"]);
   assert.doesNotMatch(JSON.stringify(result), new RegExp(secretValue));
 });
 

@@ -283,3 +283,11 @@
 - 20행 재현: P2-01의 실제 locator 20개는 `MAPPED` 16행, `REJECTED` 4행이며 거절은 모두 외부 ID 결측이다. 원본 품질 상태는 raw에 보존하고 adapter의 accept/reject 결과와 혼합하지 않는다.
 - 의존성 선택: 실제 원본을 해석하지 못한 `exceljs 4.4.0`은 제거했다. 공개 Apache-2.0 repository와 integrity가 확인된 `@e965/xlsx 0.20.3`을 고정했다.
 - 전체 결과: PASS — Admin Vitest 6개, Node unit 41개(신규 adapter 5개 포함), integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-04 Import Validation / Raw 보존
+
+- 대상: `createImportValidationService`, `import_batch`·`import_item`에 대한 mapped/rejected row 이력화와 raw secret 재검증.
+- 수용 경계: `platformCode`, `externalProductId`, `productName`만 필수다. 브랜드·식별자·가격·이미지 결측이 있는 valid input은 `PENDING` item으로 보존하고, P2-06 전에는 `source_product`를 만들지 않는다.
+- 거절 경계: Adapter 거절, 재검증 계약 실패, batch platform mismatch는 `FAILED` item과 안전한 code/path로 남긴다. raw에서 secret성 key가 나오면 `raw: null`을 저장하고 원문 secret·URL은 item/error message에 넣지 않는다.
+- 통합 검증: 일회용 PostgreSQL DB에서 mapped/rejected row의 locator·context·raw·issue 보존, platform mismatch 거절, secret raw 미보존, source_product 0건을 확인했다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 55개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.

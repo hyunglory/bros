@@ -1,7 +1,7 @@
 # BROS Source Mapping Spec v0.1
 
-상태: PASS (P2-01, P2-02, P2-03)
-관련 Task: P2-01, P2-02, P2-03
+상태: PASS (P2-01, P2-02, P2-03, P2-04)
+관련 Task: P2-01, P2-02, P2-03, P2-04
 기준일: 2026-09-14
 
 ## 1. 목적과 완료 조건
@@ -147,3 +147,12 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - 재고수는 0이면 `OUT_OF_STOCK`, 양수면 `IN_STOCK`이며 정확한 quantity는 전달하지 않는다. 가격 0은 누락으로 유지하고 통화나 nonzero 가격을 추정하지 않는다.
 - 2026-09-14 동일 원본 SHA-256에 고정 `collectedAt`을 주입한 전체 read-only 실행 결과는 총 26,375행, `MAPPED` 25,945행, `REJECTED` 430행이다. issue 발생 횟수는 외부 ID 결측 407회, 옵션명 수 불일치 5회, 옵션 이미지 수 불일치 24회이며 한 행에는 복수 issue가 있을 수 있다.
 - P2-01의 실제 20행 locator를 다시 실행하면 `MAPPED` 16행, `REJECTED` 4행(모두 `MISSING_EXTERNAL_PRODUCT_ID`)이다. 이전 `MAPPED_WITH_REVIEW`은 `데이터상태`·설명 결측 등 원본 품질 신호를 보이기 위한 dry-run 분류였으며, adapter는 이 필드를 raw에 보존하고 계약 유효성으로만 accept/reject를 정한다.
+
+## 9. P2-04 Validation과 Raw 보존
+
+`createImportValidationService`는 플랫폼별 `import_batch`를 열고 Adapter의 `MAPPED`와 `REJECTED` 행을 모두 append-only `import_item`으로 남긴다. 현재 첫 XLSX는 두 플랫폼이 섞여 있으므로 batch는 `platformCode`별로 분리한다. P2-06이 source upsert와 최종 batch 완료 상태 전이를 담당하므로 P2-04에서 유효 행은 `PENDING`, 거절 행은 `FAILED`로 기록하고 batch는 `RUNNING`으로 유지한다.
+
+- 저장 payload는 schema version, import context, 원본 locator·행 번호, 원본 `raw`, validation outcome·issue code/path를 포함한다. 유효 행에는 재현 가능한 `mappedInput`도 보존한다.
+- 필수 `platformCode`·`externalProductId`·`productName` 결측 및 adapter issue는 거절한다. 브랜드·식별자·가격·이미지 결측은 유효 입력으로 수용한다.
+- `REJECTED` 행도 raw JSON secret 검사를 다시 통과해야 한다. cookie/token/password 등 secret성 key나 비 JSON raw가 발견되면 어떤 원문값도 저장하지 않고 `raw: null`과 safe issue code/path만 남긴다.
+- P2-04는 `source_product`를 생성·갱신하지 않는다. `(platform_id, external_product_id)` 멱등 upsert와 batch terminal aggregate는 P2-06의 책임이다.

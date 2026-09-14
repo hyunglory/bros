@@ -6,6 +6,7 @@ import {
   type SourceImportContext,
   type SourceInputValidationIssue,
   type SourceProductInput,
+  type SourceRawJson,
   validateSourceImportContext,
   validateSourceProductInput,
 } from "@bros/contracts";
@@ -104,6 +105,7 @@ export interface XlsxImportRejectedRow {
   input?: undefined;
   issues: XlsxImportIssue[];
   outcome: "REJECTED";
+  raw: SourceRawJson;
   sourceLocator: string;
   sourceRowNumber: number;
 }
@@ -381,6 +383,7 @@ function mapRow(raw: RowRawData, initialIssues: XlsxImportIssue[]): XlsxImportRo
     return {
       issues,
       outcome: "REJECTED",
+      raw: raw as unknown as SourceRawJson,
       sourceLocator: locator,
       sourceRowNumber: raw.rowNumber,
     };
@@ -389,6 +392,8 @@ function mapRow(raw: RowRawData, initialIssues: XlsxImportIssue[]): XlsxImportRo
   const mainImageUrl = text(firstValue(raw, "대표이미지 URL"));
 
   const brandName = text(firstValue(raw, "브랜드"));
+  const optionImageUrlList = firstValue(raw, "옵션 이미지 URL 목록");
+  const optionNameList = firstValue(raw, "옵션명 목록");
   const input: SourceProductInput = {
     platformCode,
     externalProductId,
@@ -408,8 +413,8 @@ function mapRow(raw: RowRawData, initialIssues: XlsxImportIssue[]): XlsxImportRo
             sourceOrder: index,
             ...(optionImageUrls[index] === undefined ? {} : { imageUrl: optionImageUrls[index] }),
             raw: {
-              optionImageUrlList: firstValue(raw, "옵션 이미지 URL 목록"),
-              optionNameList: firstValue(raw, "옵션명 목록"),
+              ...(optionImageUrlList === undefined ? {} : { optionImageUrlList }),
+              ...(optionNameList === undefined ? {} : { optionNameList }),
               sourceOptionIndex: index,
             },
           })),
@@ -439,6 +444,7 @@ function mapRow(raw: RowRawData, initialIssues: XlsxImportIssue[]): XlsxImportRo
     return {
       issues: validationIssues(validation.issues),
       outcome: "REJECTED",
+      raw: input.raw as SourceRawJson,
       sourceLocator: locator,
       sourceRowNumber: raw.rowNumber,
     };

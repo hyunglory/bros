@@ -45,6 +45,8 @@ export const SourceIdentifierInputSchema = Type.Object(
 );
 export type SourceIdentifierInput = Static<typeof SourceIdentifierInputSchema>;
 
+export type SourceRawJson =
+  string | number | boolean | null | SourceRawJson[] | { [key: string]: SourceRawJson };
 const RawJsonSchema = Type.Unknown({
   description: "JSON-compatible source payload without credentials or secret-bearing fields",
 });
@@ -196,7 +198,13 @@ function inspectRawJson(
     return;
   }
 
-  if (typeof value === "string" || typeof value === "boolean") {
+  if (typeof value === "string") {
+    if (/^https?:\/\//iu.test(value)) {
+      inspectUrl(value, path, issues);
+    }
+    return;
+  }
+  if (typeof value === "boolean") {
     return;
   }
   if (typeof value === "number") {
@@ -314,6 +322,14 @@ export function validateSourceImportContext(
   }
 
   return issues.length === 0 ? { ok: true, value: context } : { issues, ok: false };
+}
+
+// Rejected adapter rows have no SourceProductInput, but their raw payload must
+// still cross the same secret and JSON-safety boundary before persistence.
+export function validateSourceRawJson(value: unknown): SourceInputValidationResult<SourceRawJson> {
+  const issues: SourceInputValidationIssue[] = [];
+  inspectRawJson(value, "/raw", issues);
+  return issues.length === 0 ? { ok: true, value: value as SourceRawJson } : { issues, ok: false };
 }
 
 export function validateSourceProductInput(

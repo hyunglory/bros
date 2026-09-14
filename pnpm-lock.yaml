@@ -157,6 +157,9 @@ importers:
       '@bros/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@bros/db':
+        specifier: workspace:*
+        version: link:../db
       '@e965/xlsx':
         specifier: 0.20.3
         version: 0.20.3

@@ -1143,3 +1143,63 @@
 - 금지 변경: P2-03 safe issue를 자동 수정, 원본 Excel commit, legacy ID fallback, 가격 0·KRW 추정, `MAPPED` row raw의 secret scan 우회.
 - 완료 조건: adapter 결과의 accepted/rejected row가 원본 locator·raw·issue code와 함께 저장되고, 필수값 결측은 명확히 실패하며 브랜드/식별자/가격/이미지 결측은 수용하는 integration test와 전체 `pnpm check`가 PASS한다.
 - 재검토가 필요한 조건: source workbook이 25MB 또는 100,000행을 넘거나, formula/rich-text/external link가 실제 source에 나타나거나, untrusted external upload를 지원해야 할 때.
+
+## DEC-20260914-003 — P2-04 Import Validation / Raw 보존 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-04 source input validation 결과의 import 이력화와 safe raw persistence
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본
+- 관련 WBS Task: P2-04, 후속 P2-05/P2-06
+- 검토 범위와 근거: DEC-20260914-001/002, `docs/SOURCE_MAPPING_SPEC_v0.1.md`, WBS P2-04, `docs/DB_MIGRATION_SPEC.md` import_batch/import_item, `doc/BROS_구현_보완_명세_v0.2.md` 5장 raw 보존 규칙
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-002의 P2-04 인수 조건을 구현으로 완료한다.
+
+### 확정 결정
+
+- `createImportValidationService`는 한 source platform의 Adapter row 집합을 하나의 `import_batch`와 append-only `import_item`으로 원자적으로 저장한다. mixed-platform XLSX는 caller가 `platformCode`별 batch로 분리한다.
+- `MAPPED` 행은 P2-02 계약을 다시 검증하고 batch platform과 일치할 때만 `PENDING` item으로 저장한다. `REJECTED` 행, contract 재검증 실패, platform mismatch는 `FAILED` item과 첫 safe error code로 기록하며 모든 issue code/path는 raw payload envelope에 보존한다.
+- raw payload는 schema version, import context, source locator·row number, validation outcome, raw, valid row의 mapped input을 포함한다. raw secret 검사를 통과하지 못하면 raw와 mapped input을 저장하지 않고 `raw: null` 및 safe issue code/path만 남긴다.
+- P2-04는 source_product/source_sku/product_image를 쓰지 않는다. 유효 item은 `PENDING`, batch는 `RUNNING`으로 남겨 P2-06이 `(platform_id, external_product_id)` upsert와 terminal aggregate를 원자적으로 완료한다.
+- active `SOURCE` platform이 존재하지 않거나 source row number가 중복되거나 context/source name이 잘못되면 batch를 만들지 않고 safe domain error로 실패한다.
+
+### 기각한 선택지와 이유
+
+- 유효 행을 P2-04에서 `SUCCEEDED` 또는 `CREATED`로 표시: P2-06 upsert 전에는 source product 생성 여부가 확정되지 않아 이력을 거짓으로 만든다.
+- raw secret을 mask한 뒤 저장: 제거 전 원문이 오류 경로나 메모리에 남을 수 있고 재현 가능성도 떨어진다. 현재는 해당 raw 전체를 저장하지 않는다.
+- source_product를 validation 단계에서 함께 upsert: P2-06의 idempotency·last_seen·변경 필드 책임과 batch finalization을 앞당겨 경계를 흐린다.
+- mixed platform 결과를 임의 플랫폼 batch 하나에 저장: platform FK와 import 이력의 의미를 훼손한다.
+
+### 변경 파일
+
+- packages/contracts/src/source-product.ts
+- packages/contracts/test/source-product.test.mjs
+- packages/importer/package.json
+- packages/importer/src/import-validation.ts
+- packages/importer/src/index.ts
+- packages/importer/src/xlsx-import-adapter.ts
+- tests/integration/import-validation.integration.test.mjs
+- pnpm-lock.yaml
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- unit: raw-only validation을 포함한 SourceProductInput 계약 및 XLSX Adapter test PASS.
+- integration: disposable PostgreSQL에서 valid/invalid row의 `import_batch`/`import_item` status·count·locator·context·raw·issue 저장, unsafe raw null replacement, platform mismatch, source_product 미생성을 확인했다.
+- 실행 명령: 기존 BROS PostgreSQL을 health 상태로 시작하고 test DSN을 process에만 주입한 `pnpm check`.
+- 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 55개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+### 미해결 사항 및 Blocker
+
+- P2-04 blocker는 없다. P2-06 전까지 유효 import item과 batch는 의도적으로 pending/running이다.
+- 실제 mixed-platform workbook을 실행하는 orchestration entry point는 아직 없다. P2-06 또는 import command에서 platform별 partition을 호출해야 한다.
+- 외부 비신뢰 XLSX upload의 decompressed XML/ZIP entry 제한과 sandbox 정책은 P2-03의 미해결 사항으로 유지한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-06 Source Product Upsert에서 P2-04의 `PENDING` item을 소비하여 `(platform_id, external_product_id)` 멱등 upsert, last_seen/변경 필드, item action/status와 batch terminal aggregate를 하나의 transaction으로 구현한다.
+- 금지 변경: legacy ID fallback, 가격 0·KRW 추정, raw secret 재보존, P2-04만으로 source_product 생성 완료 표시, batch platform 혼합.
+- 완료 조건: 같은 import 재실행에서 source_product 중복이 없고 변경 title/price와 last_seen이 결정한 정책으로 반영되며, batch terminal counts와 row action/status가 PostgreSQL integration test 및 전체 `pnpm check`에서 검증된다.
+- 재검토가 필요한 조건: importer가 한 batch에 여러 platform을 가져야 하거나 source raw retention 기간/삭제 요구가 확정되거나 untrusted upload를 지원해야 할 때.

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@bros/contracts": "workspace:*",
+    "@bros/db": "workspace:*",
     "@e965/xlsx": "0.20.3"
   }
 }
