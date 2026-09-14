@@ -217,3 +217,14 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - 새 canonical SKU는 최초 raw option name, normalized option name, option key, 최초 source order를 `product_sku`에 보존하고 `REVIEW_REQUIRED`로 생성한다. 재import는 canonical SKU 표현과 sort order를 바꾸지 않고 source별 raw name, price, stock, raw payload만 `source_sku`에 갱신한다.
 - `product_sku`가 있으면 P2-08 matcher는 SKU `option_json.rawOptionName`을 variant 비교에 사용한다. SKU가 아직 없을 때만 P2-09의 MASTER metadata `importMatchOptionNames`를 사용한다. 내부 versioned option key를 raw option name으로 비교하지 않는다.
 - source snapshot이 저장 당시 item과 다르면 `SKIPPED/SOURCE_SNAPSHOT_CHANGED`, 연결 MASTER가 없으면 `SKIPPED/MASTER_NOT_LINKED`, 옵션이 없으면 `SKIPPED/NO_SOURCE_OPTIONS`로 기록한다. 같은 item 재호출은 저장된 결과를 반환한다.
+
+## 16. P2-11 Source Image Registrar
+
+`createImageRegistrar(database).process(itemPublicId)`는 P2-09 처리 이력이 있는 source item의 상품 이미지와 option image URL을 `product_image`에 `REGISTERED` 상태로 등록한다. 네트워크 fetch, ObjectStorage write, 이미지 생성·변환은 하지 않으며 storage provider/bucket/key, hash, MIME, 크기와 치수는 모두 NULL이다.
+
+- 상품 `MAIN`은 `SOURCE_MAIN`, 상품 `DETAIL`과 option image는 `SOURCE_DETAIL`이다. 논리 occurrence는 상품의 role+sourceOrder 또는 option의 deterministic option key+sourceOrder로 구분한다. URL은 검증된 원문을 그대로 보존하며 임의 canonicalization을 하지 않는다.
+- 같은 occurrence와 같은 URL의 재import는 기존 public image ID를 재사용한다. occurrence의 URL이 바뀌면 기존 row를 덮어쓰지 않고 다음 `source_revision` row를 추가한다. 같은 URL을 여러 option이 공유하면 occurrence별 row와 SKU 관계를 유지하며 DB의 URL+revision UNIQUE를 만족하도록 revision을 증가시킨다.
+- `metadata_json`에는 stage, occurrence key, scope, source order, option key, 수집 시각, 최초 item public ID와 안전 검증된 source raw를 보존한다. image binary를 얻기 전이므로 `process_status=REGISTERED`만 확정한다.
+- MASTER가 없는 source image도 `source_product_id`만으로 등록한다. 이후 새 import에서 같은 image occurrence가 MASTER/SKU에 연결되면 기존 null ownership만 보강한다. 기존 non-null product/SKU가 현재 source ownership과 다르면 자동 교체하지 않고 review한다.
+- item→source row lock으로 같은 source의 등록을 직렬화한다. 같은 시각의 source item들이 서로 다른 image snapshot을 가지면 `SOURCE_IMAGE_SNAPSHOT_AMBIGUOUS` review이고 아무 이미지도 쓰지 않는다. stale source는 skip, 이미지가 없으면 `NO_SOURCE_IMAGES` skip이며 같은 item 재호출은 저장된 결과를 반환한다.
+- lock timeout 기본 1초, 최대 3회이며 SQLSTATE 55P03/40P01/40001만 새 transaction에서 재시도한다. image rows와 item registration 이력은 함께 commit 또는 rollback된다. batch aggregate 통합은 P2-12가 담당한다.

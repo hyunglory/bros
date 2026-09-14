@@ -1541,3 +1541,60 @@
 - 금지 변경: identifier 자동 verified, title-only/option fuzzy 병합, P2-09 identity lock namespace 변경, source provenance 삭제, SKU status 자동 ACTIVE 승격, 다른 worktree 수정.
 - 완료 조건: P2-11은 source image revision/idempotency와 object storage 경계를, P2-12는 source/MASTER/SKU/image 단계의 terminal aggregate와 재실행을 실제 PostgreSQL에서 검증한다.
 - 재검토가 필요한 조건: option structured dimensions 또는 SKU-level identifier가 실제 source에 나타나거나, source option 삭제·판매중지의 보존 정책을 도입할 때.
+
+## DEC-20260914-010 — P2-11 Source Image Registrar 로컬 구현·검증 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-11 source product/option image metadata registration과 immutable revision
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 기본(추론 수준 미노출)
+- 관련 WBS Task: P2-11, 후속 P2-12/P4-03/P4-11
+- 검토 범위와 근거: AGENTS.md, DEC-20260913-004, DEC-20260914-001/008/009, WBS P2-11, 설계서 product_image/원본 이미지 불변 규칙, 구현 보완 명세 2.1~2.2, DB baseline의 image 관계·상태·부분 UNIQUE, SourceProductInput image/option 계약.
+- 상태: ACCEPTED
+- supersedes: 없음. P1-12 ObjectStorage 계약과 P2-10 SKU ownership을 인수하며 fetch/storage 책임은 추가하지 않는다.
+
+### 확정 결정
+
+- P2-11은 URL과 provenance를 `product_image`에 `REGISTERED`로 기록하는 단계다. 네트워크 fetch, binary 저장, content metadata 계산, thumbnail 생성은 실행하지 않으며 storage 관련 8개 필드는 모두 NULL로 둔다.
+- 상품 MAIN은 SOURCE_MAIN, 상품 DETAIL과 option image는 SOURCE_DETAIL이다. occurrence identity는 상품 role+source order 또는 option key+source order이며 URL 원문을 포함하지 않는다. 같은 occurrence+URL은 기존 image를 재사용하고 URL이 바뀌면 기존 row를 유지한 채 revision을 추가한다.
+- 같은 URL이 여러 option occurrence에 쓰여도 SKU별 provenance를 합치지 않는다. `(source_product_id,image_type,source_url,source_revision)` DB UNIQUE를 만족하도록 URL과 occurrence history의 최대 revision 다음 값을 사용한다.
+- metadata에는 stage, occurrence/scope/order/option key, collectedAt, 최초 item public ID와 이미 검증된 raw evidence를 저장한다. 같은 item은 `raw_json.imageRegistration` 결과를 replay한다.
+- 미매칭 source는 source_product_id만으로 등록할 수 있다. 이후 같은 occurrence가 MASTER/SKU와 연결되면 null ownership만 보강한다. 기존 non-null ownership 충돌과 source_sku의 MASTER 불일치는 review이며 자동 교체하지 않는다.
+- item→source row lock 안에서 기존 source images를 잠그고 등록한다. 동일 시각 image snapshot 충돌은 review, stale source와 missing images는 skip한다. 모든 image row와 item 이력은 단일 transaction이며 lock timeout/retry는 P2-09/P2-10과 같은 bounded policy다.
+
+### 기각한 선택지와 이유
+
+- Registrar에서 URL fetch와 ObjectStorage 저장까지 수행: import DB transaction에 외부 I/O를 넣고 P1-09 queue/재시도 경계를 우회한다.
+- 같은 logical slot의 기존 row URL 덮어쓰기: 과거 원본과 이후 thumbnail provenance를 잃는다.
+- URL만으로 모든 option 이미지를 한 row로 병합: 같은 binary URL을 공유하는 서로 다른 SKU ownership을 표현할 수 없다.
+- source가 다른 MASTER로 연결됐을 때 기존 image ownership 자동 교체: 기존 derived image/검수 근거와 다른 MASTER를 조용히 결합할 수 있다.
+
+### 변경 파일
+
+- packages/importer/src/image-registrar.ts
+- packages/importer/src/index.ts
+- packages/importer/test/image-registrar.test.mjs
+- tests/integration/image-registrar.integration.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- 실행 명령: importer typecheck/lint/build, image registrar unit, PostgreSQL 18.6 전용 integration, 최종 `pnpm check`, `git diff --check`.
+- 전용 결과: unit 2개와 integration 8개(parent 포함) PASS. replay/revision/SKU ownership/unmatched enrichment/missing/ambiguous/concurrency/rollback을 실제 DB에서 확인했다.
+- 최종 `pnpm check` exit 0: Admin Vitest 6개, Node unit 61개, integration 85개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN이므로 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 target test blocker는 없음. public remote push/CI는 수행하지 않았다.
+- 실제 HTTP fetch, MIME/size/dimension/hash 검증, ObjectStorage write와 REGISTERED→FETCHING→STORED/FAILED 전이는 후속 P4-03 범위다.
+- source에서 사라진 image의 비활성화/보존기간, URL query 변동의 semantic canonicalization은 근거와 정책이 없어 결정하지 않았다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-12 Import Batch / Item Tracking에서 P2-06 source upsert와 P2-09~11 결과를 pipeline terminal 상태·집계로 통합한다.
+- 금지 변경: source image row 덮어쓰기/삭제, Registrar 내부 외부 fetch, storage metadata 추정, SKU/MASTER 자동 활성화, 다른 worktree 수정.
+- 완료 조건: 단건 단계 실패가 batch 전체 transaction을 rollback하지 않고 source/MASTER/SKU/image 결과·오류·skip/review count가 replay에도 정확히 유지된다.
+- 재검토가 필요한 조건: P4-03이 content hash 기반 same-content dedupe 또는 source URL canonicalization을 도입하거나 source image 삭제 정책이 확정될 때.

@@ -342,3 +342,10 @@
 - 단위: NFKC/공백/대소문자 결정성, 구두점·토큰 순서 보존, advisory lock key 결정성, 옵션·UUID/재시도 예산 입력 거절 2개 PASS.
 - PostgreSQL 18.6 일회용 DB 통합: P2-04→P2-06→P2-09→P2-10 흐름에서 두 옵션을 생성하고, 같은 source의 더 새 수집본이 NFKC 동등 option을 제공해도 canonical SKU public ID 2개를 재사용하며 price·stock·raw provenance를 source SKU에 갱신함을 확인했다. 같은 normalized option 중복은 partial write 없이 `REVIEW_REQUIRED`이고, MASTER 미연결/option 없음은 안전하게 skip한다.
 - 실행: importer build/typecheck, P2-10 unit 2개, 전용 integration 5개(parent 포함) PASS. 최종 `TEST_DATABASE_URL`을 일회용 PostgreSQL 18.6에 주입한 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 59개, integration 77개(parent 포함), lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-11 Source Image Registrar
+
+- 대상: `createImageRegistrar.process(itemPublicId)`의 source product/option image metadata 등록, immutable revision과 ownership 보강. 실제 URL fetch·ObjectStorage write·이미지 생성은 범위에서 제외했다.
+- 단위: MAIN/DETAIL/option occurrence와 raw provenance, option key 연결, URL 보존, Registrar option/public UUID 경계 2개 PASS.
+- PostgreSQL 18.6 전용 통합 8개(parent 포함) PASS: 상품+SKU 이미지 등록과 same-item replay, 동일 URL 재import reuse, URL 변경의 새 revision과 기존 row 보존, 같은 URL을 공유하는 두 option의 별도 SKU ownership, 미매칭 source 등록 후 MASTER ownership 보강, missing/equal-time conflict 처리, concurrent import 단일 row 수렴, 두 이미지 중 강제 실패 시 전체 rollback과 replay 복구를 확인했다.
+- 모든 신규 row는 `REGISTERED`이며 storage provider/bucket/key, content hash, MIME, width/height/file size가 NULL임을 확인했다. 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 61개, integration 85개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.
