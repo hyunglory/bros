@@ -1,4 +1,6 @@
 import { createBrowserManager } from "./browser-manager.js";
+import { mapBrowserError } from "./error-taxonomy.js";
+import type { BrowserErrorCode } from "./error-taxonomy.js";
 import { createFlowRunner, FlowRunnerError } from "./flow-registry.js";
 import type { BrowserFlowContext, BrowserFlowHandler, BrowserFlowStep } from "./flow-registry.js";
 import type { Page } from "playwright";
@@ -24,7 +26,7 @@ export type DemoFlowHarnessResult = Readonly<
   | { artifact: DemoFlowArtifact; status: "SUCCESS" }
   | {
       artifact: DemoFlowArtifact;
-      errorCode: "FLOW_CLEANUP_FAILED" | "FLOW_EXECUTION_FAILED";
+      errorCode: BrowserErrorCode;
       status: "FAILED";
     }
 >;
@@ -138,7 +140,11 @@ export async function runDemoBrowserHarness(request: {
       ) {
         throw new Error("Demo browser harness failed", { cause: error });
       }
-      return { artifact, errorCode: error.code, status: "FAILED" };
+      return {
+        artifact,
+        errorCode: error.browserErrorCode ?? mapBrowserError(error),
+        status: "FAILED",
+      };
     }
   });
 }

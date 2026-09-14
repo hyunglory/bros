@@ -25,6 +25,20 @@ export type {
   FlowRunRequest,
 } from "./flow-registry.js";
 export {
+  BrowserFlowError,
+  BrowserRetryPolicyError,
+  browserErrorCodes,
+  createBrowserErrorMapper,
+  createBrowserRetryPolicy,
+  mapBrowserError,
+} from "./error-taxonomy.js";
+export type {
+  BrowserErrorCode,
+  BrowserErrorMapper,
+  BrowserRetryDecision,
+  BrowserRetryPolicy,
+} from "./error-taxonomy.js";
+export {
   createDemoBrowserFlow,
   demoBrowserFlowHandlerKey,
   runDemoBrowserHarness,

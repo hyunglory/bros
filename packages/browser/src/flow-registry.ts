@@ -42,6 +42,7 @@ export class FlowRunnerError extends Error {
       | "INVALID_FLOW_HANDLER"
       | "INVALID_FLOW_HANDLER_KEY"
       | "INVALID_FLOW_RUN_REQUEST",
+    readonly browserErrorCode?: BrowserErrorCode,
   ) {
     super(
       code === "DUPLICATE_FLOW_HANDLER"
@@ -125,6 +126,7 @@ export function createFlowRunner(handlers: readonly BrowserFlowHandler[]): FlowR
       const context = createContext(request);
       let lifecycleFailed = false;
       let cleanupFailed = false;
+      let browserErrorCode: BrowserErrorCode | undefined;
       let started = false;
       try {
         for (const step of LIFECYCLE_STEPS) {
@@ -132,8 +134,9 @@ export function createFlowRunner(handlers: readonly BrowserFlowHandler[]): FlowR
           started = true;
           await handler[step](context);
         }
-      } catch {
+      } catch (error) {
         lifecycleFailed = true;
+        browserErrorCode = mapBrowserError(error);
       } finally {
         if (started) {
           try {
@@ -146,8 +149,10 @@ export function createFlowRunner(handlers: readonly BrowserFlowHandler[]): FlowR
           }
         }
       }
-      if (lifecycleFailed) throw new FlowRunnerError("FLOW_EXECUTION_FAILED");
+      if (lifecycleFailed) throw new FlowRunnerError("FLOW_EXECUTION_FAILED", browserErrorCode);
       if (cleanupFailed) throw new FlowRunnerError("FLOW_CLEANUP_FAILED");
     },
   };
 }
+import { mapBrowserError } from "./error-taxonomy.js";
+import type { BrowserErrorCode } from "./error-taxonomy.js";

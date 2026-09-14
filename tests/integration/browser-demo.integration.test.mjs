@@ -37,7 +37,7 @@ test("deterministic demo browser flow captures a safe artifact and failed status
       steps: ["prepare", "authenticate", "execute", "verify", "cleanup"],
       url: "about:blank",
     },
-    errorCode: "FLOW_EXECUTION_FAILED",
+    errorCode: "FLOW_LOGIC_ERROR",
     status: "FAILED",
   });
 });
