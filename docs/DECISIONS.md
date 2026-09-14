@@ -1598,3 +1598,61 @@
 - 금지 변경: source image row 덮어쓰기/삭제, Registrar 내부 외부 fetch, storage metadata 추정, SKU/MASTER 자동 활성화, 다른 worktree 수정.
 - 완료 조건: 단건 단계 실패가 batch 전체 transaction을 rollback하지 않고 source/MASTER/SKU/image 결과·오류·skip/review count가 replay에도 정확히 유지된다.
 - 재검토가 필요한 조건: P4-03이 content hash 기반 same-content dedupe 또는 source URL canonicalization을 도입하거나 source image 삭제 정책이 확정될 때.
+
+## DEC-20260914-011 — P2-12 Import Batch / Item Tracking 로컬 구현·검증 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-12 item terminal result와 batch pipeline completion/aggregate tracking
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 기본(추론 수준 미노출)
+- 관련 WBS Task: P2-12, 후속 P2-13/P2-14
+- 검토 범위와 근거: AGENTS.md, DEC-20260914-003/004/008/009/010, WBS P2-12~13, `docs/SOURCE_MAPPING_SPEC_v0.1.md`, DB baseline의 import batch/item 상태·집계 CHECK, P2-04/P2-06/P2-09~11 구현과 테스트.
+- 상태: ACCEPTED
+- supersedes: 없음. P2-06 source upsert 종료 이력과 P2-09~11 stage 결과를 유지하면서 pipeline 전체 완료 의미를 구체화한다.
+
+### 확정 결정
+
+- `ImportResultRecorder`는 P2-04 거절 item 또는 P2-09~11이 모두 끝난 승인 item을 한 건씩 독립 transaction으로 확정한다. 승인 item의 stage evidence가 하나라도 없거나 형식이 잘못되면 쓰지 않고 거절한다.
+- validation/명시적 실패, review, material skip, success 순으로 최종 결과를 정한다. `NO_SOURCE_OPTIONS`와 `NO_SOURCE_IMAGES`는 선택 입력 부재라 MASTER 성공을 유지하고, 성공 action은 P2-09의 CREATED/MATCHED를 보존한다.
+- 명시적 stage 실패는 P2-09~11과 안정된 64자 error code만 허용한다. raw exception을 보존하지 않고, P2-04에서 이미 거절된 item의 구체적 validation code/message는 유지한다.
+- 같은 batch의 동시 기록은 batch→item lock 순서로 직렬화하고 1초 lock timeout, 최대 3회, SQLSTATE 55P03/40P01/40001만 새 transaction에서 재시도한다. 마지막 item이 기록될 때만 batch pipeline을 완료한다.
+- batch counts는 저장된 item 상태에서 매번 다시 계산한다. 전부 실패면 FAILED, 일부 실패면 PARTIAL_FAILED, 실패가 없으면 SUCCEEDED다. P2-06 `finished_at`은 바꾸지 않고 pipeline 완료·시각·recorded count는 `config_json.pipelineTracking`에 `P2-12/v1`로 기록한다.
+- item의 최종 결과는 기존 raw envelope를 유지한 `raw_json.pipelineTracking`에 남긴다. 재호출은 저장 결과를 반환하며 batch 완료 시각과 집계를 증가시키지 않는다.
+
+### 기각한 선택지와 이유
+
+- batch 전체를 하나의 장기 transaction으로 처리: 단건 실패가 전체 결과를 rollback하고 P2-13 chunk/restart 복구 경계를 약화한다.
+- P2-09~11 중 누락된 stage를 성공 또는 단순 skip으로 간주: 처리되지 않은 작업과 선택 입력 부재를 구분할 수 없다.
+- 모든 skip/review를 실패로 집계: WBS가 요구한 성공/실패/스킵 구분과 DB의 독립 count를 훼손한다.
+- P2-06 `finished_at`을 pipeline 완료 시각으로 덮어쓰기: source upsert 완료 이력의 의미를 바꾸고 기존 결정과 충돌한다.
+- raw exception을 item error message에 저장: 비밀값·원본 데이터 노출 위험과 비결정적 운영 표시를 만든다.
+
+### 변경 파일
+
+- packages/importer/src/import-result-recorder.ts
+- packages/importer/src/index.ts
+- packages/importer/test/import-result-recorder.test.mjs
+- tests/integration/import-result-recorder.integration.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- 실행 명령: importer lint/typecheck/build, P2-12 unit, PostgreSQL 18.6 전용 integration, 최종 `pnpm check`, `git diff --check`.
+- 전용 결과: unit 5개와 integration 4개(parent 포함) PASS. mixed outcome 동시 기록, 정확한 집계, failure isolation, stage completeness, evidence/timestamp 보존과 replay를 실제 DB에서 확인했다.
+- 최종 `pnpm check` exit 0: Admin Vitest 6개, Node unit 66개, integration 89개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN이므로 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 target test blocker는 없다. public remote push/CI는 수행하지 않았다.
+- P2-12는 stage 결과 기록기이며 XLSX 분할, queue dispatch, chunk backpressure, worker restart orchestration은 P2-13 범위다.
+- item 수가 0인 batch의 pipeline 완료 호출은 현 WBS 입력 흐름에서 사용되지 않아 별도 API를 두지 않았다. 빈 import 허용 정책이 생기면 batch-only finalize 계약을 결정해야 한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-13 Product Import Queue / Chunk Processor에서 `product.import` job, 설정 가능한 chunk 100/concurrency 2 기본값, retry/idempotency/backpressure와 worker restart 복구를 구현한다.
+- 금지 변경: P2-04 validation 원본 envelope 덮어쓰기, P2-09~11 결과 재해석, P2-12 item별 독립 transaction 제거, 임의 raw exception 저장, 다른 worktree 수정.
+- 완료 조건: 1k synthetic import를 chunk 처리하고 worker restart와 일부 실패 뒤 재실행해도 source/MASTER/SKU/image 및 P2-12 집계가 중복되지 않으며 backpressure와 retry 한계가 관측된다.
+- 재검토가 필요한 조건: queue job이 item이 아닌 batch 전체 원자성을 요구하거나, 운영자가 완료된 같은 item의 새 시도를 기존 row에 덮어써야 한다는 정책이 승인될 때.

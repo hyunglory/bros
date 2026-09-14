@@ -228,3 +228,14 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - MASTER가 없는 source image도 `source_product_id`만으로 등록한다. 이후 새 import에서 같은 image occurrence가 MASTER/SKU에 연결되면 기존 null ownership만 보강한다. 기존 non-null product/SKU가 현재 source ownership과 다르면 자동 교체하지 않고 review한다.
 - item→source row lock으로 같은 source의 등록을 직렬화한다. 같은 시각의 source item들이 서로 다른 image snapshot을 가지면 `SOURCE_IMAGE_SNAPSHOT_AMBIGUOUS` review이고 아무 이미지도 쓰지 않는다. stale source는 skip, 이미지가 없으면 `NO_SOURCE_IMAGES` skip이며 같은 item 재호출은 저장된 결과를 반환한다.
 - lock timeout 기본 1초, 최대 3회이며 SQLSTATE 55P03/40P01/40001만 새 transaction에서 재시도한다. image rows와 item registration 이력은 함께 commit 또는 rollback된다. batch aggregate 통합은 P2-12가 담당한다.
+
+## 17. P2-12 Import Batch / Item Tracking
+
+`createImportResultRecorder(database).record(itemPublicId)`는 P2-04 검증과 P2-09~11 처리 이력을 하나의 최종 item 결과로 확정한다. P2-04에서 거절된 item은 하위 단계 없이 실패로 기록할 수 있고, 승인된 item은 MASTER·SKU·image 세 단계 결과가 모두 있어야 한다. 처리되지 않은 단계를 성공으로 간주하지 않는다.
+
+- 결과 우선순위는 validation/명시적 단계 실패 → review → material skip → success다. `NO_SOURCE_OPTIONS`와 `NO_SOURCE_IMAGES`는 선택 입력 부재이므로 MASTER가 생성·매칭됐다면 성공을 유지한다. 그 밖의 skip은 해당 stage reason과 함께 최종 `SKIPPED`로 남긴다.
+- 성공 action은 P2-09의 `CREATED` 또는 `MATCHED`를 유지한다. 최종 결과와 완료 시각은 원본 envelope의 `raw_json.pipelineTracking`에 `P2-12/v1`로 추가하며 P2-04와 P2-09~11 근거를 덮어쓰지 않는다. 같은 item 재호출은 저장된 결과를 반환한다.
+- stage 실행 자체가 실패하면 `recordFailure({ itemPublicId, stage, errorCode })`로 해당 item만 실패 처리한다. stage는 P2-09~11, error code는 대문자·숫자·underscore 64자 이내로 제한하고 raw exception이나 입력값은 DB 오류 메시지에 저장하지 않는다. 기존 P2-04 validation 오류 code/message는 보존한다.
+- 각 item은 독립 transaction으로 기록하므로 한 건의 실패가 다른 item을 rollback하지 않는다. 같은 batch의 동시 기록은 batch row 다음 item row 순서로 잠그고, lock timeout 기본 1초와 최대 3회 재시도를 적용한다. SQLSTATE 55P03/40P01/40001만 새 transaction에서 재시도한다.
+- 매 기록마다 해당 batch의 item 상태를 SQL로 다시 읽어 success/failed/skipped/review count와 기록 완료 수를 계산한다. 모든 item에 P2-12 결과가 생길 때만 batch를 최종 확정한다. 실패가 전부면 `FAILED`, 일부면 `PARTIAL_FAILED`, 없으면 `SUCCEEDED`다. review와 skip은 실패 건수로 계산하지 않는다.
+- P2-06의 `finished_at`은 source upsert 완료 이력으로 유지한다. pipeline 전체 완료 여부와 시각, 최종 집계는 `import_batch.config_json.pipelineTracking`에 별도로 기록하고 replay에서 완료 시각을 바꾸지 않는다.

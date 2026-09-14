@@ -349,3 +349,11 @@
 - 단위: MAIN/DETAIL/option occurrence와 raw provenance, option key 연결, URL 보존, Registrar option/public UUID 경계 2개 PASS.
 - PostgreSQL 18.6 전용 통합 8개(parent 포함) PASS: 상품+SKU 이미지 등록과 same-item replay, 동일 URL 재import reuse, URL 변경의 새 revision과 기존 row 보존, 같은 URL을 공유하는 두 option의 별도 SKU ownership, 미매칭 source 등록 후 MASTER ownership 보강, missing/equal-time conflict 처리, concurrent import 단일 row 수렴, 두 이미지 중 강제 실패 시 전체 rollback과 replay 복구를 확인했다.
 - 모든 신규 row는 `REGISTERED`이며 storage provider/bucket/key, content hash, MIME, width/height/file size가 NULL임을 확인했다. 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 61개, integration 85개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-12 Import Batch / Item Tracking
+
+- 대상: `createImportResultRecorder.record(itemPublicId)`와 `recordFailure(...)`의 item terminal 결과, batch pipeline 완료·집계, 오류 경계와 replay.
+- 단위 5개 PASS: 선택 입력 부재의 성공 유지, review/skip 우선순위, validation 거절의 독립 종료, 하위 단계 누락·변조 거절, option/public UUID/failure stage/error code 런타임 경계를 확인했다.
+- PostgreSQL 18.6 전용 통합 4개(parent 포함) PASS: 한 batch의 성공·검토·stale skip·validation 실패를 동시에 기록해 각각 1건과 `PARTIAL_FAILED`를 얻었고, P2-04와 P2-09~11 evidence 보존, P2-06 `finished_at` 보존, P2-12 완료 시각 고정, 동시 호출 직렬화와 replay 집계 불변을 확인했다.
+- 명시적 P2-10 실패는 해당 item transaction만 `FAILED`로 끝나고 batch가 정확히 `FAILED`가 되며 raw exception 없이 안정된 code/message와 failure stage만 남는다. 승인 item에 P2-09~11 중 하나라도 없으면 `PIPELINE_STAGE_INCOMPLETE`로 전체 write가 rollback된다.
+- 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 66개, integration 89개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 실제 상품 원본이나 운영 DB는 변경하지 않았고 원격 CI는 NOT_RUN이다.
