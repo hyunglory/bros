@@ -27,7 +27,7 @@ test("P6-10 Caddy protects readiness and overwrites upstream identity", async ()
     assert.match(caddyfile, /@api path \/api\/\* \/health \/ready/);
     assert.match(caddyfile, /header_up -Authorization/);
     assert.match(caddyfile, /header_up X-BROS-Actor "?\{http\.auth\.user\.id\}"?/);
-    assert.match(caddyfile, /header_up X-BROS-Proxy-Token/);
+    assert.match(caddyfile, /import \/run\/secrets\/caddy_proxy/);
   }
 });
 

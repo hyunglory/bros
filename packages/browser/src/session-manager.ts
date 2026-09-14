@@ -1,9 +1,10 @@
 import { chmod, lstat, mkdir } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import { createBrowserSecretKeys } from "@bros/core";
 import { chromium } from "playwright";
 import type { BrowserContext, LaunchOptions } from "playwright";
+import { browserLaunchEnvironment } from "./launch-environment.js";
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 30_000;
 const MAX_LAUNCH_TIMEOUT_MS = 300_000;
@@ -38,6 +39,7 @@ export class SessionManagerError extends Error {
       | "INVALID_SESSION_OPTIONS"
       | "PROFILE_STORAGE_UNSAFE"
       | "SESSION_CHECK_FAILED"
+      | "SESSION_LAUNCH_FAILED"
       | "SESSION_MANAGER_CLOSED",
   ) {
     super(
@@ -49,7 +51,9 @@ export class SessionManagerError extends Error {
             ? "Browser profile storage is unsafe"
             : code === "SESSION_CHECK_FAILED"
               ? "Browser session check failed"
-              : "Session manager is closed",
+              : code === "SESSION_LAUNCH_FAILED"
+                ? "Browser session launch failed"
+                : "Session manager is closed",
     );
     this.name = "SessionManagerError";
   }
@@ -75,13 +79,38 @@ function assertTiming(timeoutMs: number, slowMoMs: number | undefined): void {
   }
 }
 
-async function ensureDirectory(path: string): Promise<void> {
+async function ensureDirectory(path: string, production: boolean): Promise<void> {
   try {
-    await mkdir(path, { mode: 0o700, recursive: true });
+    if (production && process.platform !== "linux") throw new Error();
+    const ancestors: string[] = [];
+    for (let parent = dirname(path); ; parent = dirname(parent)) {
+      ancestors.unshift(parent);
+      if (parent === dirname(parent)) break;
+    }
+    for (const parent of ancestors) {
+      const info = await lstat(parent).catch(async (error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error;
+        await mkdir(parent, { mode: 0o700 });
+        return lstat(parent);
+      });
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error();
+      if (production && info.uid !== 0 && info.uid !== process.getuid?.()) throw new Error();
+      if (
+        production &&
+        (info.mode & 0o022) !== 0 &&
+        !(info.uid === 0 && (info.mode & 0o1000) !== 0)
+      )
+        throw new Error();
+    }
+    await mkdir(path, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "EEXIST") throw error;
+    });
     const details = await lstat(path);
     if (!details.isDirectory() || details.isSymbolicLink()) {
       throw new SessionManagerError("PROFILE_STORAGE_UNSAFE");
     }
+    if (production && ((details.mode & 0o077) !== 0 || details.uid !== process.getuid?.()))
+      throw new Error();
     await chmod(path, 0o700);
   } catch (error) {
     if (error instanceof SessionManagerError) throw error;
@@ -98,14 +127,17 @@ function assertContained(root: string, candidate: string): void {
 
 export function createSessionManager(options: {
   launcher?: PersistentContextLauncher;
-  profileRoot: string;
+  profileRoot?: string;
+  production?: boolean;
 }): SessionManager {
-  if (!isAbsolute(options.profileRoot)) {
+  const profileRoot = options.profileRoot ?? process.env.BROS_BROWSER_PROFILE_ROOT;
+  const production = options.production === true || process.env.APP_ENV === "production";
+  if (!profileRoot || !isAbsolute(profileRoot)) {
     throw new SessionManagerError("PROFILE_STORAGE_UNSAFE");
   }
 
   const launcher = options.launcher ?? chromium;
-  const root = resolve(options.profileRoot);
+  const root = resolve(profileRoot);
   const contexts = new Set<BrowserContext>();
   const launches = new Set<Promise<BrowserContext>>();
   let closePromise: Promise<void> | undefined;
@@ -113,10 +145,10 @@ export function createSessionManager(options: {
 
   const profilePath = async (profileKey: string): Promise<string> => {
     assertProfileKey(profileKey);
-    await ensureDirectory(root);
+    await ensureDirectory(root, production);
     const path = resolve(root, profileKey);
     assertContained(root, path);
-    await ensureDirectory(path);
+    await ensureDirectory(path, production);
     return path;
   };
 
@@ -128,6 +160,7 @@ export function createSessionManager(options: {
     if (state !== "accepting") throw new SessionManagerError("SESSION_MANAGER_CLOSED");
 
     const pending = launcher.launchPersistentContext(userDataDir, {
+      env: browserLaunchEnvironment(),
       handleSIGHUP: false,
       handleSIGINT: false,
       handleSIGTERM: false,
@@ -157,6 +190,9 @@ export function createSessionManager(options: {
         return { profileKey: request.profileKey, state: "EXPIRED" };
       }
       return { context, profileKey: request.profileKey, state: "VALID" };
+    } catch (error) {
+      if (error instanceof SessionManagerError) throw error;
+      throw new SessionManagerError("SESSION_LAUNCH_FAILED");
     } finally {
       launches.delete(pending);
     }

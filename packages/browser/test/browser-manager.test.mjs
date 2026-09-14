@@ -60,6 +60,7 @@ test("launches headed or headless Chromium with worker-owned signal handling", a
   assert.equal(value, "complete");
   assert.deepEqual(fixture.calls, [
     {
+      env: fixture.calls[0].env,
       handleSIGHUP: false,
       handleSIGINT: false,
       handleSIGTERM: false,
@@ -124,5 +125,29 @@ test("rejects unsafe launch timing without reflecting supplied values", async ()
       (error) =>
         error instanceof BrowserManagerError && error.code === "INVALID_BROWSER_LAUNCH_OPTIONS",
     );
+  }
+});
+
+test("Chromium gets an allowlisted environment, never parent credentials or injection options", async () => {
+  const fixture = createLauncher();
+  const keys = [
+    "BROS_SECRET_PROVIDER_IMAGE_API_KEY",
+    "DATABASE_URL",
+    "NODE_OPTIONS",
+    "DEBUG",
+    "AWS_SECRET_ACCESS_KEY",
+  ];
+  const previous = keys.map((key) => process.env[key]);
+  try {
+    for (const key of keys) process.env[key] = "synthetic-secret";
+    const manager = createBrowserManager({ launcher: fixture.launcher });
+    await manager.launch();
+    for (const key of keys) assert.equal(fixture.calls[0].env[key], undefined);
+    await manager.close();
+  } finally {
+    keys.forEach((key, i) => {
+      if (previous[i] === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = previous[i];
+    });
   }
 });

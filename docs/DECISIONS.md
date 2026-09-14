@@ -2183,3 +2183,104 @@
 - 금지 변경: R2 bucket public-read, broad/long-lived credential, secret·signed URL 저장/출력, bucket/prefix-wide 삭제, source original/approved thumbnail 자동 삭제, hold 무시, unrelated worktree/Cloudflare resource 변경.
 - 완료 조건: 선택한 P6 task의 WBS acceptance와 failure path를 증명하거나 P6-05 required CI에서 start 포함 inventory/hold/cleanup 회귀가 PASS한다.
 - 재검토가 필요한 조건: lifecycle rule 병행, object legal hold, provider/bucket migration, production secret injection 변경, artifact inventory schema 정규화 또는 retention 정책 변경이 필요할 때.
+
+## DEC-20260915-005 — P6-02 Production Secret / Browser Profile Hardening
+
+- 일자: 2026-09-15
+- 종료 단계/분야: production secret 주입·파일/프로필 보호·artifact/log 제한·rotation/backup 제외 정책 구현과 disposable Linux 검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-02, P1-13, P5-03, P5-06, P5-10, P6-01, P6-06, P6-10
+- 검토 범위와 근거: AGENTS.md, doc/README.md 및 보완 명세 v0.2, P6-02 WBS acceptance/test, DEC-20260915-002~004, core security/config, Browser SessionManager/ArtifactService, production/public-staging Compose·Caddy, Docker/Caddy 공식 문서와 실제 Linux PostgreSQL 18.6/Chromium 검증
+- 상태: ACCEPTED
+- supersedes: DEC-20260915-002의 Docker environment 기반 secret 주입·재실행 경로만 대체한다. 해당 공개 R2/TLS 검증의 역사적 결과 및 native-domain/remote CI 미검증 상태는 유지한다. 기존 P5-10 artifact capture는 아래 production 안전 제한으로 보완하며 P6-05 inventory/hold/cleanup 의미는 유지한다.
+
+### 확정 결정
+
+- production API/Worker/migration과 storage SecretProvider는 절대 _FILE 입력을 사용한다. file/env 중복과 평문 production secret, DEBUG/PWDEBUG/NODE_OPTIONS는 거부한다. 값은 애플리케이션 내부에서 읽고 process.env에 다시 주입하지 않는다. Worker/migration에는 API proxy secret을 배포하지 않는다.
+- 읽기 전 파일 유형·단일 hardlink·64 KiB 상한·NUL/빈 값·symlink/ancestor·UID·owner-only 권한을 검증한다. API/Worker는 UID 1000, Caddy는 비root UID 1000이며 secret은 서비스별 개별 read-only mount다. production POSIX 권한 검증은 Linux 전용이다.
+- root-only provisioning 도구는 secret manager stdin으로 받은 bundle을 저장소 밖의 새로운 generation에만 생성한다. DB/R2/proxy/Caddy와 선택적 Provider/browser key의 이름을 제한하며 기존 generation을 덮어쓰지 않는다. 파일 기반 주입은 암호화·memory-only 저장·Docker 관리자 격리를 뜻하지 않는다.
+- Caddy는 secret snippet을 import하고 admin API와 config persistence를 끈다. API/Worker/migration은 read-only rootfs/no-new-privileges/cap_drop ALL/tmpfs를 적용한다. API namespace dependent service는 API와 동시에 restart하지 않고 순서대로 recreate한다.
+- production profile은 안전한 절대 root의 검증된 key 아래 UID 일치·0700을 요구하며 약한 기존 권한·상위 symlink는 거부한다. API/Worker umask는 0077이다. Chromium에 비밀/실행 주입 환경을 상속하지 않고 명시적 기본 환경만 전달한다. 기존 profile lock/DB 소유권 경계는 변경하지 않는다.
+- logger는 중첩 배열/객체, R2 access key, OTP, cookie/header, 인용/공백 포함 password 등을 마스킹한다. opaque secret을 임의 message에 로그하는 것은 여전히 금지다. 자동 마스킹을 모든 자유 텍스트에 대한 완전한 탐지기로 간주하지 않는다.
+- generic artifact run의 screenshot/trace는 기본 거부한다. 실제 인증 세션의 raw ZIP 사후 마스킹은 채택하지 않는다. 고정된 무자격증명 about:blank Demo/합성 fixture에서만 trusted-code synthetic-demo opt-in을 사용한다. API/queue input에서 opt-in을 전달하지 않는다. start 포함 Demo 4종과 기존 preview/hold/cleanup은 유지한다.
+- secret/profile/session/개인 키/임시 trace/Caddy autosave는 업무 backup에서 제외한다. backup payload allowlist 원칙과 GNU tar 보조 exclude 파일을 제공한다. P6-06 자동 백업·암호화·복구 테스트는 이번 범위 밖이다.
+- 실제 R2/Cloudflare token, 운영 profile/DB, public tunnel·DNS·방화벽은 변경하지 않았다. DB schema/migration 및 다른 worktree도 변경하지 않았다.
+
+### 기각한 선택지와 이유
+
+- Docker 환경변수로 재주입: container config metadata에 값이 저장되므로 기각했다.
+- Compose의 file secret uid/gid/mode 힌트만 신뢰: bind-backed 파일의 host 권한을 보장하지 못하므로 실제 Linux 파일/다른 UID negative test를 사용한다.
+- raw trace ZIP을 정규식으로 제거한 뒤 업로드: 네트워크 header/body·DOM·스크린샷의 민감정보 제거를 보장하지 못하므로 기본 capture 거부와 제한된 Demo opt-in을 택했다.
+- 기존 token을 파일 rename만 하고 무중단 반영된 것으로 간주: bind inode·DB pool·Caddy parsed config와 R2 key-pair 정합성 때문에 generation 단위 recreate/smoke를 사용한다.
+- rootfs/profile 전체 backup 또는 cookie 복원: credential이 일반 백업에 포함될 수 있어 승인된 데이터 allowlist와 재로그인 원칙을 택했다.
+- Windows chmod 또는 정적 YAML 검사만으로 운영 권한 PASS: disposable Linux 실제 파일 접근과 비root 서비스 기동으로 확인한다.
+
+### 변경 파일
+- `.dockerignore`
+- `.gitattributes`
+- `.gitignore`
+- `apps/api/src/app.ts`
+- `apps/api/src/main.ts`
+- `apps/worker/src/main.ts`
+- `apps/worker/src/runtime.ts`
+- `apps/worker/src/send-product-import.ts`
+- `apps/worker/src/send-system-test.ts`
+- `compose.production.yml`
+- `compose.public-staging.yml`
+- `docs/DECISIONS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/P6_02_HARDENING.md`
+- `docs/P6_10_STAGING.md`
+- `docs/RUNBOOK.md`
+- `docs/TEST_REPORT.md`
+- `ops/Caddyfile`
+- `ops/Caddyfile.public-staging`
+- `ops/Dockerfile`
+- `ops/backup-excludes.txt`
+- `ops/edge-entrypoint.sh`
+- `packages/browser/src/artifact-service.ts`
+- `packages/browser/src/browser-manager.ts`
+- `packages/browser/src/demo-flow.ts`
+- `packages/browser/src/launch-environment.ts`
+- `packages/browser/src/session-manager.ts`
+- `packages/browser/test/artifact-service.test.mjs`
+- `packages/browser/test/browser-manager.test.mjs`
+- `packages/browser/test/session-manager.test.mjs`
+- `packages/core/src/config/index.ts`
+- `packages/core/src/security/index.ts`
+- `packages/core/src/security/secret-files.ts`
+- `packages/core/test/secret-files.test.mjs`
+- `packages/core/test/security.test.mjs`
+- `scripts/migrate.mjs`
+- `scripts/provision-production-secrets.mjs`
+- `scripts/staging-identity-server.mjs`
+- `scripts/verify-production-hardening.mjs`
+- `scripts/verify-public-staging.mjs`
+- `scripts/verify-r2-staging.mjs`
+- `tests/integration/browser-artifact.integration.test.mjs`
+- `tests/integration/production-deployment.integration.test.mjs`
+- `tests/integration/production-hardening.integration.test.mjs`
+- `tests/ops/production-hardening-fixture.mjs`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: pnpm build, pnpm typecheck, pnpm lint, pnpm test:unit 및 최종 node scripts/run-tests.mjs unit; Worker/edge Docker build; 두 Compose config --quiet; node scripts/verify-production-hardening.mjs; 변경 코드/설정 Prettier 및 git diff --check.
+- 결과: 로컬 hardening PASS. 두 generation의 실제 DB password 변경/새 API pool·Worker 연결, 신규 proxy 인증/이전 token 거부, Caddy Basic Auth/위조 upstream token 교체, R2 FileSecretProvider 교체 값, Docker metadata·stdout/stderr log·image history에서 무작위 fixture secret 부재, Caddy autosave 부재를 확인했다.
+- 실제 Linux에서 다른 UID의 secret/profile 읽기 EACCES, weak-mode·symlink·hardlink/ancestor 거부, Chromium persistent cookie 재사용 및 EXPIRED 종료를 확인했다. 대상 Linux unit 28개 PASS/skip 0. Windows 전체 Node unit 113개 중 111개 PASS/2개 Linux-only skip; Admin 13개 PASS. 마지막 추가 문자열 마스킹 회귀도 PASS다.
+- GNU tar fixture는 secret/profile/session/키/trace/autosave를 제외하고 safe.txt만 담았다. 대상 integration 5파일/9개 PASS: Browser artifact/durable, retention, 기존 deployment 및 새 hardening 계약. forced exit 없이 완료했다. 전체 integration/remote CI/실제 운영 host와 외부 R2·Provider rotation은 NOT_RUN이다.
+- 초기 검증에서 Windows root mkdir 처리, 깊은 R2 secretAccessKey 마스킹 누락, test reporter 형식 기대 오류를 발견해 수정 후 통과했다. tool 제한으로 pnpm exec prettier를 직접 Node 경로 호출로 대체했다.
+- 정리: 모든 고유 fixture container(anonymous volume 포함), internal network 및 secret/profile volume을 제거했다. 테스트 credential/cookie/DB는 disposable이며 복구 불가하다. 검증용 이미지/build cache는 재사용을 위해 남겼다. 기존 Cloudflare bucket/폐기된 token 및 unrelated Docker 환경은 유지했다.
+
+### 미해결 사항 및 Blocker
+
+- P6-02 상태는 IMPLEMENTED_NOT_VALIDATED다. 실제 운영 host의 secret manager/디스크 암호화/ACL 및 기존 Caddy volume upgrade, 외부 R2·Provider의 실제 교체 smoke, required remote CI 증거가 남는다.
+- 백업 제외 정책과 합성 archive 검증은 P6-06 자동 백업·암호화·restore/RPO/RTO 검증을 대신하지 않는다.
+- P6-10 native custom-domain TLS/host firewall 검증과 기존 전체 integration runner의 Vite 잔여 handle 문제는 별도다. 이번 대상 회귀에서는 문제가 없었다.
+- 실제 authenticated browser flow의 시각 artifact가 필요하면 별도 안전한 evidence 정책을 결정해야 한다. generic raw capture를 다시 열지 않는다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P6-06 DB Backup 자동화와 disposable restore 검증. P6-02의 _FILE/최소 mount/backup 제외와 기존 R2 private 계약을 사용한다. 배포 승인이 주어지면 실제 운영 host와 live rotation 검증을 별도로 수행한다.
+- 금지 변경: 평문 secret 환경변수 재도입, profile/cookie 일반 backup, secret·signed URL 로그/DB 저장, artifact synthetic opt-in의 API input 노출, bucket public-read/전체 삭제, 기존 hold 우회, unrelated worktree 변경, 승인 없는 영구 인프라 변경.
+- 완료 조건: 선택된 P6-06 WBS의 backup 성공/실패·암호화·보존/복구 경계와 RPO/RTO를 disposable 환경에서 증명하고, secret/profile 제외를 확인한다. 운영 반영/remote CI는 실제 실행 증거와 분리 기록한다.
+- 재검토가 필요한 조건: secret manager/KMS 방식, UID·user namespace, DB role 분리, 운영 backup 범위·복구 목표, 인증 브라우저 artifact 허용 정책이 변경될 때.

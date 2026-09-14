@@ -119,7 +119,7 @@ async function main() {
     authorization: { authorize: async ({ actor }) => actor?.role === "ADMIN" },
     now: () => createdAt,
     storage,
-  }).createRun({ createdAt, runPublicId });
+  }).createRun({ capturePolicy: "synthetic-demo", createdAt, runPublicId });
   const allKeys = [];
 
   try {

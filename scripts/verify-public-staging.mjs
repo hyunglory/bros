@@ -6,26 +6,31 @@ import tls from "node:tls";
 import { URL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { loadConfigFromProcess, EnvSecretProvider } from "../packages/core/dist/index.js";
+import {
+  loadConfigFromProcess,
+  createSecretProvider,
+  readRuntimeSecret,
+} from "../packages/core/dist/index.js";
 import { createDatabaseClient } from "../packages/db/dist/index.js";
 import { createPgBossQueue } from "../packages/queue/dist/index.js";
 import { createObjectStorage } from "../packages/storage/dist/index.js";
 import { enqueueBrowserRun } from "../apps/worker/dist/index.js";
 
-const required = ["BROS_PUBLIC_ORIGIN", "BROS_ADMIN_USERNAME", "BROS_STAGING_ADMIN_PASSWORD"];
+const required = ["BROS_PUBLIC_ORIGIN", "BROS_ADMIN_USERNAME"];
 for (const name of required) {
   if (!process.env[name]?.trim()) throw new Error(`Missing required environment variable: ${name}`);
 }
 
-const config = loadConfigFromProcess();
+const config = loadConfigFromProcess("worker");
 const origin = new URL(process.env.BROS_PUBLIC_ORIGIN);
 const username = process.env.BROS_ADMIN_USERNAME;
-const password = process.env.BROS_STAGING_ADMIN_PASSWORD;
+const password = readRuntimeSecret(process.env, "BROS_STAGING_ADMIN_PASSWORD");
+if (!password) throw new Error("Staging administrator credential missing");
 const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
 const database = createDatabaseClient(config.database, { applicationName: "bros-public-staging" });
 const queue = createPgBossQueue(config.database, { pollingIntervalSeconds: 0.5 });
 const storage = createObjectStorage(config.storage, {
-  secretProvider: new EnvSecretProvider(process.env),
+  secretProvider: createSecretProvider(),
 });
 let jobId;
 let run;

@@ -2,19 +2,18 @@ name: bros-public-staging
 
 x-runtime-environment: &runtime-environment
   APP_ENV: production
-  DATABASE_URL: postgresql://${POSTGRES_USER:-bros}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bros}
+  DATABASE_URL_FILE: /run/secrets/database_url
   DB_POOL_MAX: ${DB_POOL_MAX:-8}
   API_HOST: 127.0.0.1
   API_PORT: 3000
   API_PUBLIC_ORIGIN: ${BROS_PUBLIC_ORIGIN:?Set BROS_PUBLIC_ORIGIN}
-  API_PROXY_AUTH_TOKEN: ${BROS_PROXY_AUTH_TOKEN:?Set BROS_PROXY_AUTH_TOKEN}
   API_LOCAL_UNAUTHENTICATED: "false"
   WORKER_CONCURRENCY: 1
   STORAGE_DRIVER: r2
   STORAGE_R2_ENDPOINT: ${STORAGE_R2_ENDPOINT:?Set STORAGE_R2_ENDPOINT}
   STORAGE_R2_BUCKET: ${STORAGE_R2_BUCKET:?Set STORAGE_R2_BUCKET}
-  BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID: ${BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID:?Set R2 access key}
-  BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY: ${BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY:?Set R2 secret key}
+  BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID_FILE: /run/secrets/r2_access_key
+  BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY_FILE: /run/secrets/r2_secret_key
 
 services:
   postgres:
@@ -23,7 +22,8 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bros}
       POSTGRES_USER: ${POSTGRES_USER:-bros}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 2s
@@ -40,7 +40,14 @@ services:
       dockerfile: ops/Dockerfile
       target: api
     restart: "no"
-    environment: *runtime-environment
+    environment:
+      APP_ENV: production
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets: [database_url]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=512m,mode=1777"]
     command: ["node", "scripts/migrate.mjs"]
     depends_on:
       postgres:
@@ -55,7 +62,14 @@ services:
       dockerfile: ops/Dockerfile
       target: api
     restart: unless-stopped
-    environment: *runtime-environment
+    environment:
+      <<: *runtime-environment
+      API_PROXY_AUTH_TOKEN_FILE: /run/secrets/proxy_token
+    secrets: [database_url, proxy_token, r2_access_key, r2_secret_key]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=512m,mode=1777"]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -86,7 +100,8 @@ services:
     environment:
       STAGING_IDENTITY_HOST: 127.0.0.1
       STAGING_IDENTITY_PORT: 3001
-      BROS_PROXY_AUTH_TOKEN: ${BROS_PROXY_AUTH_TOKEN:?Set BROS_PROXY_AUTH_TOKEN}
+      BROS_PROXY_AUTH_TOKEN_FILE: /run/secrets/proxy_token
+    secrets: [proxy_token]
     network_mode: service:api
     depends_on:
       api:
@@ -102,9 +117,10 @@ services:
     environment:
       BROS_API_PORT: 3000
       BROS_IDENTITY_PORT: 3001
-      BROS_ADMIN_USERNAME: ${BROS_ADMIN_USERNAME:?Set BROS_ADMIN_USERNAME}
-      BROS_ADMIN_PASSWORD_HASH: ${BROS_ADMIN_PASSWORD_HASH:?Set BROS_ADMIN_PASSWORD_HASH}
-      BROS_PROXY_AUTH_TOKEN: ${BROS_PROXY_AUTH_TOKEN:?Set BROS_PROXY_AUTH_TOKEN}
+    secrets: [caddy_auth, caddy_proxy]
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,mode=1777"]
     network_mode: service:api
     depends_on:
       api:
@@ -121,7 +137,17 @@ services:
       dockerfile: ops/Dockerfile
       target: worker
     restart: unless-stopped
-    environment: *runtime-environment
+    environment:
+      <<: *runtime-environment
+      BROS_BROWSER_PROFILE_ROOT: /srv/bros/profiles
+      HOME: /tmp/bros-home
+    secrets: [database_url, r2_access_key, r2_secret_key]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=512m,mode=1777"]
+    volumes:
+      - browser_profiles:/srv/bros/profiles
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -147,3 +173,21 @@ networks:
     internal: true
   edge:
   egress:
+secrets:
+  database_url:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/database_url
+  postgres_password:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/postgres_password
+  proxy_token:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/proxy_token
+  r2_access_key:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/r2_access_key
+  r2_secret_key:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/r2_secret_key
+  caddy_auth:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/caddy_auth
+  caddy_proxy:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/caddy_proxy
+
+volumes:
+  browser_profiles:

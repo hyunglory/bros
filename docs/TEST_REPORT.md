@@ -443,3 +443,15 @@
 - 검증 출력은 `deletedArtifactCount=4`, `cleanup=PASS`, `privateUnsignedAccess=DENIED`, `credentialFailureMapping=PASS`, `signedPreviewSeconds=300`이었다. `finally`가 생성 성공 key를 다시 idempotent delete하고 고유 test DB를 drop했다.
 - 검증 직후 token을 영구 폐기해 목록에서 row가 사라진 것을 확인했다. dashboard의 object 목록은 empty 상태였고 Public Access는 Disabled였다. 정확히 이름 붙인 disposable PostgreSQL `--rm` container와 일회성 relay helper도 제거했다.
 - script syntax/ESLint, 전체 workspace build PASS. 실제 R2 start cleanup 미검증 상태는 해소됐지만 remote CI와 전체 integration 25파일 재실행은 이번 외부 검증에서 NOT_RUN이므로 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
+
+## 2026-09-15 — P6-02 Production Secret / Profile Hardening
+
+- 결정: DEC-20260915-005. Linux _FILE secret, service별 read-only mount, UID 1000 API/Worker/Caddy와 migration 최소 secret 경계를 구현했다. 공식 production의 평문 secret environment 입력은 거부한다.
+- 최종 Node unit 113개 중 PASS 111/FAIL 0/Linux-only skip 2; Admin 13개 PASS. Linux 대상 unit 28개는 skip 없이 PASS. pnpm build/typecheck/lint, Worker/edge Docker build, production/staging Compose config, 변경 코드/설정 formatting과 diff 검사 PASS.
+- node scripts/verify-production-hardening.mjs: 새 두 generation 준비, 실제 PostgreSQL role password 교체·migration/API/Worker 연결, 신규 인증 200/이전 proxy token 401, 비root Caddy Basic Auth·upstream spoof overwrite PASS. R2는 실제 네트워크가 아닌 FileSecretProvider 값 교체 검증이다.
+- Docker metadata·stdout/stderr 로그·image history에서 무작위 fixture secret 부재, Caddy autosave 부재, 다른 UID secret/profile 읽기 EACCES, weak permission/상위 symlink/hardlink 거부, 실제 Chromium persistent cookie 재사용/만료 PASS.
+- backup exclude를 적용한 실제 GNU tar fixture에 safe.txt만 남았다. 이것은 자동 운영 backup/암호화/restore PASS가 아니다.
+- 대상 integration 5파일/9개 PASS: browser-artifact, browser-durable, artifact-retention, production-deployment, production-hardening. force-exit 미사용. 전체 integration 및 remote CI는 NOT_RUN이다.
+- 최초 Windows root 경로·R2 deep redaction·reporter 기대 오류를 수정했다. 최종 verifier는 P602_HARDENING_PASS/P602_CLEANUP_FINISHED로 종료했다.
+- 고유 fixture DB/container/anonymous volume/network/secret/profile volume 제거. 이미지/build cache는 유지. 실제 Cloudflare/운영 secret/profile에 대한 생성·회전·삭제 작업 없음.
+- 상태 IMPLEMENTED_NOT_VALIDATED: 실제 운영 Linux host ACL/secret manager, R2·Provider live rotation, P6-06 backup/restore와 required CI 후속.

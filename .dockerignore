@@ -17,3 +17,11 @@ tmp
 playwright-report
 test-results
 **/.tmp-*
+**/.secrets
+**/secrets
+**/profiles
+**/browser-profiles
+**/auth-state
+**/storage-state*.json
+**/*.pem
+**/*.key

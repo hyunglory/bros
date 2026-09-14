@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -60,6 +60,7 @@ test("reuses an isolated persistent profile directory after a valid session chec
   assert.equal(fixture.calls[0].userDataDir, fixture.calls[1].userDataDir);
   assert.equal(fixture.calls[0].userDataDir, join(root, "mango"));
   assert.deepEqual(fixture.calls[0].options, {
+    env: fixture.calls[0].options.env,
     handleSIGHUP: false,
     handleSIGINT: false,
     handleSIGTERM: false,
@@ -120,4 +121,51 @@ test("closes open contexts on shutdown and refuses late profile launches", async
     manager.open({ profileKey: "mango", verifySession: async () => true }),
     (error) => error instanceof SessionManagerError && error.code === "SESSION_MANAGER_CLOSED",
   );
+});
+
+test(
+  "Linux production profiles reject weak permissions and symlink ancestors",
+  { skip: process.platform !== "linux" },
+  async (t) => {
+    const root = await createFixture(t);
+    const launcher = createLauncher();
+    const manager = createSessionManager({
+      launcher: launcher.launcher,
+      profileRoot: root,
+      production: true,
+    });
+    const path = await manager.profilePath("demo");
+    assert.equal((await lstat(path)).mode & 0o777, 0o700);
+    await chmod(path, 0o755);
+    await assert.rejects(manager.open({ profileKey: "demo", verifySession: async () => true }), {
+      code: "PROFILE_STORAGE_UNSAFE",
+    });
+    assert.equal(launcher.calls.length, 0);
+    await mkdir(join(root, "target"), { mode: 0o700 });
+    await symlink(join(root, "target"), join(root, "linked"));
+    const unsafe = createSessionManager({
+      launcher: launcher.launcher,
+      profileRoot: join(root, "linked", "nested"),
+      production: true,
+    });
+    await assert.rejects(unsafe.profilePath("demo"), { code: "PROFILE_STORAGE_UNSAFE" });
+  },
+);
+
+test("profile launches sanitize errors and never inherit secret environment", async (t) => {
+  const root = await createFixture(t);
+  const manager = createSessionManager({
+    profileRoot: root,
+    launcher: {
+      async launchPersistentContext(_path, options) {
+        assert.equal(options.env.DATABASE_URL, undefined);
+        throw new Error("cookie=must-not-escape");
+      },
+    },
+  });
+  await assert.rejects(
+    manager.open({ profileKey: "demo", verifySession: async () => true }),
+    (error) => error.code === "SESSION_LAUNCH_FAILED" && !error.message.includes("must-not-escape"),
+  );
+  await manager.close();
 });

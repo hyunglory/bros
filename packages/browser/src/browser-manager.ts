@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import type { LaunchOptions, Page } from "playwright";
+import { browserLaunchEnvironment } from "./launch-environment.js";
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 30_000;
 const MAX_LAUNCH_TIMEOUT_MS = 300_000;
@@ -72,6 +73,7 @@ export function createBrowserManager(options: { launcher?: BrowserLauncher } = {
     assertSlowMo(request.slowMoMs);
 
     const pending = launcher.launch({
+      env: browserLaunchEnvironment(),
       handleSIGHUP: false,
       handleSIGINT: false,
       handleSIGTERM: false,

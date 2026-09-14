@@ -2,6 +2,8 @@
 
 검증일: 2026-09-15. 결정: DEC-20260915-002.
 
+후속 변경: DEC-20260915-005 / [P6-02 hardening](P6_02_HARDENING.md)이 이 문서의 환경변수 secret 주입·재실행 방법을 대체한다. 아래는 당시 E2E의 역사적 증거이며 평문 환경변수 명령을 현행 production/staging에서 재사용하면 안 된다. start.png 미해결 항목은 DEC-20260915-003/004에서 해결됐다. 현재 상태는 IMPLEMENTATION_STATUS를 따른다.
+
 ## 판정과 범위
 
 공개 Quick Tunnel 경유 E2E 및 재시작 복구는 PASS다. P6-10 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`로 유지한다. 실제 Linux VM의 custom domain DNS/80·443 방화벽/Caddy ACME 발급, P6-02 secret/profile hardening, P6-06 backup, remote CI가 남아 있다.

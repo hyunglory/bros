@@ -7,7 +7,7 @@ async function main() {
   const [batchPublicId, resume, ...extra] = process.argv.slice(2);
   if (!batchPublicId || (resume !== undefined && resume !== "--resume") || extra.length)
     throw new Error("Invalid import arguments");
-  const config = loadConfigFromProcess();
+  const config = loadConfigFromProcess("worker");
   const database = createDatabaseClient(config.database, { applicationName: "bros-worker" });
   const queue = createPgBossQueue(config.database);
   try {

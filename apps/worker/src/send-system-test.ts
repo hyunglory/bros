@@ -6,7 +6,7 @@ import { enqueueSystemTest } from "./system-test.js";
 
 const logger = createRedactedLogger();
 try {
-  const config = loadConfigFromProcess();
+  const config = loadConfigFromProcess("worker");
   const data = createWorkerDataAccess(config.database);
   const queue = createPgBossQueue(config.database);
   try {

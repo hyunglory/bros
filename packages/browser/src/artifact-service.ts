@@ -1,4 +1,4 @@
-import { maskSensitiveText, secretRedactionCensor } from "@bros/core";
+import { isSensitiveField, maskSensitiveText, secretRedactionCensor } from "@bros/core";
 import { buildObjectKey, validateObjectKey } from "@bros/storage";
 import { createHash } from "node:crypto";
 import type { ObjectStorage, StoredObject } from "@bros/storage";
@@ -64,6 +64,8 @@ export interface BrowserArtifactPreviewAuthorization {
 
 export interface BrowserArtifactService {
   createRun(request: {
+    /** Trusted code only: never forward API/job input into this opt-in. */
+    readonly capturePolicy?: "synthetic-demo";
     readonly createdAt?: Date;
     readonly runPublicId: string;
   }): BrowserArtifactRun;
@@ -142,7 +144,9 @@ function asStoredArtifact(
 
 function isSensitiveKey(key: string): boolean {
   const normalized = key.replaceAll(/[_-]/g, "").toLowerCase();
-  return SENSITIVE_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+  return (
+    isSensitiveField(key) || SENSITIVE_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
+  );
 }
 
 function sanitizeValue(
@@ -278,6 +282,8 @@ export function createBrowserArtifactService(options: {
 
       return {
         async captureScreenshot(kind, page) {
+          if (request.capturePolicy !== "synthetic-demo")
+            throw new BrowserArtifactServiceError("ARTIFACT_ACCESS_DENIED");
           let body: Uint8Array;
           try {
             body = await page.screenshot({ fullPage: true, type: "png" });
@@ -305,7 +311,9 @@ export function createBrowserArtifactService(options: {
           }
           return upload(keyFor("result"), body, "result", retention);
         },
-        writeTrace(body) {
+        async writeTrace(body) {
+          if (request.capturePolicy !== "synthetic-demo")
+            throw new BrowserArtifactServiceError("ARTIFACT_ACCESS_DENIED");
           return upload(keyFor("trace"), body, "trace", retention);
         },
       };

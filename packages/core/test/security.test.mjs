@@ -95,3 +95,43 @@ test("redacts structured Pino fields and serialized errors", () => {
   }
   assert.match(serialized, /\[REDACTED\]/);
 });
+
+test("redacts deeply nested arrays, cookie headers, OTP and R2 fields without mutating input", () => {
+  const chunks = [];
+  const logger = createRedactedLogger(
+    new Writable({
+      write(chunk, _encoding, done) {
+        chunks.push(chunk.toString());
+        done();
+      },
+    }),
+  );
+  const value = {
+    nested: {
+      deeper: [
+        {
+          fields: {
+            secretAccessKey: "sentinel-r2",
+            accessKeyId: "sentinel-key-id",
+            otpSeed: "sentinel-otp",
+            headers: { "set-cookie": "a=sentinel-a; b=sentinel-b" },
+            note: "Cookie: a=sentinel-c; b=sentinel-d",
+          },
+        },
+      ],
+    },
+  };
+  logger.info(value, "safe event");
+  assert.doesNotMatch(chunks.join(""), /sentinel-/);
+  assert.equal(value.nested.deeper[0].fields.secretAccessKey, "sentinel-r2");
+});
+
+test("masks quoted and space-containing passwords and signed credential query parameters", () => {
+  for (const input of [
+    'password="secret with spaces"',
+    "password=secret with spaces",
+    "https://a.test/?X-Amz-Credential=secret-access-id&X-Amz-Security-Token=secret-session-token",
+  ]) {
+    assert.doesNotMatch(maskSensitiveText(input), /secret|spaces/);
+  }
+});

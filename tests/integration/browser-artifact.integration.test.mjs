@@ -40,7 +40,9 @@ test("captures a real browser artifact and enforces signed preview expiry", asyn
     const artifact = await manager.withBrowser(undefined, async (browser) => {
       const page = await browser.newPage();
       await page.setContent("<main><h1>BROS artifact integration</h1></main>");
-      return service.createRun({ runPublicId }).captureScreenshot("failure", page);
+      return service
+        .createRun({ runPublicId, capturePolicy: "synthetic-demo" })
+        .captureScreenshot("failure", page);
     });
 
     assert.equal(artifact.objectKey, `automation/2026/09/14/${runPublicId}/failure.png`);

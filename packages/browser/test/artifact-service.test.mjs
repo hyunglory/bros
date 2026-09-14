@@ -7,6 +7,21 @@ import { BrowserArtifactServiceError, createBrowserArtifactService } from "../di
 const runPublicId = "018f0cb2-ef9d-7b29-a13d-9a4f00000001";
 const createdAt = new Date("2026-09-14T01:02:03.000Z");
 
+test("default profile evidence rejects raw pixels/trace before capture or upload", async () => {
+  const fixture = createStorage();
+  const run = createBrowserArtifactService({ storage: fixture.storage }).createRun({ runPublicId });
+  await assert.rejects(
+    run.captureScreenshot("start", {
+      screenshot() {
+        throw new Error("must not capture");
+      },
+    }),
+    { code: "ARTIFACT_ACCESS_DENIED" },
+  );
+  await assert.rejects(run.writeTrace(new Uint8Array([1])), { code: "ARTIFACT_ACCESS_DENIED" });
+  assert.equal(fixture.objects.size, 0);
+});
+
 function createStorage(overrides = {}) {
   const objects = new Map();
   const signed = [];
@@ -39,7 +54,7 @@ function createStorage(overrides = {}) {
 test("stores standard screenshots, trace, and retention metadata under one run prefix", async () => {
   const fixture = createStorage();
   const service = createBrowserArtifactService({ storage: fixture.storage });
-  const run = service.createRun({ createdAt, runPublicId });
+  const run = service.createRun({ capturePolicy: "synthetic-demo", createdAt, runPublicId });
   const page = { screenshot: async () => new Uint8Array([1, 2, 3]) };
 
   const artifacts = [
@@ -70,7 +85,7 @@ test("stores standard screenshots, trace, and retention metadata under one run p
 test("masks secret fields, credentials, authorization, and signed query values in result.json", async () => {
   const fixture = createStorage();
   const service = createBrowserArtifactService({ storage: fixture.storage });
-  await service.createRun({ createdAt, runPublicId }).writeResult({
+  await service.createRun({ capturePolicy: "synthetic-demo", createdAt, runPublicId }).writeResult({
     currentStep: "password=hunter2",
     currentUrl: "https://user:db-pass@example.test/a?x-amz-signature=signed-value",
     errorCode: "AUTH_FAILED",
@@ -106,6 +121,7 @@ test("masks secret fields, credentials, authorization, and signed query values i
 test("rejects incomplete or contradictory result metadata before upload", async () => {
   const fixture = createStorage();
   const run = createBrowserArtifactService({ storage: fixture.storage }).createRun({
+    capturePolicy: "synthetic-demo",
     createdAt,
     runPublicId,
   });
@@ -185,7 +201,7 @@ test("converts capture, upload, and signed preview failures to safe service code
     authorization: { authorize: async () => true },
     storage: upload.storage,
   });
-  const run = service.createRun({ createdAt, runPublicId });
+  const run = service.createRun({ capturePolicy: "synthetic-demo", createdAt, runPublicId });
   await assert.rejects(
     run.captureScreenshot("failure", { screenshot: async () => new Uint8Array([1]) }),
     (error) =>

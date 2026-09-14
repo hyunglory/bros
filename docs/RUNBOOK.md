@@ -256,6 +256,8 @@ node --test tests/integration/artifact-retention.integration.test.mjs tests/inte
 
 ## Secret과 로그
 
+운영 규칙은 [P6-02 hardening](P6_02_HARDENING.md)을 따른다. Linux production은 `_FILE` 기반 secret과 개별 read-only mount를 사용하며, 평문 secret 환경변수는 거부한다. Caddy token/hash는 파일 snippet에서 읽고 autosave/admin API를 끈다. secret generation 교체와 profile/backup 제외 절차도 해당 문서를 따른다.
+
 - 외부 provider와 browser 자격증명은 `SecretProvider`를 통해 조회한다.
 - 개발용 환경변수는 `BROS_SECRET_` prefix를 사용한다. 예: `provider.image.apiKey` → `BROS_SECRET_PROVIDER_IMAGE_API_KEY`.
 - browser profile key는 소문자로 시작하는 영숫자 1~32자로 제한한다.

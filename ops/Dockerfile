@@ -30,11 +30,13 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 FROM build AS api
+RUN mkdir -p /srv/bros/profiles && chown node:node /srv/bros/profiles && chmod 700 /srv/bros/profiles
 USER node
 CMD ["node", "apps/api/dist/main.js"]
 
 FROM build AS worker
 USER root
+RUN mkdir -p /srv/bros/profiles && chown node:node /srv/bros/profiles && chmod 700 /srv/bros/profiles
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN pnpm --filter @bros/browser exec playwright install --with-deps chromium \
   && chmod -R a+rX /ms-playwright
@@ -43,4 +45,8 @@ CMD ["node", "apps/worker/dist/main.js"]
 
 FROM caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d AS edge
 COPY ops/Caddyfile /etc/caddy/Caddyfile
+COPY --chmod=755 ops/edge-entrypoint.sh /usr/local/bin/bros-edge
 COPY --from=build /srv/bros/apps/admin/dist /srv/bros-admin
+RUN chown -R 1000:1000 /data /config && chmod 700 /data /config
+USER 1000:1000
+ENTRYPOINT ["/usr/local/bin/bros-edge"]

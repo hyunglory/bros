@@ -149,7 +149,11 @@ export async function runDurableDemoBrowserHarness(request: {
   const manager = createBrowserManager();
   return manager.withBrowser(undefined, async (browser) => {
     const page = await browser.newPage();
-    const artifacts = request.artifactService.createRun({ runPublicId: request.runPublicId });
+    // Fixed about:blank content, fresh non-persistent context, no external credentials.
+    const artifacts = request.artifactService.createRun({
+      runPublicId: request.runPublicId,
+      capturePolicy: "synthetic-demo",
+    });
     const traceDirectory = await mkdtemp(join(tmpdir(), "bros-browser-trace-"));
     const tracePath = join(traceDirectory, "trace.zip");
     let artifact: DemoFlowArtifact | undefined;

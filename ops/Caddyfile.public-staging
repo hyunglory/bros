@@ -1,4 +1,5 @@
 {
+	persist_config off
 	admin off
 	auto_https off
 }
@@ -7,7 +8,7 @@
 	encode zstd gzip
 
 	basic_auth {
-		{$BROS_ADMIN_USERNAME} {$BROS_ADMIN_PASSWORD_HASH}
+		import /run/secrets/caddy_auth
 	}
 
 	@identity path /__staging/identity
@@ -15,7 +16,7 @@
 		reverse_proxy 127.0.0.1:{$BROS_IDENTITY_PORT} {
 			header_up -Authorization
 			header_up X-BROS-Actor "{http.auth.user.id}"
-			header_up X-BROS-Proxy-Token "{$BROS_PROXY_AUTH_TOKEN}"
+			import /run/secrets/caddy_proxy
 		}
 	}
 
@@ -24,7 +25,7 @@
 		reverse_proxy 127.0.0.1:{$BROS_API_PORT} {
 			header_up -Authorization
 			header_up X-BROS-Actor "{http.auth.user.id}"
-			header_up X-BROS-Proxy-Token "{$BROS_PROXY_AUTH_TOKEN}"
+			import /run/secrets/caddy_proxy
 		}
 	}
 

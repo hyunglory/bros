@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { readRuntimeSecret } from "../packages/core/dist/index.js";
+const proxyToken = readRuntimeSecret(process.env, "BROS_PROXY_AUTH_TOKEN");
 
 const host = process.env.STAGING_IDENTITY_HOST ?? "127.0.0.1";
 const port = Number(process.env.STAGING_IDENTITY_PORT ?? "3001");
@@ -14,9 +16,7 @@ const server = createServer((request, response) => {
     JSON.stringify({
       actor: request.headers["x-bros-actor"] ?? null,
       authorizationPresent: request.headers.authorization !== undefined,
-      proxyTokenValid:
-        Boolean(process.env.BROS_PROXY_AUTH_TOKEN) &&
-        request.headers["x-bros-proxy-token"] === process.env.BROS_PROXY_AUTH_TOKEN,
+      proxyTokenValid: Boolean(proxyToken) && request.headers["x-bros-proxy-token"] === proxyToken,
     }),
   );
 });

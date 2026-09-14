@@ -1,4 +1,5 @@
 import { URL } from "node:url";
+import { readRuntimeSecret } from "../security/secret-files.js";
 
 export const appEnvironments = ["development", "test", "production"] as const;
 export const storageDrivers = ["local", "r2"] as const;
@@ -227,7 +228,10 @@ function readR2Bucket(environment: EnvironmentSource, issues: string[]): string 
   return bucket;
 }
 
-export function loadConfig(environment: EnvironmentSource): AppConfig {
+export function loadConfig(
+  environment: EnvironmentSource,
+  role: "api" | "worker" = "api",
+): AppConfig {
   const issues: string[] = [];
   const appEnvironment = readChoice(environment, "APP_ENV", appEnvironments, issues, {
     defaultValue: "development",
@@ -258,7 +262,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
   if (proxyMode && !isLoopbackHost(apiHost)) {
     issues.push("API proxy authentication requires a loopback API_HOST");
   }
-  if (production && !proxyMode) {
+  if (production && role === "api" && !proxyMode) {
     issues.push("API_PROXY_AUTH_TOKEN is required in production");
   }
   if (proxyMode && localUnauthenticated) {
@@ -378,6 +382,14 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
   };
 }
 
-export function loadConfigFromProcess(): AppConfig {
-  return loadConfig(process.env);
+export function loadConfigFromProcess(role: "api" | "worker" = "api"): AppConfig {
+  return loadConfig(
+    {
+      ...process.env,
+      DATABASE_URL: readRuntimeSecret(process.env, "DATABASE_URL"),
+      API_PROXY_AUTH_TOKEN:
+        role === "api" ? readRuntimeSecret(process.env, "API_PROXY_AUTH_TOKEN") : undefined,
+    },
+    role,
+  );
 }

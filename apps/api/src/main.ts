@@ -2,6 +2,7 @@ import { createRedactedLogger, loadConfigFromProcess } from "@bros/core";
 import { startApi } from "./bootstrap.js";
 
 try {
+  process.umask(0o077);
   await startApi(loadConfigFromProcess());
 } catch {
   createRedactedLogger().error(

@@ -1,10 +1,11 @@
-import { loadConfigFromProcess } from "../packages/core/dist/index.js";
+import { readRuntimeSecret } from "../packages/core/dist/index.js";
 import { createMigrationDatabase, migrateToLatest } from "../packages/db/dist/migration-runtime.js";
 
 let database;
 try {
-  const config = loadConfigFromProcess();
-  database = createMigrationDatabase(config.database.url);
+  const databaseUrl = readRuntimeSecret(process.env, "DATABASE_URL");
+  if (!databaseUrl) throw new Error("Database configuration missing");
+  database = createMigrationDatabase(databaseUrl);
   await migrateToLatest(database);
   console.log("Database migrations are up to date");
 } catch {

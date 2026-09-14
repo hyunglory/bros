@@ -22,3 +22,11 @@ playwright-report/
 
 /data/
 /storage/
+secrets/
+.secrets/
+profiles/
+browser-profiles/
+auth-state/
+storage-state*.json
+*.pem
+*.key

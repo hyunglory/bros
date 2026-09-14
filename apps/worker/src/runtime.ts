@@ -1,4 +1,4 @@
-import { createRedactedLogger, EnvSecretProvider } from "@bros/core";
+import { createRedactedLogger, createSecretProvider } from "@bros/core";
 import type { AppConfig } from "@bros/core";
 import { createPgBossQueue } from "@bros/queue";
 import { createSchedulerService } from "@bros/queue";
@@ -31,7 +31,7 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
     createPgBossQueue(config.database, { localConcurrency: config.worker.concurrency });
   const logger = options.logger ?? createRedactedLogger();
   const storage = createObjectStorage(config.storage, {
-    secretProvider: new EnvSecretProvider(process.env),
+    secretProvider: createSecretProvider(),
   });
   const browserExecutors = options.browserExecutors ?? createDefaultBrowserRunExecutors(storage);
   const scheduler = createSchedulerService({
