@@ -375,3 +375,11 @@
 - PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond 안의 PostgreSQL 원본 timestamp 정밀도를 보존하는 생성시각+UUID cursor의 중복 없는 다음 page, batch/item 상태 filter, 안전한 detail projection, malformed cursor·404, 명시적 resume의 새 receipt, replay의 중복 publish 방지, 429 backpressure/retryAfter, 변경 header, business API disabled 경계를 확인했다. raw JSON, provider receipt와 내부 ID는 응답에 없음을 검사했다.
 - 인증 경계: 업무 API는 기본 disabled다. 비운영 loopback에서 `API_LOCAL_UNAUTHENTICATED=true`를 명시한 경우만 활성화하며, retry는 JSON과 `X-BROS-Operation: import-retry`를 요구한다. Caddy Basic Auth·actor·Origin/CSRF·직접 포트 차단의 운영 검증은 P6-01로 남겼다.
 - 최종 `pnpm check` exit 0: Admin Vitest 13개, Node unit 71개, integration 99개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P6-01 인증 경계와 P5-06 durable 실행 경로
+
+- 인증: `ops/Caddyfile`은 TLS endpoint 전체에 `basic_auth`를 적용하고, caller가 보낸 `X-BROS-Actor`/`X-BROS-Proxy-Token`을 삭제한 뒤 authenticated username과 host-injected token만 loopback API upstream에 전달한다. API는 production에서 loopback host, HTTPS public origin, 32자 이상 proxy token을 요구하며 직접 포트의 위조 header를 거절한다. 변경 API는 exact Origin 및 JSON content type을 요구한다.
+- Artifact: authenticated actor만 strict `automation/YYYY/MM/DD/UUIDv7/{start,failure,final}.png|trace.zip|result.json` key의 5분 signed preview를 요청할 수 있다. API는 Browser/Playwright를 import하지 않고 storage adapter만 사용하며 non-local storage는 explicit unavailable로 유지한다.
+- Durable demo: `browser.run` queue payload는 public run UUID만 보낸다. `enqueueBrowserRun`은 manual request key·run row·queue receipt를 같은 DB transaction으로 기록하며 Worker는 receipt ownership을 재검증한 후 status/attempt/current step·URL/error/screenshot/trace/result를 갱신한다. scheduled delivery도 automation job public ID에서 `SCHEDULED` run을 만든다. 실제 demo는 start/final 또는 failure PNG, Playwright trace, secret-redacted result JSON을 저장한다.
+- 실행 결과: `pnpm lint`, 변경 파일 Prettier check, `pnpm typecheck`, `pnpm build`, config/artifact unit + API security + Chromium demo integration 총 21개 PASS. Browser durable 실행은 PNG signature와 ZIP trace signature까지 확인했다.
+- 미실행: `TEST_DATABASE_URL`과 Docker daemon이 이 작업 환경에 없어 `tests/integration/browser-durable.integration.test.mjs`의 disposable PostgreSQL/pg-boss 수동·실패 run 검증 및 전체 `pnpm test`는 NOT_RUN이다. Caddy binary도 없어 `caddy validate --config ops/Caddyfile --adapter caddyfile`는 NOT_RUN이다. 이 항목들은 성공으로 간주하지 않는다.

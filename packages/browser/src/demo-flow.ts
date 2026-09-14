@@ -1,8 +1,12 @@
 import { createBrowserManager } from "./browser-manager.js";
 import { mapBrowserError } from "./error-taxonomy.js";
 import type { BrowserErrorCode } from "./error-taxonomy.js";
+import type { BrowserArtifactService } from "./artifact-service.js";
 import { createFlowRunner, FlowRunnerError } from "./flow-registry.js";
 import type { BrowserFlowContext, BrowserFlowHandler, BrowserFlowStep } from "./flow-registry.js";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Page } from "playwright";
 
 export const demoBrowserFlowHandlerKey = "demo.browser" as const;
@@ -31,6 +35,28 @@ export type DemoFlowHarnessResult = Readonly<
     }
 >;
 
+export type DurableDemoFlowResult = Readonly<
+  | {
+      artifact: DemoFlowArtifact;
+      currentStep: "completed";
+      currentUrl: string;
+      resultKey: string;
+      screenshotKey: string;
+      status: "SUCCESS";
+      traceKey: string;
+    }
+  | {
+      artifact: DemoFlowArtifact;
+      currentStep: "failed";
+      currentUrl: string;
+      errorCode: BrowserErrorCode;
+      resultKey: string;
+      screenshotKey: string;
+      status: "FAILED" | "TIMEOUT";
+      traceKey: string;
+    }
+>;
+
 function readMode(context: BrowserFlowContext): DemoFlowMode {
   const mode = context.input.mode;
   if (mode !== "failure" && mode !== "success") throw new Error("Invalid demo flow mode");
@@ -46,6 +72,7 @@ async function readResult(page: Page): Promise<DemoFlowArtifact["result"]> {
 }
 
 export function createDemoBrowserFlow(options: {
+  afterPrepare?: () => Promise<void>;
   artifactSink: DemoArtifactSink;
   page: Page;
 }): BrowserFlowHandler {
@@ -73,6 +100,7 @@ export function createDemoBrowserFlow(options: {
           </body>
         </html>
       `);
+      await options.afterPrepare?.();
     },
     async authenticate() {
       steps.push("authenticate");
@@ -105,6 +133,96 @@ export function createDemoBrowserFlow(options: {
       );
     },
   };
+}
+
+/**
+ * Executes the deterministic demo through the same lifecycle as production browser flows
+ * and persists the resulting evidence through the artifact service.
+ */
+export async function runDurableDemoBrowserHarness(request: {
+  artifactService: BrowserArtifactService;
+  mode: DemoFlowMode;
+  runPublicId: string;
+}): Promise<DurableDemoFlowResult> {
+  const manager = createBrowserManager();
+  return manager.withBrowser(undefined, async (browser) => {
+    const page = await browser.newPage();
+    const artifacts = request.artifactService.createRun({ runPublicId: request.runPublicId });
+    const traceDirectory = await mkdtemp(join(tmpdir(), "bros-browser-trace-"));
+    const tracePath = join(traceDirectory, "trace.zip");
+    let artifact: DemoFlowArtifact | undefined;
+    try {
+      await page.context().tracing.start({ screenshots: true, snapshots: true, sources: false });
+      const flow = createDemoBrowserFlow({
+        afterPrepare: async () => {
+          await artifacts.captureScreenshot("start", page);
+        },
+        artifactSink: {
+          async write(value) {
+            artifact = value;
+          },
+        },
+        page,
+      });
+      const runner = createFlowRunner([flow]);
+      try {
+        await runner.run({
+          handlerKey: demoBrowserFlowHandlerKey,
+          input: { mode: request.mode },
+          runPublicId: request.runPublicId,
+        });
+        if (artifact === undefined) throw new Error("Demo artifact missing");
+        const screenshot = await artifacts.captureScreenshot("final", page);
+        await page.context().tracing.stop({ path: tracePath });
+        const trace = await artifacts.writeTrace(await readFile(tracePath));
+        const result = await artifacts.writeResult({
+          currentStep: "completed",
+          currentUrl: page.url(),
+          errorCode: null,
+          result: { demoResult: artifact.result, handlerKey: artifact.handlerKey },
+          status: "SUCCESS",
+        });
+        return {
+          artifact,
+          currentStep: "completed",
+          currentUrl: page.url(),
+          resultKey: result.objectKey,
+          screenshotKey: screenshot.objectKey,
+          status: "SUCCESS",
+          traceKey: trace.objectKey,
+        };
+      } catch (error) {
+        if (artifact === undefined) throw error;
+        const errorCode =
+          error instanceof FlowRunnerError && error.browserErrorCode !== undefined
+            ? error.browserErrorCode
+            : mapBrowserError(error);
+        const screenshot = await artifacts.captureScreenshot("failure", page);
+        await page.context().tracing.stop({ path: tracePath });
+        const trace = await artifacts.writeTrace(await readFile(tracePath));
+        const status = errorCode === "NAVIGATION_TIMEOUT" ? "TIMEOUT" : "FAILED";
+        const result = await artifacts.writeResult({
+          currentStep: "failed",
+          currentUrl: page.url(),
+          errorCode,
+          result: { demoResult: artifact.result, handlerKey: artifact.handlerKey },
+          status,
+        });
+        return {
+          artifact,
+          currentStep: "failed",
+          currentUrl: page.url(),
+          errorCode,
+          resultKey: result.objectKey,
+          screenshotKey: screenshot.objectKey,
+          status,
+          traceKey: trace.objectKey,
+        };
+      }
+    } finally {
+      await rm(traceDirectory, { force: true, recursive: true }).catch(() => undefined);
+    }
+  });
 }
 
 export async function runDemoBrowserHarness(request: {

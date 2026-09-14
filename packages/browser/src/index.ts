@@ -51,12 +51,14 @@ export type {
 export {
   createDemoBrowserFlow,
   demoBrowserFlowHandlerKey,
+  runDurableDemoBrowserHarness,
   runDemoBrowserHarness,
 } from "./demo-flow.js";
 export type {
   DemoArtifactSink,
   DemoFlowArtifact,
   DemoFlowHarnessResult,
+  DurableDemoFlowResult,
   DemoFlowMode,
 } from "./demo-flow.js";
 

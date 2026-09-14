@@ -18,6 +18,11 @@ test("loads development defaults from a valid environment", () => {
       statementTimeoutMs: 30000,
     },
     api: {
+      auth: {
+        mode: "local",
+        proxyAuthToken: null,
+        publicOrigin: "http://127.0.0.1:3000",
+      },
       host: "127.0.0.1",
       port: 3000,
       readinessTimeoutMs: 1000,
@@ -107,6 +112,8 @@ test("requires explicit production settings", () => {
       assert.deepEqual(error.issues, [
         "API_HOST is required",
         "API_PORT is required",
+        "API_PROXY_AUTH_TOKEN is required in production",
+        "API_PUBLIC_ORIGIN is required",
         "WORKER_CONCURRENCY is required",
         "STORAGE_DRIVER is required",
         "STORAGE_LOCAL_ROOT is required",
@@ -120,8 +127,10 @@ test("loads explicit production settings without development defaults", () => {
   const config = loadConfig({
     APP_ENV: "production",
     DATABASE_URL: "postgresql://bros:password@database:5432/bros",
-    API_HOST: "0.0.0.0",
+    API_HOST: "127.0.0.1",
     API_PORT: "8080",
+    API_PROXY_AUTH_TOKEN: "01234567890123456789012345678901",
+    API_PUBLIC_ORIGIN: "https://admin.example.test",
     WORKER_CONCURRENCY: "4",
     STORAGE_DRIVER: "r2",
   });
@@ -136,7 +145,12 @@ test("loads explicit production settings without development defaults", () => {
       statementTimeoutMs: 30000,
     },
     api: {
-      host: "0.0.0.0",
+      auth: {
+        mode: "proxy",
+        proxyAuthToken: "01234567890123456789012345678901",
+        publicOrigin: "https://admin.example.test",
+      },
+      host: "127.0.0.1",
       port: 8080,
       readinessTimeoutMs: 1000,
       shutdownTimeoutMs: 10000,
@@ -188,6 +202,29 @@ test("allows local unauthenticated APIs only with an explicit loopback developme
       API_LOCAL_UNAUTHENTICATED: "true",
     },
     { ...base, API_LOCAL_UNAUTHENTICATED: "yes" },
+  ]) {
+    assert.throws(() => loadConfig(environment), ConfigValidationError);
+  }
+});
+
+test("requires a loopback-bound proxy token and a production HTTPS origin", () => {
+  const base = {
+    DATABASE_URL: "postgresql://localhost/bros",
+    API_PROXY_AUTH_TOKEN: "01234567890123456789012345678901",
+  };
+  assert.equal(loadConfig(base).api.auth.mode, "proxy");
+  for (const environment of [
+    { ...base, API_HOST: "0.0.0.0" },
+    { ...base, API_PROXY_AUTH_TOKEN: "short" },
+    {
+      ...base,
+      APP_ENV: "production",
+      API_HOST: "127.0.0.1",
+      API_PORT: "3000",
+      API_PUBLIC_ORIGIN: "http://admin.example.test",
+      WORKER_CONCURRENCY: "1",
+      STORAGE_DRIVER: "r2",
+    },
   ]) {
     assert.throws(() => loadConfig(environment), ConfigValidationError);
   }

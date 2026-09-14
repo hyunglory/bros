@@ -28,6 +28,11 @@ export interface AppConfig {
   environment: AppEnvironment;
   database: DatabaseConfig;
   api: {
+    auth: {
+      mode: "local" | "proxy";
+      proxyAuthToken: string | null;
+      publicOrigin: string;
+    };
     host: string;
     port: number;
     readinessTimeoutMs: number;
@@ -158,6 +163,34 @@ function validateDatabaseUrl(databaseUrl: string, issues: string[]): void {
   }
 }
 
+function isLoopbackHost(host: string): boolean {
+  return ["127.0.0.1", "::1", "localhost"].includes(host.toLowerCase());
+}
+
+function readPublicOrigin(
+  environment: EnvironmentSource,
+  apiHost: string,
+  apiPort: number,
+  production: boolean,
+  issues: string[],
+): string {
+  const configured = readText(environment, "API_PUBLIC_ORIGIN", issues, {
+    defaultValue: production ? undefined : `http://${apiHost}:${apiPort}`,
+    required: production,
+  });
+  try {
+    const parsed = new URL(configured);
+    if (parsed.origin !== configured || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+      throw new Error();
+    }
+    if (production && parsed.protocol !== "https:") throw new Error();
+    return parsed.origin;
+  } catch {
+    if (configured) issues.push("API_PUBLIC_ORIGIN must be an origin without a path");
+    return "";
+  }
+}
+
 export function loadConfig(environment: EnvironmentSource): AppConfig {
   const issues: string[] = [];
   const appEnvironment = readChoice(environment, "APP_ENV", appEnvironments, issues, {
@@ -178,12 +211,24 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     required: production,
   });
   const localUnauthenticated = readBoolean(environment, "API_LOCAL_UNAUTHENTICATED", issues);
-  if (
-    localUnauthenticated &&
-    (production || !["127.0.0.1", "::1", "localhost"].includes(apiHost.toLowerCase()))
-  ) {
+  if (localUnauthenticated && (production || !isLoopbackHost(apiHost))) {
     issues.push("API_LOCAL_UNAUTHENTICATED requires a non-production loopback API_HOST");
   }
+  const proxyAuthToken = readText(environment, "API_PROXY_AUTH_TOKEN", issues);
+  const proxyMode = proxyAuthToken !== "";
+  if (proxyMode && (proxyAuthToken.length < 32 || proxyAuthToken.length > 256)) {
+    issues.push("API_PROXY_AUTH_TOKEN must be between 32 and 256 characters");
+  }
+  if (proxyMode && !isLoopbackHost(apiHost)) {
+    issues.push("API proxy authentication requires a loopback API_HOST");
+  }
+  if (production && !proxyMode) {
+    issues.push("API_PROXY_AUTH_TOKEN is required in production");
+  }
+  if (proxyMode && localUnauthenticated) {
+    issues.push("API_LOCAL_UNAUTHENTICATED cannot be combined with API_PROXY_AUTH_TOKEN");
+  }
+  const publicOrigin = readPublicOrigin(environment, apiHost, apiPort, production, issues);
   const workerConcurrency = readInteger(environment, "WORKER_CONCURRENCY", issues, {
     defaultValue: production ? undefined : 1,
     maximum: 100,
@@ -267,6 +312,11 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     environment: appEnvironment,
     database,
     api: {
+      auth: {
+        mode: proxyMode ? "proxy" : "local",
+        proxyAuthToken: proxyMode ? proxyAuthToken : null,
+        publicOrigin,
+      },
       host: apiHost,
       port: apiPort,
       readinessTimeoutMs,

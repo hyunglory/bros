@@ -87,6 +87,9 @@ importers:
       '@bros/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@bros/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       fastify:
         specifier: 5.12.4
         version: 5.12.4

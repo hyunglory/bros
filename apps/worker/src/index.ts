@@ -15,6 +15,13 @@ export const workerWorkspaceDependencies = [
 ] as const;
 
 export { createWorkerDataAccess } from "./database.js";
+export {
+  createBrowserRunHandler,
+  createDefaultBrowserRunExecutors,
+  createDemoBrowserRunExecutor,
+  enqueueBrowserRun,
+} from "./browser-run.js";
+export type { BrowserRunExecutionResult, BrowserRunExecutor } from "./browser-run.js";
 export * from "./runtime.js";
 export * from "./bootstrap.js";
 export * from "./system-test.js";

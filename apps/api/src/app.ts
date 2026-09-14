@@ -5,16 +5,21 @@ import type { AppConfig } from "@bros/core";
 import { createRedactedLogger } from "@bros/core";
 import { createPgBossQueue } from "@bros/queue";
 import type { QueuePort } from "@bros/queue";
+import { createObjectStorage } from "@bros/storage";
 import {
   createErrorEnvelope,
   ErrorEnvelopeSchema,
   HealthResponseSchema,
   ReadyResponseSchema,
 } from "@bros/contracts";
+import { createArtifactPreviewPort, registerArtifactPreviewRoutes } from "./artifact-preview.js";
+import type { ArtifactPreviewPort } from "./artifact-preview.js";
 import { createApiDataAccess } from "./database.js";
 import { registerImportManagementRoutes } from "./import-management.js";
+import { registerApiSecurity } from "./security.js";
 
 export interface ApiAppOptions {
+  artifactPreview?: ArtifactPreviewPort;
   queue?: QueuePort;
 }
 
@@ -24,7 +29,7 @@ export function createApiApp(
   options: ApiAppOptions = {},
 ) {
   const data = createApiDataAccess(config.database);
-  const businessEnabled = config.api.localUnauthenticated;
+  const businessEnabled = config.api.localUnauthenticated || config.api.auth.mode === "proxy";
   const queue = businessEnabled ? (options.queue ?? createPgBossQueue(config.database)) : undefined;
   const app = Fastify({
     loggerInstance: logger,
@@ -90,6 +95,7 @@ export function createApiApp(
     if (closing) reply.header("connection", "close");
     return payload;
   });
+  registerApiSecurity(app, config);
   app.setErrorHandler((error, request, reply) => {
     const statusCode =
       error instanceof Error && "statusCode" in error ? error.statusCode : undefined;
@@ -144,6 +150,13 @@ export function createApiApp(
     ...(queue ? { queue } : {}),
     maxQueuedBatches: config.importer.maxQueuedBatches,
   });
+  const artifactPreview =
+    options.artifactPreview ??
+    (config.storage.driver === "local"
+      ? createArtifactPreviewPort(createObjectStorage(config.storage))
+      : undefined);
+  if (artifactPreview === undefined) registerArtifactPreviewRoutes(app, {});
+  else registerArtifactPreviewRoutes(app, { preview: artifactPreview });
   app.addHook("preClose", async () => {
     closing = true;
   });

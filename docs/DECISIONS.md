@@ -1779,3 +1779,55 @@
 - 금지 변경: Import raw/queue receipt 공개, 완료 item 초기화, MASTER/source/SKU/image identity 재해석, 자동승인 기본 OFF 변경, 인증 없는 non-loopback 업무 route, 별도 P5 worktree 수정.
 - 완료 조건: 하나의 MASTER에서 모든 연결 근거를 public UUID로 추적하고, missing relation과 concurrent expectedVersion conflict를 포함한 API/UI 검증 및 전체 회귀가 통과한다.
 - 재검토가 필요한 조건: P2-15 수정 대상 필드가 기존 version_no만으로 원자적 CAS를 표현하지 못하거나, P2-16 alias 승인과 MASTER 수정이 하나의 transaction/화면으로 결합되어야 할 때.
+
+## DEC-20260914-014 — P6-01 인증 경계와 P5-06 durable 실행 연결
+
+- 일자: 2026-09-14
+- 종료 단계/분야: Caddy/API 인증 경계, Browser demo durable evidence, DB/Queue Worker 연결
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-01, P5-06, P5-09, P5-10, P5-07 연결
+- 검토 범위와 근거: AGENTS.md, DEC-20260914-013, `doc/BROS_구현_보완_명세_v0.2.md` 인증 기준, WBS P6-01, P5 Browser Track 구현, Fastify/pg-boss/ObjectStorage/Playwright 실제 실행 결과
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-013의 P6-01 미해결 인증 fence 항목만 구현으로 대체한다. P2-14의 local 개발 fence와 import 계약은 유지한다.
+
+### 확정 결정
+
+- 인터넷 신뢰 경계는 Caddy다. `ops/Caddyfile`은 모든 browser-visible route를 Basic Auth로 보호하고, client actor/token header를 삭제한 뒤 인증 username과 host secret token만 loopback API로 전달한다. API proxy mode는 loopback bind, HTTPS public origin, 32자 이상 token을 강제한다.
+- `/api/v1/*`는 Caddy token과 actor가 모두 유효할 때만 실행한다. state-changing request는 exact Origin과 JSON content type을 요구한다. local unauthenticated mode는 명시적 development/test loopback에만 남는다.
+- Browser artifact preview는 인증된 actor가 strict automation artifact key에 대해서만 5분 이하 signed URL을 받는 API capability다. API는 Browser/Playwright runtime을 import하지 않고 storage port만 사용한다.
+- `browser.run` payload는 public run UUID만 가진다. 수동 enqueue는 run row·request key·pg-boss receipt를 한 transaction에서 기록하고, Worker는 provider receipt ownership을 확인한 뒤 terminal status/evidence를 기록한다. scheduled delivery는 job UUID로 `SCHEDULED` run을 생성한다.
+- demo browser flow는 실제 Chromium lifecycle에서 start/final 또는 failure screenshot, trace.zip, secret-redacted result.json을 같은 UUIDv7 prefix에 저장한다. R2 ObjectStorage adapter는 아직 없으므로 local driver만 이 durable path에서 실행 가능하다.
+
+### 기각한 선택지와 이유
+
+- API가 client 전달 actor header를 신뢰: 직접 API 포트나 forged header에서 감사 actor를 위조할 수 있어 기각했다.
+- browser.run payload에 input·credential·artifact 내용을 넣기: provider/로그 노출 면적을 넓히므로 DB reference와 safe result 저장으로 제한했다.
+- API가 Playwright/Browser artifact service를 import: API runtime에 browser dependency를 끌어오므로 storage capability adapter로 분리했다.
+- R2 driver를 local adapter처럼 성공 처리: 실제 adapter가 없으므로 명시적으로 unavailable/unsupported 상태를 유지한다.
+
+### 변경 파일
+
+- `.env.example`, `ops/Caddyfile`, `pnpm-lock.yaml`
+- `packages/core/src/config/index.ts`, `packages/core/test/config.test.mjs`
+- `packages/browser/src/demo-flow.ts`, `packages/browser/src/index.ts`
+- `apps/api/package.json`, `apps/api/src/app.ts`, `apps/api/src/artifact-preview.ts`, `apps/api/src/security.ts`, `apps/api/src/index.ts`
+- `apps/worker/src/browser-run.ts`, `apps/worker/src/runtime.ts`, `apps/worker/src/index.ts`
+- `tests/integration/api-security.integration.test.mjs`, `tests/integration/browser-demo.integration.test.mjs`, `tests/integration/browser-durable.integration.test.mjs`, `tests/integration/worker.integration.test.mjs`
+- `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/RUNBOOK.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `pnpm lint`, 변경 파일 `prettier --check`, `pnpm typecheck`, `pnpm build`, Node config/artifact/API security/Chromium demo test 21개.
+- 결과: IMPLEMENTED_NOT_VALIDATED — lint/typecheck/build과 21개 test PASS. 실제 Chromium durable flow에서 PNG/ZIP signature와 result artifact를 확인했다. `TEST_DATABASE_URL` 및 Docker daemon 부재로 disposable PostgreSQL/pg-boss integration와 전체 `pnpm test`는 NOT_RUN이며, Caddy binary 부재로 Caddyfile runtime validation도 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- `tests/integration/browser-durable.integration.test.mjs`는 DB/pg-boss manual success/failure 및 receipt idempotency를 검증하도록 추가됐지만 이 환경에는 `TEST_DATABASE_URL`과 Docker daemon이 없어 실행하지 못했다.
+- production Caddy deployment와 R2 adapter는 아직 실제 검증되지 않았다. `API_PROXY_AUTH_TOKEN`과 `BROS_PROXY_AUTH_TOKEN`의 host secret 동기화, Caddy password hash 주입, API 포트 firewall 차단이 배포 전 필수다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: disposable PostgreSQL/pg-boss durable integration 실행, Caddy `validate` 및 staging reverse-proxy smoke, R2 adapter 또는 production artifact storage 결정.
+- 금지 변경: API 직접 노출, client actor header 신뢰, queue payload에 credential/input 원문 추가, artifact raw error/secret 저장, local unauthenticated mode의 production 허용.
+- 완료 조건: `TEST_DATABASE_URL`로 P6 durable integration PASS, Caddy config validate 및 staging에서 spoofed actor/direct port/cross-origin mutation 거절, authenticated artifact preview와 manual/scheduled browser run evidence 확인.
+- 재검토가 필요한 조건: 다중 role/RBAC, cookie session, 외부 artifact 공유, R2/S3 preview 방식, browser retry 또는 scheduled run deduplication 보장 수준이 바뀔 때.

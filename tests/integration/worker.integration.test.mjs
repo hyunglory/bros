@@ -248,16 +248,19 @@ test(
       async () => {
         let stopped = false;
         const queueStub = {
+          getSchedules: async () => [],
           start: async () => undefined,
           publish: async () => {
             throw new Error();
           },
+          schedule: async () => undefined,
           work: async () => {
             throw new Error("private-marker");
           },
           stop: async () => {
             stopped = true;
           },
+          unschedule: async () => undefined,
         };
         let worker = createWorker(config, { queue: queueStub });
         await assert.rejects(worker.start(), /Worker startup failed/);

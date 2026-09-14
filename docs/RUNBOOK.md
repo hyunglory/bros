@@ -302,4 +302,16 @@ retry는 `Content-Type: application/json`, `X-BROS-Operation: import-retry`와 `
 
 Admin에서 업무 상태는 실제 item 집계, Worker 처리는 Queue 실행 상태다. Worker 완료와 상품 전건 성공을 같은 의미로 읽지 않는다. raw row, Queue receipt와 내부 DB ID는 화면/API에 노출하지 않는다.
 
-현재 설정은 loopback 개발용 임시 인증 fence다. Caddy Basic Auth, 인증 actor 덮어쓰기, same-origin/CSRF 검증, 외부 API 포트 차단과 401 UX는 P6-01에서 완료해야 하며 그 전에는 업무 API를 외부 주소에 배포하지 않는다. XLSX 업로드와 새 batch 생성 endpoint도 아직 없으므로 P2-04 계약을 호출하는 내부/테스트 흐름에서 생성된 batch만 관리한다.
+`API_LOCAL_UNAUTHENTICATED` 설정은 loopback 개발 전용이다. production은 아래 P6-01 Caddy proxy 경계를 사용해야 하며, 이 개발용 설정을 외부 주소에 배포해서는 안 된다. XLSX 업로드와 새 batch 생성 endpoint는 아직 없으므로 P2-04 계약을 호출하는 내부/테스트 흐름에서 생성된 batch만 관리한다.
+
+## P6-01 production proxy와 Browser durable run
+
+P6-01부터 production 업무 API는 Caddy만 인터넷에 노출한다. API 프로세스는 `API_HOST=127.0.0.1`, HTTPS `API_PUBLIC_ORIGIN`, 32자 이상의 `API_PROXY_AUTH_TOKEN`을 받아야 하고 Caddy의 `BROS_PROXY_AUTH_TOKEN`과 같은 host secret을 주입한다. `API_LOCAL_UNAUTHENTICATED=true`는 production에서 사용할 수 없다.
+
+`ops/Caddyfile`은 Basic Auth 성공한 username을 `X-BROS-Actor`로 만들고, client-supplied actor/token header를 먼저 제거한다. Caddy가 아닌 직접 API 포트 노출은 이 신뢰 경계를 무효화하므로 방화벽/컨테이너 network에서 금지한다. Caddy 적용 전에는 host-specific environment를 주입하고 다음 명령으로 문법을 검사한다.
+
+```powershell
+caddy validate --config ops/Caddyfile --adapter caddyfile
+```
+
+브라우저 demo job은 `handler_key=demo.browser`, `profile_key` 및 `{ "mode": "success" | "failure" }` config를 가진 BROWSER automation job으로 등록한다. Worker의 `browser.run` handler는 public run ID만 큐에 보내고 `automation_run`에 receipt·status·attempt·안전한 error code와 artifact key를 남긴다. artifact는 14일 보존 metadata와 함께 local ObjectStorage에 기록된다. production R2 adapter는 아직 구현되지 않았으므로 `STORAGE_DRIVER=r2`로 Worker/preview를 시작하지 않는다.
