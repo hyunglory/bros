@@ -9,6 +9,7 @@ import {
 } from "../dist/index.js";
 
 const screenshotKey = "automation/2026/08/01/018f0cb2-ef9d-7b29-a13d-9a4f00000001/failure.png";
+const startKey = "automation/2026/08/01/018f0cb2-ef9d-7b29-a13d-9a4f00000001/start.png";
 const traceKey = "automation/2026/08/01/018f0cb2-ef9d-7b29-a13d-9a4f00000001/trace.zip";
 const resultKey = "automation/2026/08/01/018f0cb2-ef9d-7b29-a13d-9a4f00000001/result.json";
 const fixedNow = new Date("2026-09-14T12:00:00.000Z");
@@ -26,7 +27,14 @@ function createFixture({ failingKeys = [] } = {}) {
       );
     },
     async listExpiredBrowserArtifacts() {
-      return [screenshotKey, traceKey, resultKey, "automation/../do-not-delete.txt", screenshotKey];
+      return [
+        startKey,
+        screenshotKey,
+        traceKey,
+        resultKey,
+        "automation/../do-not-delete.txt",
+        startKey,
+      ];
     },
     async listHeldKeys(keys, now) {
       const latest = new Map();
@@ -71,44 +79,45 @@ function createFixture({ failingKeys = [] } = {}) {
 
 test("P6-05 preserves active holds, deletes expired browser artifacts, and records append-only events", async () => {
   const fixture = createFixture();
-  await fixture.service.placeHold({ objectKey: traceKey, reason: "open incident" });
+  await fixture.service.placeHold({ objectKey: startKey, reason: "open incident" });
 
   assert.deepEqual(await fixture.service.runCleanup(), {
-    deleted: 2,
+    deleted: 3,
     failed: 0,
     held: 1,
-    scanned: 3,
+    scanned: 4,
   });
-  assert.deepEqual(fixture.deleted, [screenshotKey, resultKey]);
+  assert.deepEqual(fixture.deleted, [screenshotKey, traceKey, resultKey]);
   assert.deepEqual(
     fixture.events.map((event) => event.eventType),
-    ["HOLD_SET", "DELETED", "DELETED"],
+    ["HOLD_SET", "DELETED", "DELETED", "DELETED"],
   );
 
   assert.deepEqual(await fixture.service.runCleanup(), {
     deleted: 0,
     failed: 0,
     held: 1,
-    scanned: 3,
+    scanned: 4,
   });
+  assert.deepEqual(fixture.deleted, [screenshotKey, traceKey, resultKey]);
 
-  await fixture.service.releaseHold({ objectKey: traceKey, reason: "incident closed" });
+  await fixture.service.releaseHold({ objectKey: startKey, reason: "incident closed" });
   assert.deepEqual(await fixture.service.runCleanup(), {
     deleted: 1,
     failed: 0,
     held: 0,
-    scanned: 3,
+    scanned: 4,
   });
-  assert.deepEqual(fixture.deleted, [screenshotKey, resultKey, traceKey]);
+  assert.deepEqual(fixture.deleted, [screenshotKey, traceKey, resultKey, startKey]);
 });
 
 test("P6-05 records a stable deletion failure and rejects malformed holds", async () => {
   const fixture = createFixture({ failingKeys: [resultKey] });
   assert.deepEqual(await fixture.service.runCleanup(), {
-    deleted: 2,
+    deleted: 3,
     failed: 1,
     held: 0,
-    scanned: 3,
+    scanned: 4,
   });
   const failure = fixture.events.find((event) => event.eventType === "DELETE_FAILED");
   assert.deepEqual(failure, {

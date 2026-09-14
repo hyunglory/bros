@@ -42,6 +42,7 @@ export type DurableDemoFlowResult = Readonly<
       currentUrl: string;
       resultKey: string;
       screenshotKey: string;
+      startKey: string;
       status: "SUCCESS";
       traceKey: string;
     }
@@ -52,6 +53,7 @@ export type DurableDemoFlowResult = Readonly<
       errorCode: BrowserErrorCode;
       resultKey: string;
       screenshotKey: string;
+      startKey: string;
       status: "FAILED" | "TIMEOUT";
       traceKey: string;
     }
@@ -151,11 +153,12 @@ export async function runDurableDemoBrowserHarness(request: {
     const traceDirectory = await mkdtemp(join(tmpdir(), "bros-browser-trace-"));
     const tracePath = join(traceDirectory, "trace.zip");
     let artifact: DemoFlowArtifact | undefined;
+    let startKey: string | undefined;
     try {
       await page.context().tracing.start({ screenshots: true, snapshots: true, sources: false });
       const flow = createDemoBrowserFlow({
         afterPrepare: async () => {
-          await artifacts.captureScreenshot("start", page);
+          startKey = (await artifacts.captureScreenshot("start", page)).objectKey;
         },
         artifactSink: {
           async write(value) {
@@ -172,6 +175,7 @@ export async function runDurableDemoBrowserHarness(request: {
           runPublicId: request.runPublicId,
         });
         if (artifact === undefined) throw new Error("Demo artifact missing");
+        if (startKey === undefined) throw new Error("Demo start artifact missing");
         const screenshot = await artifacts.captureScreenshot("final", page);
         await page.context().tracing.stop({ path: tracePath });
         const trace = await artifacts.writeTrace(await readFile(tracePath));
@@ -188,11 +192,14 @@ export async function runDurableDemoBrowserHarness(request: {
           currentUrl: page.url(),
           resultKey: result.objectKey,
           screenshotKey: screenshot.objectKey,
+          startKey,
           status: "SUCCESS",
           traceKey: trace.objectKey,
         };
       } catch (error) {
         if (artifact === undefined) throw error;
+        if (startKey === undefined)
+          throw new Error("Demo start artifact missing", { cause: error });
         const errorCode =
           error instanceof FlowRunnerError && error.browserErrorCode !== undefined
             ? error.browserErrorCode
@@ -215,6 +222,7 @@ export async function runDurableDemoBrowserHarness(request: {
           errorCode,
           resultKey: result.objectKey,
           screenshotKey: screenshot.objectKey,
+          startKey,
           status,
           traceKey: trace.objectKey,
         };

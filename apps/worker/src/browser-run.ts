@@ -33,6 +33,7 @@ export interface BrowserRunExecutionResult {
   readonly errorCode?: BrowserErrorCode;
   readonly result: JsonObject;
   readonly screenshotKey: string;
+  readonly startKey: string;
   readonly status: "FAILED" | "SUCCESS" | "TIMEOUT";
   readonly traceKey: string;
 }
@@ -50,11 +51,13 @@ function toExecutionResult(result: DurableDemoFlowResult): BrowserRunExecutionRe
       artifact: {
         resultKey: result.resultKey,
         screenshotKey: result.screenshotKey,
+        startKey: result.startKey,
         traceKey: result.traceKey,
       },
       demo: { outcome: result.artifact.outcome, result: result.artifact.result },
     },
     screenshotKey: result.screenshotKey,
+    startKey: result.startKey,
     status: result.status,
     traceKey: result.traceKey,
   };

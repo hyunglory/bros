@@ -242,7 +242,7 @@ pnpm verify:r2-staging
 
 Worker는 시작 시 `artifact.cleanup` queue의 `artifact-retention-daily` schedule을 UTC `03:17`에 reconciliation한다. payload는 maintenance schedule 식별용 UUIDv7 하나뿐이며 artifact key·URL·raw run input·secret을 queue에 넣지 않는다.
 
-- cleanup 후보는 `SUCCESS`, `FAILED`, `TIMEOUT`, `CANCELLED` terminal `automation_run` 중 `finished_at`이 14일보다 오래된 행의 `screenshot_key`, `trace_key`, `result_json.artifact.resultKey`뿐이다. 한 실행은 최대 100개의 고유하고 portable한 key만 처리한다.
+- cleanup 후보는 `SUCCESS`, `FAILED`, `TIMEOUT`, `CANCELLED` terminal `automation_run` 중 `finished_at`이 14일보다 오래된 행의 start/final 또는 failure/trace/result artifact다. 신규 run은 `result_json.artifact.startKey`를 명시적으로 기록하고, legacy run은 정확한 Browser artifact 경로의 final/failure screenshot과 동일한 prefix에서만 `start.png`를 복원한다. 명시된 startKey가 screenshot과 다른 run prefix면 fail-closed로 제외한다. 한 실행은 최대 100개의 고유하고 portable한 key만 처리한다.
 - source original과 approved/generated thumbnail은 후보 query에 포함하지 않으며 자동 삭제하지 않는다.
 - `app.artifact_retention_event`는 append-only다. 운영/법적 보존 예외는 reason과 함께 `HOLD_SET`으로 기록하고, 종료 시 `HOLD_RELEASED`로 별도 기록한다. 최신 hold가 만료되지 않았거나 종료 시각이 없으면 삭제하지 않는다.
 - 성공 삭제는 당시 configured storage의 provider/bucket을 포함한 `DELETED` event, provider 오류는 원문 없는 `DELETE_FAILED`/`ARTIFACT_DELETE_FAILED` event로 기록한다. 삭제는 현재 configured adapter에만 수행하므로 storage provider/bucket을 이전한 historical object는 운영자가 별도 migration/hold 절차로 처리한다.
@@ -355,4 +355,4 @@ caddy validate --config ops/Caddyfile --adapter caddyfile
 
 운영 구성은 `compose.production.yml`, 임시 public Quick Tunnel 검증은 `compose.public-staging.yml`을 사용한다. 실제 검증 결과, secret 주입 범위, 안전한 API/Caddy 재시작 순서와 teardown은 [P6-10 staging 보고서](P6_10_STAGING.md)를 따른다. 공유 network namespace 때문에 API와 Caddy를 동시에 restart하지 않는다. API 재시작 후 Caddy를 recreate한다.
 
-주의: 현재 운영 retention 후보는 screenshot/trace/result에 한정되어 demo의 `start.png`가 누락된다. P6-05 artifact inventory 보완 전까지 start evidence 자동 정리를 완료된 것으로 판단하지 않는다.
+P6-10에서 발견한 `start.png` 누락은 DEC-20260915-003에서 보완했다. 신규 run은 startKey를 durable result에 기록하며 기존 run도 동일 run prefix의 start evidence를 안전하게 정리한다. 실제 private R2에서 이 보완 코드를 재검증하기 전까지 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`로 유지한다.

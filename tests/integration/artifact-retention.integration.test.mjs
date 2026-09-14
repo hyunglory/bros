@@ -39,11 +39,42 @@ test(
 
     const runId = "018f0cb2-ef9d-7b29-a13d-9a4f00000021";
     const prefix = `automation/2026/08/01/${runId}`;
+    const startKey = `${prefix}/start.png`;
     const screenshotKey = `${prefix}/failure.png`;
     const traceKey = `${prefix}/trace.zip`;
     const resultKey = `${prefix}/result.json`;
+    const explicitPrefix = "automation/2026/08/02/018f0cb2-ef9d-7b29-a13d-9a4f00000023";
+    const explicitKeys = [
+      `${explicitPrefix}/start.png`,
+      `${explicitPrefix}/final.png`,
+      `${explicitPrefix}/trace.zip`,
+      `${explicitPrefix}/result.json`,
+    ];
+    const mismatchedPrefix = "automation/2026/08/03/018f0cb2-ef9d-7b29-a13d-9a4f00000024";
+    const mismatchedKeys = [
+      `${mismatchedPrefix}/start.png`,
+      `${mismatchedPrefix}/final.png`,
+      `${mismatchedPrefix}/trace.zip`,
+      `${mismatchedPrefix}/result.json`,
+    ];
+    const recentPrefix = "automation/2026/09/10/018f0cb2-ef9d-7b29-a13d-9a4f00000022";
+    const recentKeys = [
+      `${recentPrefix}/start.png`,
+      `${recentPrefix}/final.png`,
+      `${recentPrefix}/trace.zip`,
+      `${recentPrefix}/result.json`,
+    ];
     const sourceOriginalKey = "images/source/keep-original.jpg";
-    for (const key of [screenshotKey, traceKey, resultKey, sourceOriginalKey]) {
+    for (const key of [
+      startKey,
+      screenshotKey,
+      traceKey,
+      resultKey,
+      ...explicitKeys,
+      ...mismatchedKeys,
+      ...recentKeys,
+      sourceOriginalKey,
+    ]) {
       await storage.putObject({ body: new TextEncoder().encode(key), key });
     }
     const job = await database.db
@@ -81,17 +112,79 @@ test(
         trigger_type: "MANUAL",
       })
       .executeTakeFirstOrThrow();
+    const explicitFinishedAt = new Date("2026-08-02T00:00:00.000Z");
+    await database.db
+      .insertInto("app.automation_run")
+      .values({
+        attempt_no: 2,
+        automation_job_id: job.id,
+        finished_at: explicitFinishedAt,
+        input_json: JSON.stringify({}),
+        request_key: `retention:${randomUUID()}`,
+        result_json: JSON.stringify({
+          artifact: { resultKey: explicitKeys[3], startKey: explicitKeys[0] },
+        }),
+        screenshot_key: explicitKeys[1],
+        started_at: explicitFinishedAt,
+        status: "SUCCESS",
+        trace_key: explicitKeys[2],
+        trigger_type: "MANUAL",
+      })
+      .executeTakeFirstOrThrow();
+    const mismatchedFinishedAt = new Date("2026-08-03T00:00:00.000Z");
+    await database.db
+      .insertInto("app.automation_run")
+      .values({
+        attempt_no: 3,
+        automation_job_id: job.id,
+        finished_at: mismatchedFinishedAt,
+        input_json: JSON.stringify({}),
+        request_key: `retention:${randomUUID()}`,
+        result_json: JSON.stringify({
+          artifact: { resultKey: mismatchedKeys[3], startKey: recentKeys[0] },
+        }),
+        screenshot_key: mismatchedKeys[1],
+        started_at: mismatchedFinishedAt,
+        status: "SUCCESS",
+        trace_key: mismatchedKeys[2],
+        trigger_type: "MANUAL",
+      })
+      .executeTakeFirstOrThrow();
+    const recentFinishedAt = new Date("2026-09-10T00:00:00.000Z");
+    await database.db
+      .insertInto("app.automation_run")
+      .values({
+        attempt_no: 4,
+        automation_job_id: job.id,
+        finished_at: recentFinishedAt,
+        input_json: JSON.stringify({}),
+        request_key: `retention:${randomUUID()}`,
+        result_json: JSON.stringify({
+          artifact: { resultKey: recentKeys[3], startKey: recentKeys[0] },
+        }),
+        screenshot_key: recentKeys[1],
+        started_at: recentFinishedAt,
+        status: "SUCCESS",
+        trace_key: recentKeys[2],
+        trigger_type: "MANUAL",
+      })
+      .executeTakeFirstOrThrow();
 
     const service = createArtifactRetentionService({
       now: () => new Date("2026-09-14T12:00:00.000Z"),
       repository: createArtifactRetentionRepository(database),
       storage,
     });
-    await service.placeHold({ objectKey: traceKey, reason: "incident investigation" });
-    assert.deepEqual(await service.runCleanup(), { deleted: 2, failed: 0, held: 1, scanned: 3 });
+    await service.placeHold({ objectKey: startKey, reason: "incident investigation" });
+    assert.deepEqual(await service.runCleanup(), { deleted: 10, failed: 0, held: 1, scanned: 11 });
+    await storage.getObject(startKey);
     await assert.rejects(storage.getObject(screenshotKey));
+    await assert.rejects(storage.getObject(traceKey));
     await assert.rejects(storage.getObject(resultKey));
-    await storage.getObject(traceKey);
+    for (const key of explicitKeys) await assert.rejects(storage.getObject(key));
+    await storage.getObject(mismatchedKeys[0]);
+    for (const key of mismatchedKeys.slice(1)) await assert.rejects(storage.getObject(key));
+    for (const key of recentKeys) await storage.getObject(key);
     await storage.getObject(sourceOriginalKey);
 
     const firstEvents = await database.db
@@ -101,19 +194,34 @@ test(
       .execute();
     assert.deepEqual(
       firstEvents.map((event) => event.event_type),
-      ["HOLD_SET", "DELETED", "DELETED"],
+      [
+        "HOLD_SET",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+        "DELETED",
+      ],
     );
     assert.equal(firstEvents[1].storage_provider, "LOCAL");
     assert.equal(firstEvents[1].storage_bucket, "local");
 
-    await service.releaseHold({ objectKey: traceKey, reason: "incident resolved" });
-    assert.deepEqual(await service.runCleanup(), { deleted: 1, failed: 0, held: 0, scanned: 3 });
-    await assert.rejects(storage.getObject(traceKey));
+    assert.deepEqual(await service.runCleanup(), { deleted: 0, failed: 0, held: 1, scanned: 11 });
+    await service.releaseHold({ objectKey: startKey, reason: "incident resolved" });
+    assert.deepEqual(await service.runCleanup(), { deleted: 1, failed: 0, held: 0, scanned: 11 });
+    await assert.rejects(storage.getObject(startKey));
+    await storage.getObject(mismatchedKeys[0]);
+    for (const key of recentKeys) await storage.getObject(key);
     await storage.getObject(sourceOriginalKey);
     const eventCount = await database.db
       .selectFrom("app.artifact_retention_event")
       .select((eb) => eb.fn.count("id").as("count"))
       .executeTakeFirstOrThrow();
-    assert.equal(eventCount.count, "5");
+    assert.equal(eventCount.count, "13");
   },
 );

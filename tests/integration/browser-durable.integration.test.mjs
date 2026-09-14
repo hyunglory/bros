@@ -125,7 +125,12 @@ test(
     assert.ok(succeeded.finished_at >= succeeded.started_at);
     assert.equal(succeeded.result_json.demo.result, "COMPLETED");
     assert.equal(succeeded.result_json.artifact.screenshotKey, succeeded.screenshot_key);
+    assert.match(succeeded.result_json.artifact.startKey, /\/start\.png$/);
     assert.equal(succeeded.result_json.artifact.traceKey, succeeded.trace_key);
+    assert.deepEqual(
+      (await objectBytes(storage, succeeded.result_json.artifact.startKey)).slice(0, 8),
+      Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    );
     assert.deepEqual(
       (await objectBytes(storage, succeeded.screenshot_key)).slice(0, 8),
       Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]),
@@ -154,6 +159,7 @@ test(
     assert.equal(failed.current_step, "failed");
     assert.equal(failed.error_code, "FLOW_LOGIC_ERROR");
     assert.equal(failed.result_json.demo.result, "REJECTED");
+    assert.match(failed.result_json.artifact.startKey, /\/start\.png$/);
     assert.match(failed.screenshot_key, /failure\.png$/);
     assert.match(failed.trace_key, /trace\.zip$/);
   },

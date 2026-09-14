@@ -9,6 +9,8 @@ const DEFAULT_RETENTION_DAYS = 14;
 const DEFAULT_BATCH_SIZE = 100;
 const CLEANUP_SCHEDULE_KEY = "artifact-retention-daily";
 const CLEANUP_SCHEDULE_PUBLIC_ID = "018f0cb2-ef9d-7b29-a13d-9a4f00000011";
+const BROWSER_RUN_PREFIX_PATTERN =
+  /^automation\/\d{4}\/(?:0[1-9]|1[0-2])\/(?:0[1-9]|[12]\d|3[01])\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\//i;
 
 export type ArtifactRetentionEventType = "HOLD_RELEASED" | "HOLD_SET" | "DELETED" | "DELETE_FAILED";
 
@@ -162,9 +164,14 @@ export function createArtifactRetentionRepository(
         .orderBy("finished_at", "asc")
         .limit(limit)
         .execute();
-      return rows.flatMap((row) =>
-        uniqueSafeKeys([row.screenshot_key, row.trace_key, resultArtifactKey(row.result_json)]),
-      );
+      return uniqueSafeKeys(
+        rows.flatMap((row) => [
+          startArtifactKey(row.result_json, row.screenshot_key),
+          row.screenshot_key,
+          row.trace_key,
+          resultArtifactKey(row.result_json),
+        ]),
+      ).slice(0, limit);
     },
     async listDeletedKeys(objectKeys) {
       if (objectKeys.length === 0) return new Set<string>();
@@ -217,10 +224,41 @@ export function createArtifactRetentionRepository(
 }
 
 function resultArtifactKey(value: JsonObject): string | null {
-  const artifact = value.artifact;
-  if (typeof artifact !== "object" || artifact === null || Array.isArray(artifact)) return null;
-  const resultKey = (artifact as Record<string, JsonValue>).resultKey;
+  const artifact = resultArtifact(value);
+  if (artifact === null) return null;
+  const resultKey = artifact.resultKey;
   return typeof resultKey === "string" ? resultKey : null;
+}
+
+function startArtifactKey(value: JsonObject, screenshotKey: string | null): string | null {
+  const expectedStartKey = legacyStartArtifactKey(screenshotKey);
+  if (expectedStartKey === null) return null;
+  const artifact = resultArtifact(value);
+  if (artifact !== null && Object.hasOwn(artifact, "startKey")) {
+    const explicitStartKey = exactBrowserArtifactKey(artifact.startKey, "start.png");
+    return explicitStartKey === expectedStartKey ? explicitStartKey : null;
+  }
+  return expectedStartKey;
+}
+
+function legacyStartArtifactKey(screenshotKey: string | null): string | null {
+  if (typeof screenshotKey !== "string") return null;
+  const match = screenshotKey.match(/^(.*\/)(?:failure|final)\.png$/);
+  if (match === null || !BROWSER_RUN_PREFIX_PATTERN.test(screenshotKey)) return null;
+  return exactBrowserArtifactKey(`${match[1]}start.png`, "start.png");
+}
+
+function resultArtifact(value: JsonObject): Record<string, JsonValue> | null {
+  const artifact = value.artifact;
+  return typeof artifact === "object" && artifact !== null && !Array.isArray(artifact)
+    ? (artifact as Record<string, JsonValue>)
+    : null;
+}
+
+function exactBrowserArtifactKey(value: JsonValue | undefined, filename: string): string | null {
+  if (typeof value !== "string") return null;
+  if (!BROWSER_RUN_PREFIX_PATTERN.test(value) || !value.endsWith(`/${filename}`)) return null;
+  return value;
 }
 
 function uniqueSafeKeys(values: readonly (string | null)[]): string[] {

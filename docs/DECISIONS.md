@@ -2082,3 +2082,55 @@
 - 금지 변경: source original/approved thumbnail 자동 삭제, bucket-wide 임의 삭제, hold 무시, bucket public-read, broad/long-lived credential, secret·signed URL 로그/DB 저장, client actor/token 신뢰, unrelated worktree/환경 변경, 승인 없는 domain 구매·영구 인프라 변경.
 - 완료 조건: start/final(or failure)/trace/result의 정확한 inventory 및 active hold 보존·release 뒤 삭제·append-only audit·replay를 disposable 환경에서 증명한다. 실제 R2 재검증 시 새 scoped token을 안전하게 주입하고 끝나면 token/fixture를 정리한다. P6-10 전체 PASS는 native-domain TLS/host firewall, secret/backup 준비와 required CI 증거를 별도로 충족해야 한다.
 - 재검토가 필요한 조건: inventory schema/retention 대상 또는 hold 의미 변경, provider migration, production secret injection 방식 변경, namespace topology 변경, custom domain·VM 배포 권한이 새로 제공될 때.
+
+## DEC-20260915-003 — P6-05 start.png Durable Inventory와 안전한 Cleanup
+
+- 일자: 2026-09-15
+- 종료 단계/분야: Phase 6 Browser start artifact의 durable 기록, legacy inventory, hold/release 및 cleanup 회귀 보완
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-05, P5-06, P5-10, P6-01, P6-04
+- 검토 범위와 근거: AGENTS.md, 개발 운영 구성 지침, P6-05 WBS acceptance/test, Browser artifact 5종 설계, DEC-20260914-017, DEC-20260915-001/002, `packages/browser/src/demo-flow.ts`, `apps/worker/src/browser-run.ts`, `apps/worker/src/artifact-retention.ts`, disposable PostgreSQL 18.6/Local ObjectStorage/실제 Chromium 회귀 결과
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-017의 Browser cleanup 후보를 screenshot/trace/result 3종으로 한정한 결정과 DEC-20260915-002의 운영 start.png inventory 미해결 상태만 대체한다. 기존 private storage, 14일 보존, hold, append-only audit, source original/approved thumbnail 비삭제 및 실제 R2/remote CI 미검증 상태는 유지한다.
+
+### 확정 결정
+
+- durable demo harness는 `start.png` 캡처 결과를 `startKey`로 반환하고 Worker는 이를 `result_json.artifact.startKey`에 저장한다. 기존 automation_run 테이블의 JSON result를 사용하므로 DB migration이나 새 테이블은 추가하지 않는다.
+- cleanup inventory는 terminal Browser run의 start/final 또는 failure/trace/result를 포함한다. 신규 run은 명시적 startKey를 사용하고, legacy run은 정확한 `automation/YYYY/MM/DD/UUIDv7/final.png|failure.png`와 같은 prefix에서만 start.png를 복원한다.
+- 명시적 startKey도 exact Browser start path이며 같은 row의 screenshot과 run prefix가 일치할 때만 채택한다. malformed/cross-run 값은 삭제하지 않고 operator inspection을 위해 fail-closed로 남긴다. bucket listing/prefix 전체 삭제는 사용하지 않는다.
+- cleanup 한 번의 상한은 중복 제거·portable key 검증 이후 최대 100 artifact key다. active hold, release, DELETED 멱등성, DELETE_FAILED stable code와 현재 configured provider/bucket 감사 계약은 변경하지 않는다.
+- P6-10에서 수동 제거한 과거 R2 start object는 이미 empty bucket으로 확인됐으며 새 credential을 만들지 않았다. 이번 보완의 실제 storage 검증은 disposable Local adapter이고 실제 private R2 재실행은 NOT_RUN이다.
+
+### 기각한 선택지와 이유
+
+- Browser run prefix 전체를 list/delete: DB ownership 밖의 object와 hold 대상까지 삭제할 수 있어 기각했다.
+- startKey 전용 DB column/migration 추가: 기존 result_json이 artifact inventory 확장에 충분하며 현재 19-table schema를 불필요하게 변경하므로 기각했다.
+- 모든 legacy screenshot 경로에서 단순 문자열 치환: non-Browser 또는 변조된 key의 형제 object를 삭제할 수 있어 exact automation/date/UUIDv7/final-or-failure 형식으로 제한했다.
+- result_json의 startKey를 screenshot prefix 대조 없이 신뢰: 다른 run의 active/recent artifact를 삭제할 수 있어 cross-run 값을 fail-closed로 제외했다.
+- start.png hold가 있어도 run의 artifact 전체를 묶어서 보존: 기존 object-key 단위 hold 계약을 임의 확대하므로 기각했다. 각 artifact는 독립 hold 대상이다.
+
+### 변경 파일
+
+- `packages/browser/src/demo-flow.ts`
+- `apps/worker/src/browser-run.ts`, `apps/worker/src/artifact-retention.ts`, `apps/worker/test/artifact-retention.test.mjs`
+- `tests/integration/artifact-retention.integration.test.mjs`, `tests/integration/browser-durable.integration.test.mjs`
+- `docs/IMPLEMENTATION_STATUS.md`, `docs/RUNBOOK.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: Browser/Worker build; `node --test apps/worker/test/artifact-retention.test.mjs`; 정확히 이름 붙인 `--rm` PostgreSQL 18.6 컨테이너에서 `node --test --test-timeout=120000 tests/integration/artifact-retention.integration.test.mjs tests/integration/browser-durable.integration.test.mjs tests/integration/database-schema.integration.test.mjs`; `pnpm lint`; `pnpm typecheck`; `pnpm test:unit`; 변경 파일 Prettier와 `git diff --check`.
+- 결과: 대상 integration 10개 PASS. legacy/explicit start inventory, cross-run fail-closed, active hold/release, cleanup 재실행 멱등성, 최근 run/source original 보존, 실제 Chromium start PNG와 19-table/266-column DB 계약을 확인했다. Worker retention 단위 3개, Admin 13개, 전체 Node unit 103개 PASS. 실제 private R2의 보완 코드 재검증, 전체 integration 25파일 및 remote CI는 NOT_RUN이므로 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
+- 정리: 각 통합 실행의 고유 test DB와 Local storage 임시 디렉터리는 fixture cleanup으로 제거했고, 정확히 이름 붙인 PostgreSQL `--rm` 컨테이너 3개는 각 실행 종료 후 stop되어 자동 제거됐다. 기존 staging bucket/credential/다른 Docker 환경은 변경하지 않았다.
+
+### 미해결 사항 및 Blocker
+
+- 새 start inventory 코드로 실제 private R2 held/unheld cleanup을 재실행하지 않았다. 이전 scoped token은 폐기 상태이며 새 외부 credential을 만들지 않았다.
+- 전체 integration 25파일과 remote CI는 이번 제한된 회귀 범위에서 NOT_RUN이다. P6-10에서 기록한 일반 runner의 Vite 잔여 handle도 별도 미해결이다.
+- P6-02 secret/profile hardening, P6-06 backup 및 native custom-domain P6-10 검증은 별도 후속 작업이다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 새 24시간 single-bucket token 권한이 제공되면 실제 private R2에서 start/final 또는 failure/trace/result의 hold·release·cleanup과 empty listing을 재검증한다. 외부 검증 없이 진행할 경우 P6-02 secret/profile hardening 또는 P6-06 backup을 착수한다.
+- 금지 변경: bucket public-read, broad/long-lived credential, bucket/prefix-wide 삭제, source original/approved thumbnail 자동 삭제, object-key hold의 run-wide 임의 확대, cross-run startKey 신뢰, secret·signed URL 저장/출력, unrelated worktree 변경.
+- 완료 조건: 실제 R2에서 start 포함 4종의 active hold 보존·release 후 삭제·append-only audit·반복 멱등성과 최종 fixture 부재를 증명하고 credential/container를 정리하거나, 선택한 다음 P6 task의 별도 acceptance를 충족한다.
+- 재검토가 필요한 조건: artifact inventory를 JSON 대신 정규화 테이블로 이전, run-wide/legal hold 도입, provider/bucket migration, lifecycle rule 병행, retention 기간 또는 artifact 종류 변경이 필요할 때.

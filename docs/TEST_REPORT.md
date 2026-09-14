@@ -426,3 +426,11 @@
 - 자동 DELETE/GET 부재 확인은 run별 final/trace/result 3개였다. 잔여 start.png 6개는 정확한 이번 run prefix로 확인해 dashboard에서 삭제했다. 검증기의 start.png 정리 보완은 문법/lint 검증만 수행했으며 실제 R2 재실행은 NOT_RUN이다. 운영 retention inventory의 start.png 누락은 별도 P6-05 보완 사항이다.
 - Node unit 103개, Admin Vitest 13개, Linux 전체 integration 25파일/110개 PASS(실제 POSIX 종료/crash, pg-boss redelivery, 1k import 포함). 일반 실행기의 Vite 잔여 handle로 최종 Linux 통합은 `--test-force-exit --test-timeout=120000`을 사용했다. 일반 `pnpm test:integration` 종료 안정성은 PASS로 판정하지 않는다. 기존 인증/pg-boss 내부 큐 기대값을 현재 구현 계약에 맞췄으며 업무 구현을 완화하지 않았다.
 - API/Worker/edge Docker build, 전체 ESLint 및 변경 스크립트 문법 검증 PASS. remote CI, 기존 Admin formatting drift, P6-02/P6-06 및 custom-domain native deployment 검증이 남아 있으므로 P6-10 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
+
+## 2026-09-15 — P6-05 start.png Inventory / Hold / Cleanup 보완
+
+- 신규 durable demo run은 최초 캡처의 정확한 `startKey`를 실행 결과와 `result_json.artifact`에 저장한다. retention repository는 start/final 또는 failure/trace/result 4종을 최대 100개 고유 portable key로 제한해 처리한다.
+- 이전 결과에 startKey가 없는 legacy run은 `automation/YYYY/MM/DD/UUIDv7/final.png` 또는 `failure.png`와 동일한 prefix의 `start.png`만 복원한다. 명시된 startKey도 screenshot과 같은 run prefix이고 정확한 start artifact 형식일 때만 채택한다. 다른 run의 startKey를 가리키는 fixture는 fail-closed로 제외되어 최근 run artifact를 삭제하지 않았다.
+- Worker 단위 3개 PASS: start.png active hold 중 screenshot/trace/result 삭제, 반복 cleanup의 중복 삭제 방지, hold release 후 start 삭제, stable delete failure와 malformed hold 거부, daily schedule 계약을 확인했다.
+- disposable PostgreSQL 18.6과 Local ObjectStorage의 대상 통합 10개 PASS: legacy start 복원, 신규 명시 startKey, cross-run 오염 차단, 만료 artifact 11개 스캔 중 hold 1개·정상 삭제 10개, 재실행 삭제 0개, release 후 1개 삭제, append-only event 13개를 확인했다. 최근 run 4종, cross-run mismatch의 start.png와 source original은 보존됐다. 실제 Chromium durable success/failure가 startKey와 PNG object를 남기며 DB baseline 19 table/266 column 계약도 유지됐다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit` PASS: Admin 13개, Node unit 103개. 변경 파일 Prettier와 `git diff --check`는 최종 확인했다. 보완 코드의 실제 private R2 cleanup, 전체 integration 25파일 재실행과 remote CI는 NOT_RUN이므로 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
