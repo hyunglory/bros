@@ -1258,3 +1258,56 @@
 - 금지 변경: legacy ID fallback, 가격 0·KRW 추정, source_product에 자동 MASTER 연결, 과거 source로 최신값 회귀, raw secret 재보존.
 - 완료 조건: P2-05는 승인 alias만 brand에 연결하고 unknown brand를 자동 생성하지 않으며, P2-07은 source field/raw의 identifier 후보를 provenance와 함께 추출하는 테스트를 갖는다.
 - 재검토가 필요한 조건: source freshness를 collectedAt이 아닌 sourceAsOfDate로 비교해야 하거나, parallel item failure를 계속 처리하는 savepoint policy가 필요하거나, multi-platform batch schema가 필요할 때.
+
+## DEC-20260914-005 — P2-05 Brand Normalizer 구현 및 검증 상태 기록
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-05 승인 brand alias의 deterministic normalization 및 resolution
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본
+- 관련 WBS Task: P2-05, 후속 P2-08/P2-16/P3-01
+- 검토 범위와 근거: DEC-20260914-004, `doc/brand_resell_os_design_v0.1.md` 14.4, WBS P2-05/P2-16, `docs/DB_MIGRATION_SPEC.md` brand/brand_alias scope unique, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 11장
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- alias lookup key는 Unicode NFKC, trim, 연속 공백 통합, 대소문자 정규화만 적용한다. 이 key는 DB의 `brand_alias.alias_norm`과 정확히 비교한다.
+- platform-scoped alias가 active platform에서 먼저 선택되고, 없을 때 active brand의 global alias를 선택한다. 이 순서는 `(COALESCE(platform_id, 0), alias_norm)` unique scope와 일치한다.
+- 빈 raw brand, 미등록 또는 비활성 platform, 미등록 alias, 비활성 brand alias는 `UNRESOLVED`로 반환한다. P2-05는 brand/alias/source_product를 생성하거나 수정하지 않는다.
+- `source_product.raw_brand_name`은 P2-06의 raw source 기록으로 유지한다. P2-08이 P2-05의 resolve 결과를 MASTER 후보 판단에 사용하며, P2-16이 사람의 alias 승인·재처리를 담당한다.
+
+### 기각한 선택지와 이유
+
+- 구두점 제거·부분 일치·유사도 기반 자동 alias 연결: 승인되지 않은 표기를 다른 brand에 잘못 연결할 수 있어 P2-05의 확실한 alias 경계를 위반한다.
+- unknown brand 자동 생성: WBS P2-05/P2-16의 검수 경로를 우회하고 brand master를 오염시킨다.
+- P2-05가 source_product를 MASTER에 연결: identifier와 MASTER matching이 없는 상태에서 제품 정체성을 확정하는 것이므로 P2-08 책임이다.
+
+### 변경 파일
+
+- packages/importer/src/brand-normalizer.ts
+- packages/importer/src/index.ts
+- packages/importer/test/brand-normalizer.test.mjs
+- tests/integration/brand-normalizer.integration.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- unit: Unicode/case/whitespace normalization과 구두점 보존 test PASS — Node unit 총 44개 PASS.
+- integration: PostgreSQL 18 일회용 DB에서 platform alias 우선, global Korean alias, unknown/blank/unknown platform/inactive brand의 unresolved 및 brand non-creation test PASS.
+- 정적 검증: `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build` PASS.
+- 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check` 종료 증거와 원격 CI PASS는 없다. P2-06 Actions run `34795563889`는 `cancelled`여서 성공 증거로 사용하지 않는다.
+
+### 미해결 사항 및 Blocker
+
+- P2-05 code/target test blocker는 없다. 전체 테스트 runner의 종료 코드와 원격 CI를 다시 확인해야 PASS 상태로 전이할 수 있다.
+- P2-16의 alias 승인/거절 API와 unresolved source 재처리는 아직 구현하지 않았다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-07 Embedded Identifier Extractor를 source field/raw에서 provenance와 함께 구현하거나, P2-16에서 unresolved brand 검수 경로를 구현한다.
+- 금지 변경: unknown alias 자동 생성, fuzzy alias 자동연결, source_product에 MASTER 자동 연결, raw secret 재보존.
+- 완료 조건: P2-07은 candidate value/norm/type/provenance를 안전하게 추출하고, P2-16은 승인 alias만 이후 resolve되며 재처리 이력을 보존한다.
+- 재검토가 필요한 조건: alias의 언어별 transliteration 또는 punctuation-insensitive matching을 도입하려면 labeled data의 오매칭 기준과 human approval policy를 먼저 결정해야 한다.

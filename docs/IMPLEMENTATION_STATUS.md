@@ -24,5 +24,6 @@
 | P2-03 XlsxImportAdapter | PASS | DEC-20260914-002, 실제 XLSX 26,375행 read-only mapping, unit 41개·integration 53개 PASS | P2-04 Import Validation / Raw 보존 착수 |
 | P2-04 Import Validation / Raw 보존 | PASS | DEC-20260914-003, mapped/rejected row 이력·secret-safe raw persistence, unit 42개·integration 55개 PASS | P2-05 Brand Normalizer 또는 P2-06 Source Product Upsert 착수 |
 | P2-06 Source Product Upsert | PASS | DEC-20260914-004, identity idempotency·newer source update·terminal batch aggregate, unit 42개·integration 57개 PASS | P2-05 Brand Normalizer 또는 P2-07 Identifier Extractor 착수 |
+| P2-05 Brand Normalizer | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-005, 승인 alias exact resolution·platform precedence·unknown non-creation, unit 44개 및 P2-05 PostgreSQL integration PASS | 전체 `pnpm check` 및 원격 CI 재실행 후 PASS 확정 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

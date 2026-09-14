@@ -298,3 +298,11 @@
 - identity 검증: 첫 batch의 두 identity는 `CREATED`되고, 같은 identity의 새 `collectedAt` title·price·currency는 `UPDATED`된다. 같은 identity의 과거 입력은 최신 source 값을 보존하고 `MATCHED`된다.
 - batch 검증: mapped/rejected mixed batch는 valid row를 `SUCCEEDED`, 기존 rejected row를 `FAILED`로 유지하고 `PARTIAL_FAILED` 및 count 합계·finished_at을 기록한다.
 - 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 57개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-05 Brand Normalizer
+
+- 대상: `normalizeBrandAliasName`, `createBrandNormalizer`의 승인 alias exact lookup과 platform/global 우선순위.
+- 정규화 경계: Unicode NFKC, trim, 연속 공백 통합, 대소문자만 정규화한다. 구두점 삭제·부분일치·유사도 매칭은 승인하지 않은 alias를 표준 brand에 연결할 위험이 있으므로 수행하지 않는다.
+- 전용 PostgreSQL 통합 검증: platform alias가 동일 normalized alias의 global alias보다 우선함, active brand의 한글 alias가 전역으로 연결됨, unknown/blank/unknown platform/inactive brand가 `UNRESOLVED`이며 brand를 생성하지 않음을 확인했다.
+- 실행 결과: unit 44개 PASS, P2-05 전용 integration 1개 PASS, lint·typecheck·format check·production build PASS.
+- 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check`의 종료 증거와 원격 CI는 아직 PASS가 아니다. P2-06 원격 run `34795563889`는 `cancelled`로 종료되어 성공 근거로 사용하지 않는다.

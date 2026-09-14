@@ -165,3 +165,11 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - source raw는 이미 안전 검사를 거친 `mappedInput.raw`만 `source_product.raw_json`에 쓴다. 원본 row envelope·locator·validation issue는 계속 `import_item.raw_json`에 보존한다.
 - P2-06은 brand master나 SKU/image/identifier를 만들지 않는다. `brandName`은 `raw_brand_name`에만 보존하며 P2-05가 alias resolution을 담당한다.
 - 모든 PENDING item이 처리된 뒤 item status를 재집계해 batch를 `SUCCEEDED`/`PARTIAL_FAILED`/`FAILED`로 전이하고 count 합계 및 `finished_at`을 한 transaction으로 기록한다.
+
+## 11. P2-05 Brand Normalizer
+
+`createBrandNormalizer`는 `rawBrandName`과 platform code를 받아 승인된 `brand_alias`만 표준 `brand`로 해석한다. 이 서비스는 `source_product`·`brand`·`brand_alias`를 쓰지 않으며, P2-08이 결과를 MASTER 후보 판단에 사용한다.
+
+- alias lookup key는 Unicode NFKC, trim, 연속 공백 통합, 대소문자 정규화를 적용한 `alias_norm`이다. 구두점 제거·유사도 검색·부분일치는 수행하지 않는다.
+- active platform의 platform-scoped alias를 먼저 조회하고, 없을 때 active brand의 global alias를 조회한다. 같은 표기가 플랫폼별로 다를 수 있다는 DB unique scope를 그대로 따른다.
+- 빈 브랜드, 미등록 platform, 비활성 platform, 승인 alias 부재(비활성 brand 포함)는 `UNRESOLVED`이며 새로운 brand/alias를 자동 생성하지 않는다. P2-16이 사람이 alias를 승인하는 경로를 담당한다.
