@@ -2134,3 +2134,52 @@
 - 금지 변경: bucket public-read, broad/long-lived credential, bucket/prefix-wide 삭제, source original/approved thumbnail 자동 삭제, object-key hold의 run-wide 임의 확대, cross-run startKey 신뢰, secret·signed URL 저장/출력, unrelated worktree 변경.
 - 완료 조건: 실제 R2에서 start 포함 4종의 active hold 보존·release 후 삭제·append-only audit·반복 멱등성과 최종 fixture 부재를 증명하고 credential/container를 정리하거나, 선택한 다음 P6 task의 별도 acceptance를 충족한다.
 - 재검토가 필요한 조건: artifact inventory를 JSON 대신 정규화 테이블로 이전, run-wide/legal hold 도입, provider/bucket migration, lifecycle rule 병행, retention 기간 또는 artifact 종류 변경이 필요할 때.
+
+## DEC-20260915-004 — P6-05 start 포함 Private R2 Hold/Cleanup 재검증
+
+- 일자: 2026-09-15
+- 종료 단계/분야: Phase 6 start/failure/trace/result 4종의 실제 private Cloudflare R2 hold·release·cleanup·audit 및 외부 fixture 정리
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-05, P6-04, P5-10, P6-01
+- 검토 범위와 근거: AGENTS.md, DEC-20260914-017, DEC-20260915-001/003, `scripts/verify-r2-staging.mjs`, private `bros-p6-staging-artifacts` dashboard 상태, 24시간 single-bucket account token, disposable PostgreSQL 18.6과 실제 R2 실행 출력
+- 상태: ACCEPTED
+- supersedes: DEC-20260915-003의 새 start inventory 코드에 대한 실제 private R2 cleanup NOT_RUN 상태만 대체한다. remote CI·전체 integration 미실행과 기존 private storage/retention/hold/fail-closed 계약은 유지한다.
+
+### 확정 결정
+
+- R2 staging verifier는 DB-owned start/failure/trace/result 4종을 같은 UUIDv7 run prefix에 생성한다. startKey를 result_json에 명시하고 start에 object-key hold를 설정한 뒤 unheld 3종 삭제, release 후 start 삭제를 실제 R2에서 확인한다.
+- 실제 검증 token은 `bros-p6-staging-artifacts` 한 bucket의 Object Read & Write 및 24시간 TTL로 제한한다. Access Key 두 필드만 browser-visible success DOM에서 읽어 일회성 localhost relay와 child process environment로 전달하고 대화·파일·명령행·로그에 출력하지 않는다.
+- 실제 R2에서는 start/failure PNG read, result unsigned denial, wrong-secret stable mapping, authorization 뒤 300초 signed preview와 content metadata/body를 함께 검사한다. cleanup audit에는 삭제 시점의 R2 provider와 bucket을 기록한다.
+- 검증 성공·실패와 관계없이 verifier `finally`는 생성에 성공한 exact key만 idempotent delete하고 고유 test DB를 drop한다. 이후 token을 영구 폐기하고 token row 부재, empty object listing, Public Access Disabled 및 disposable container/helper 제거를 확인한다.
+- 실제 R2 start cleanup 미검증 blocker는 해소됐다. required remote CI가 남아 있으므로 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`로 유지한다.
+
+### 기각한 선택지와 이유
+
+- 이전 폐기 credential 재사용 또는 장기/account-wide token 발급: 재사용할 수 없고 검증 범위를 넘으므로 새 24시간 single-bucket token만 사용했다.
+- bucket public access 또는 unsigned preview 허용: 기존 authenticated preview와 private storage 경계를 위반하므로 기각했다.
+- bucket/prefix 전체 삭제로 정리: unrelated object를 손상할 수 있어 이번 실행이 만든 exact 4 key만 삭제했다.
+- credential을 `.env`, command argument, repository helper 또는 출력에 기록: 노출 면적을 넓히므로 일회성 process 전달만 사용하고 helper를 제거했다.
+- token을 TTL 만료까지 유지: 검증 완료 후 필요가 없으므로 즉시 영구 폐기했다.
+
+### 변경 파일
+
+- `scripts/verify-r2-staging.mjs`
+- `docs/IMPLEMENTATION_STATUS.md`, `docs/RUNBOOK.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: script syntax/ESLint와 `pnpm build`; disposable PostgreSQL 18.6 및 일회성 localhost relay를 통한 `node scripts/verify-r2-staging.mjs`; Cloudflare dashboard에서 token permission/bucket/TTL, token 삭제 후 row 부재, bucket object empty 및 Public Access Disabled 확인; disposable container/helper 부재 확인.
+- 결과: PASS — 실제 private R2 4종 PUT/GET, start hold 보존, unheld 3종 삭제, release 후 start 삭제, append-only audit, wrong credential mapping, unsigned denial, authorized 300초 preview와 metadata/body를 확인했다. 최종 cleanup 출력은 scanned 4/deleted 3/held 1 후 deleted 1이며 생성 artifact 4개는 모두 부재다. remote CI와 전체 integration 25파일 재실행은 NOT_RUN이다.
+- 정리: 24시간 single-bucket token은 영구 폐기되어 목록에 없고, bucket listing은 empty/Public Access Disabled다. 고유 test DB, disposable PostgreSQL `--rm` container, in-memory credential reference와 relay helper를 제거했다. 삭제한 test artifact와 token은 복구 불가이며 private bucket은 유지했다.
+
+### 미해결 사항 및 Blocker
+
+- remote CI와 전체 integration 25파일 재실행은 이번 실제 R2 검증 범위에서 NOT_RUN이다.
+- P6-10의 native custom-domain VM/Caddy ACME·host firewall, P6-02 secret/profile hardening, P6-06 backup 및 일반 integration runner의 Vite 잔여 handle은 별도 후속이다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P6-02 production secret/profile hardening 또는 P6-06 DB Backup 자동화 중 선행 조건이 충족된 작업을 진행한다. P6-05 상태 확정이 우선이면 required remote CI와 전체 integration을 재실행한다.
+- 금지 변경: R2 bucket public-read, broad/long-lived credential, secret·signed URL 저장/출력, bucket/prefix-wide 삭제, source original/approved thumbnail 자동 삭제, hold 무시, unrelated worktree/Cloudflare resource 변경.
+- 완료 조건: 선택한 P6 task의 WBS acceptance와 failure path를 증명하거나 P6-05 required CI에서 start 포함 inventory/hold/cleanup 회귀가 PASS한다.
+- 재검토가 필요한 조건: lifecycle rule 병행, object legal hold, provider/bucket migration, production secret injection 변경, artifact inventory schema 정규화 또는 retention 정책 변경이 필요할 때.

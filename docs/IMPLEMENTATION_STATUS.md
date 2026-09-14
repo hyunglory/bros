@@ -36,7 +36,7 @@
 | P5-06 Demo Flow/Test Harness + P5-09/10 evidence | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014/015, DEC-20260915-002, actual Chromium evidence·disposable PostgreSQL/pg-boss success/failure·receipt 멱등성과 공개 HTTPS/R2 E2E·재시작 PASS | 원격 CI PASS 후 상태 확정; Admin Browser 실행 UI/HTTP enqueue는 이번 검증 범위 밖 |
 | P6-01 인증 경계 + P5 durable DB/Queue 연결 | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014/015, DEC-20260915-002, public Quick Tunnel/Caddy auth·actor/token overwrite·Authorization 제거·same-origin gate·R2 preview·durable Worker/DB PASS | 원격 CI·native-domain Linux VM/host firewall 검증 잔여 |
 | P6-04 Production R2 ObjectStorage Adapter | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-016, DEC-20260915-001/002, 실제 private R2 및 public HTTPS authorized preview·SHA-256·unsigned 거부 PASS | remote CI·production host hardening은 후속 |
-| P6-05 Artifact Retention / Cleanup | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-017, DEC-20260915-001/002/003, 신규 startKey·legacy 동일-prefix 복원·cross-run fail-closed, hold/release·멱등 cleanup·Local/PostgreSQL 회귀 PASS | 보완 코드의 실제 private R2 재검증·remote CI 필요 |
+| P6-05 Artifact Retention / Cleanup | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-017, DEC-20260915-001~004, start 포함 4종의 실제 private R2 hold/release·cleanup·audit·empty/private 확인 PASS, Local/PostgreSQL 회귀 PASS | remote CI 필요 |
 | P6-10 Production Docker / Reverse Proxy / HTTPS | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-002, 공개 Quick Tunnel TLS 1.3·DNS·Caddy auth·내부망 격리·R2 Browser run 및 재시작 E2E PASS, P6_10_STAGING.md | custom-domain Linux VM/Caddy ACME·실제 host firewall, P6-02/P6-06, remote CI 잔여; 일반 test runner 종료 문제 별도 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

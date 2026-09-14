@@ -434,3 +434,12 @@
 - Worker 단위 3개 PASS: start.png active hold 중 screenshot/trace/result 삭제, 반복 cleanup의 중복 삭제 방지, hold release 후 start 삭제, stable delete failure와 malformed hold 거부, daily schedule 계약을 확인했다.
 - disposable PostgreSQL 18.6과 Local ObjectStorage의 대상 통합 10개 PASS: legacy start 복원, 신규 명시 startKey, cross-run 오염 차단, 만료 artifact 11개 스캔 중 hold 1개·정상 삭제 10개, 재실행 삭제 0개, release 후 1개 삭제, append-only event 13개를 확인했다. 최근 run 4종, cross-run mismatch의 start.png와 source original은 보존됐다. 실제 Chromium durable success/failure가 startKey와 PNG object를 남기며 DB baseline 19 table/266 column 계약도 유지됐다.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test:unit` PASS: Admin 13개, Node unit 103개. 변경 파일 Prettier와 `git diff --check`는 최종 확인했다. 보완 코드의 실제 private R2 cleanup, 전체 integration 25파일 재실행과 remote CI는 NOT_RUN이므로 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
+
+## 2026-09-15 — P6-05 start 포함 Private R2 재검증
+
+- Cloudflare의 `bros-p6-staging-artifacts` private bucket 하나에만 `Object Read & Write`를 허용한 24시간 account token을 새로 발급했다. 성공 화면의 S3 Access Key 두 필드만 일회성 localhost 수신기에 전달하고 child process environment로 주입했으며 값은 대화·파일·명령행·로그에 출력하지 않았다.
+- `scripts/verify-r2-staging.mjs`를 start/failure/trace/result 4종으로 확장해 실제 R2에 업로드했다. start/failure PNG GET, wrong-secret `STORAGE_AUTH_FAILED`, result의 unsigned GET 거부, ADMIN authorization 후 300초 signed preview HTTP 200 및 JSON MIME/SHA-256 metadata/body를 확인했다.
+- 실제 PostgreSQL 18.6 terminal run에서 start.png에 `HOLD_SET`을 적용했다. 첫 cleanup은 scanned 4/deleted 3/held 1로 failure/trace/result를 삭제하고 start를 보존했으며, release 후 cleanup은 deleted 1로 start도 삭제했다. audit 순서는 `HOLD_SET`, `DELETED` 3개, `HOLD_RELEASED`, `DELETED`였고 모든 삭제 event가 `provider=R2`와 실제 bucket을 기록했다.
+- 검증 출력은 `deletedArtifactCount=4`, `cleanup=PASS`, `privateUnsignedAccess=DENIED`, `credentialFailureMapping=PASS`, `signedPreviewSeconds=300`이었다. `finally`가 생성 성공 key를 다시 idempotent delete하고 고유 test DB를 drop했다.
+- 검증 직후 token을 영구 폐기해 목록에서 row가 사라진 것을 확인했다. dashboard의 object 목록은 empty 상태였고 Public Access는 Disabled였다. 정확히 이름 붙인 disposable PostgreSQL `--rm` container와 일회성 relay helper도 제거했다.
+- script syntax/ESLint, 전체 workspace build PASS. 실제 R2 start cleanup 미검증 상태는 해소됐지만 remote CI와 전체 integration 25파일 재실행은 이번 외부 검증에서 NOT_RUN이므로 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`다.

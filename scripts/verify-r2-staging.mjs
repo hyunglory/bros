@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 
 import { createArtifactPreviewPort } from "../apps/api/dist/index.js";
@@ -120,19 +120,30 @@ async function main() {
     now: () => createdAt,
     storage,
   }).createRun({ createdAt, runPublicId });
-  const screenshotKey = `automation/2026/08/01/${runPublicId}/failure.png`;
   const allKeys = [];
 
   try {
     stage = "r2-put";
-    const screenshotBody = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    await storage.putObject({
-      body: screenshotBody,
-      contentHash: createHash("sha256").update(screenshotBody).digest("hex"),
-      contentType: "image/png",
-      key: screenshotKey,
+    const startBody = Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      Buffer.from("r2-staging-start"),
+    ]);
+    const screenshotBody = Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      Buffer.from("r2-staging-failure"),
+    ]);
+    const start = await runArtifacts.captureScreenshot("start", {
+      async screenshot() {
+        return startBody;
+      },
     });
-    allKeys.push(screenshotKey);
+    allKeys.push(start.objectKey);
+    const screenshot = await runArtifacts.captureScreenshot("failure", {
+      async screenshot() {
+        return screenshotBody;
+      },
+    });
+    allKeys.push(screenshot.objectKey);
     const trace = await runArtifacts.writeTrace(Buffer.from("r2-staging-trace"));
     allKeys.push(trace.objectKey);
     const result = await runArtifacts.writeResult({
@@ -146,7 +157,11 @@ async function main() {
     console.log(`R2_STAGING_STAGE ${stage}`);
 
     stage = "r2-read-and-auth-failure";
-    assert.deepEqual(await readBytes(await storage.getObject(screenshotKey)), screenshotBody);
+    assert.deepEqual(await readBytes(await storage.getObject(start.objectKey)), startBody);
+    assert.deepEqual(
+      await readBytes(await storage.getObject(screenshot.objectKey)),
+      screenshotBody,
+    );
     await verifyWrongCredentialMapping(config, result.objectKey);
     console.log(`R2_STAGING_STAGE ${stage}`);
 
@@ -211,8 +226,10 @@ async function main() {
         finished_at: createdAt,
         input_json: JSON.stringify({}),
         request_key: `r2-staging:${randomUUID()}`,
-        result_json: JSON.stringify({ artifact: { resultKey: result.objectKey } }),
-        screenshot_key: screenshotKey,
+        result_json: JSON.stringify({
+          artifact: { resultKey: result.objectKey, startKey: start.objectKey },
+        }),
+        screenshot_key: screenshot.objectKey,
         started_at: createdAt,
         status: "SUCCESS",
         trace_key: trace.objectKey,
@@ -227,15 +244,16 @@ async function main() {
       repository: createArtifactRetentionRepository(database),
       storage,
     });
-    await retention.placeHold({ objectKey: trace.objectKey, reason: "R2 staging hold validation" });
-    assert.deepEqual(await retention.runCleanup(), { deleted: 2, failed: 0, held: 1, scanned: 3 });
-    await expectMissing(storage, screenshotKey);
-    await expectMissing(storage, result.objectKey);
-    await storage.getObject(trace.objectKey);
-
-    await retention.releaseHold({ objectKey: trace.objectKey, reason: "R2 staging hold released" });
-    assert.deepEqual(await retention.runCleanup(), { deleted: 1, failed: 0, held: 0, scanned: 3 });
+    await retention.placeHold({ objectKey: start.objectKey, reason: "R2 staging hold validation" });
+    assert.deepEqual(await retention.runCleanup(), { deleted: 3, failed: 0, held: 1, scanned: 4 });
+    await storage.getObject(start.objectKey);
+    await expectMissing(storage, screenshot.objectKey);
     await expectMissing(storage, trace.objectKey);
+    await expectMissing(storage, result.objectKey);
+
+    await retention.releaseHold({ objectKey: start.objectKey, reason: "R2 staging hold released" });
+    assert.deepEqual(await retention.runCleanup(), { deleted: 1, failed: 0, held: 0, scanned: 4 });
+    await expectMissing(storage, start.objectKey);
 
     const events = await database.db
       .selectFrom("app.artifact_retention_event")
@@ -244,7 +262,7 @@ async function main() {
       .execute();
     assert.deepEqual(
       events.map((event) => event.event_type),
-      ["HOLD_SET", "DELETED", "DELETED", "HOLD_RELEASED", "DELETED"],
+      ["HOLD_SET", "DELETED", "DELETED", "DELETED", "HOLD_RELEASED", "DELETED"],
     );
     for (const event of events.filter((item) => item.event_type === "DELETED")) {
       assert.equal(event.storage_provider, "R2");
@@ -257,6 +275,7 @@ async function main() {
         bucket: config.storage.bucket,
         cleanup: "PASS",
         credentialFailureMapping: "PASS",
+        deletedArtifactCount: 4,
         privateUnsignedAccess: "DENIED",
         provider: storage.provider,
         signedPreviewSeconds: 300,

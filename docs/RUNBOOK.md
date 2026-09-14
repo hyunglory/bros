@@ -236,7 +236,7 @@ $env:BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY='<host-secret>'
 pnpm verify:r2-staging
 ```
 
-검증기는 임의 UUIDv7 Browser artifact 3개만 생성한다. unsigned GET 거부, wrong-secret `STORAGE_AUTH_FAILED`, 300초 authorized preview와 `content-type`/`x-amz-meta-content-sha256`, held/unheld cleanup 및 R2 provider/bucket audit을 확인한다. 성공·실패와 관계없이 생성에 성공한 key만 `finally`에서 재삭제하고 고유 test DB를 drop한다. 완료 후 검증용 credential을 폐기하며 private bucket 자체는 후속 staging에서 재사용할 수 있다.
+검증기는 임의 UUIDv7 Browser artifact 4개(start/failure/trace/result)만 생성한다. unsigned GET 거부, wrong-secret `STORAGE_AUTH_FAILED`, 300초 authorized preview와 `content-type`/`x-amz-meta-content-sha256`, start hold 중 나머지 3종 삭제·release 후 start 삭제 및 R2 provider/bucket audit을 확인한다. 성공·실패와 관계없이 생성에 성공한 key만 `finally`에서 재삭제하고 고유 test DB를 drop한다. 완료 후 검증용 credential을 폐기하고 bucket listing이 비어 있으며 Public Access가 Disabled인지 확인한다. private bucket 자체는 후속 staging에서 재사용할 수 있다.
 
 ## Artifact Retention / Cleanup — P6-05
 
@@ -355,4 +355,4 @@ caddy validate --config ops/Caddyfile --adapter caddyfile
 
 운영 구성은 `compose.production.yml`, 임시 public Quick Tunnel 검증은 `compose.public-staging.yml`을 사용한다. 실제 검증 결과, secret 주입 범위, 안전한 API/Caddy 재시작 순서와 teardown은 [P6-10 staging 보고서](P6_10_STAGING.md)를 따른다. 공유 network namespace 때문에 API와 Caddy를 동시에 restart하지 않는다. API 재시작 후 Caddy를 recreate한다.
 
-P6-10에서 발견한 `start.png` 누락은 DEC-20260915-003에서 보완했다. 신규 run은 startKey를 durable result에 기록하며 기존 run도 동일 run prefix의 start evidence를 안전하게 정리한다. 실제 private R2에서 이 보완 코드를 재검증하기 전까지 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`로 유지한다.
+P6-10에서 발견한 `start.png` 누락은 DEC-20260915-003에서 보완했고 DEC-20260915-004에서 실제 private R2 재검증을 완료했다. 신규 run은 startKey를 durable result에 기록하며 기존 run도 동일 run prefix의 start evidence를 안전하게 정리한다. remote CI 전까지 P6-05 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`로 유지한다.
