@@ -206,3 +206,14 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - P2-10 이전 variant 보호: 신규 MASTER metadata의 `importMatchOptionNames`에 원본 옵션명을 보존하며 matcher가 이를 우선 비교한다. 없으면 기존 SKU option_key를 사용한다. P2-10은 정규화 key와 원본 옵션명을 혼동하지 않도록 이 비교 계약을 인수해야 한다. SKU 생성·옵션 표준화는 이 단계에 포함하지 않는다.
 
 동시성 보장은 공유 식별자가 있고 위 잠금 규약을 준수하는 writer 사이에 적용한다. 식별자 교집합이 전혀 없는 동일 상품, 임의 SQL writer, 후보 조회의 실데이터 recall·대량 처리 성능은 별도 검증 대상이다. Resolver 자동승인 설정은 변경하지 않는다.
+
+## 15. P2-10 SKU Normalizer / Mapper
+
+`createSkuMapper(database).process(itemPublicId)`는 P2-09가 처리한 item의 저장된 `mappedInput`·context를 다시 검증하고, 연결된 MASTER의 source option을 `product_sku`와 `source_sku`로 기록한다. 이 단계는 MASTER/identifier/source product 연결 상태와 import batch 집계를 변경하지 않으며, 결과는 원본 envelope의 `raw_json.skuMapping`에 보존한다.
+
+- option key는 `v1:` 뒤에 raw option name을 Unicode NFKC, trim, 연속 공백 통합, `en-US` 소문자화한 값이다. 구두점 삭제·토큰 순서 변경·fuzzy 비교는 하지 않는다. external SKU ID와 source order는 key에 넣지 않는다.
+- 같은 source item 안에서 같은 option key가 둘 이상이면 `DUPLICATE_NORMALIZED_OPTION` 검수로 끝내며 어떤 SKU도 쓰지 않는다. source의 다른 option에 이미 사용 중인 external SKU ID를 재사용하려 하면 `SOURCE_EXTERNAL_SKU_CONFLICT`, 기존 source SKU가 다른 canonical SKU를 가리키면 `SOURCE_SKU_LINK_CONFLICT`로 검수한다.
+- source row를 잠근 뒤 MASTER row를 잠그고, `["bros/sku-option/v1", masterPublicId, optionKey]`의 SHA-256 signed BIGINT advisory transaction lock을 오름차순으로 얻는다. 같은 MASTER+option key의 동시 importer는 하나의 `product_sku`로 수렴한다. timeout 기본 1초, 55P03/40P01/40001만 최대 3회 새 transaction에서 재시도한다.
+- 새 canonical SKU는 최초 raw option name, normalized option name, option key, 최초 source order를 `product_sku`에 보존하고 `REVIEW_REQUIRED`로 생성한다. 재import는 canonical SKU 표현과 sort order를 바꾸지 않고 source별 raw name, price, stock, raw payload만 `source_sku`에 갱신한다.
+- `product_sku`가 있으면 P2-08 matcher는 SKU `option_json.rawOptionName`을 variant 비교에 사용한다. SKU가 아직 없을 때만 P2-09의 MASTER metadata `importMatchOptionNames`를 사용한다. 내부 versioned option key를 raw option name으로 비교하지 않는다.
+- source snapshot이 저장 당시 item과 다르면 `SKIPPED/SOURCE_SNAPSHOT_CHANGED`, 연결 MASTER가 없으면 `SKIPPED/MASTER_NOT_LINKED`, 옵션이 없으면 `SKIPPED/NO_SOURCE_OPTIONS`로 기록한다. 같은 item 재호출은 저장된 결과를 반환한다.

@@ -1483,3 +1483,61 @@
 - 금지 변경: identifier 자동 verified, title-only 병합, advisory lock namespace 무단 변경, 검수 결과 자동 승격, 기존 link/provenance 폐기, global identifier UNIQUE, 다른 worktree 코드 수정.
 - 완료 조건: 동일 옵션의 재import가 동일 SKU에 연결되고 MASTER/SKU 소유권·옵션 충돌·원본 순서와 provenance 보존을 실제 PostgreSQL에서 검증한다. P2-09 메타데이터와 SKU 표준화 결과의 비교가 일관되어야 한다.
 - 재검토가 필요한 조건: 상품 identifier를 SKU scope로 이동하거나 신규 writer를 추가하거나 lock namespace를 변경할 때. brand/title/variant 자동 판정 확대는 근거 데이터와 새 결정이 필요하다.
+
+## DEC-20260914-009 — P2-10 SKU Normalizer / Mapper 로컬 구현·검증 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-10 deterministic SKU option normalization·canonical/source SKU mapping
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 모델 ID·추론 수준 미노출)
+- 관련 WBS Task: P2-10, 후속 P2-11/P2-12/P2-16
+- 검토 범위와 근거: AGENTS.md, DEC-20260914-001/004/007/008, WBS P2-10, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 6·13~15장, `packages/contracts/src/source-product.ts`, DB baseline의 product_sku/source_sku 제약, P2-06/P2-09 구현.
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-008의 P2-10 인수 조건을 구체화하며 MASTER identity lock·생성 정책은 변경하지 않는다.
+
+### 확정 결정
+
+- option key는 `v1:` + Unicode NFKC/trim/연속 공백 통합/`en-US` 소문자 raw option name이다. punctuation·token order·external SKU ID·source order는 동치 판단에 넣지 않는다.
+- `createSkuMapper.process`는 저장 item UUID만 입력으로 받고 mapped input/context·source snapshot을 재검증한다. source→MASTER row를 잠그고 `bros/sku-option/v1` SHA-256 signed BIGINT advisory transaction lock을 key 오름차순으로 얻는다. SQLSTATE 55P03/40P01/40001만 기본 1초·최대 3회 재시도한다.
+- 신규 canonical SKU는 최초 raw display name, normalized name, key, source order와 `REVIEW_REQUIRED` 상태를 보존한다. 재import는 canonical SKU 표현을 바꾸지 않고 source SKU의 raw option, price, stock, raw provenance만 갱신한다. 같은 item replay는 `raw_json.skuMapping` 결과를 반환한다.
+- 한 source item의 normalized option key 중복, source external SKU ID의 다른 option 재사용, 기존 source SKU의 다른 canonical SKU 연결은 자동 병합하지 않고 review 결과로 저장한다. 연결 MASTER 없음·옵션 없음·stale source는 안전한 skip이다.
+- P2-08 variant 비교는 SKU가 생긴 뒤 `product_sku.option_json.rawOptionName`을 사용하고, SKU가 없을 때만 P2-09의 `importMatchOptionNames` metadata를 사용한다. 내부 versioned option key를 raw name으로 비교하지 않는다.
+- P2-10은 MASTER/identifier/source product link·import item status/action·batch aggregate를 변경하지 않는다. pipeline 전체 상태 표시는 P2-12의 책임이다.
+
+### 기각한 선택지와 이유
+
+- 구두점 제거나 fuzzy option key: 실제 labeled variant 오류 기준이 없어 서로 다른 SKU 자동 병합 위험이 있다.
+- external SKU ID 또는 source order를 canonical key에 포함: 외부 ID 변경·정렬 변경 때 동일 옵션의 재import 멱등성이 깨진다.
+- review collision에서 첫 option을 선택해 계속 쓰기: source export의 두 variant를 한 SKU에 합치는 되돌림 비용이 크다.
+- SKU 생성 뒤에도 P2-09 metadata를 우선 비교: source별 첫 raw 표기가 장기 canonical SKU 표현을 가리고 versioned key를 raw name과 혼동할 수 있다.
+
+### 변경 파일
+
+- packages/importer/src/sku-mapper.ts
+- packages/importer/src/master-matcher.ts
+- packages/importer/src/index.ts
+- packages/importer/test/sku-mapper.test.mjs
+- tests/integration/sku-mapper.integration.test.mjs
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- unit: NFKC/공백/대소문자 결정성, punctuation/token order 보존, lock key 결정성, option/UUID/재시도 예산 입력 거절 2개 PASS.
+- integration: PostgreSQL 18.6 일회용 DB에서 P2-04→06→09→10 재import가 동일 canonical SKU public ID를 재사용하고 source 가격·재고·raw provenance를 갱신함을 확인했다. normalized collision과 기존 source SKU link conflict는 부분 쓰기 없이 review, MASTER 미연결/option 없음은 skip했다.
+- 최종 `pnpm check` exit 0: Admin Vitest 6개, Node unit 59개, integration 77개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN이므로 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`다.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 P2-10 blocker는 없다. public remote push/CI는 수행하지 않았다.
+- option key 정책은 P2-02 contract가 허용하는 raw whitespace 경계와 현재 표본에만 근거한다. 다차원 option structure, SKU별 identifier 소유권, source별 option 삭제/비활성화 정책은 아직 결정되지 않았다.
+- 임의 SQL writer, 서로 다른 identity로 같은 MASTER에 연결되는 대량 병렬 import, actual source의 option recall/latency는 이번 검증 범위 밖이다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-11 Source Image Registrar 또는 P2-12 pipeline completion state를 구현한다.
+- 금지 변경: identifier 자동 verified, title-only/option fuzzy 병합, P2-09 identity lock namespace 변경, source provenance 삭제, SKU status 자동 ACTIVE 승격, 다른 worktree 수정.
+- 완료 조건: P2-11은 source image revision/idempotency와 object storage 경계를, P2-12는 source/MASTER/SKU/image 단계의 terminal aggregate와 재실행을 실제 PostgreSQL에서 검증한다.
+- 재검토가 필요한 조건: option structured dimensions 또는 SKU-level identifier가 실제 source에 나타나거나, source option 삭제·판매중지의 보존 정책을 도입할 때.

@@ -389,7 +389,11 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
           .execute(),
         database.db
           .selectFrom("app.product_sku")
-          .select(["product_id as productId", "option_key as optionKey"])
+          .select([
+            "product_id as productId",
+            "option_json as optionJson",
+            "option_key as optionKey",
+          ])
           .where("product_id", "in", ids)
           .execute(),
       ]);
@@ -405,14 +409,24 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
             type: identifier.type,
           })),
         masterPublicId: product.masterPublicId,
-        // P2-09 saves source option names before P2-10 has created any SKUs.
+        // P2-09 saves raw source option names before P2-10 exists. Once a SKU
+        // exists, use its retained raw display name rather than the internal
+        // versioned option_key when checking variant overlap.
         optionKeys:
-          Array.isArray(product.metadata.importMatchOptionNames) &&
-          product.metadata.importMatchOptionNames.length > 0
-            ? product.metadata.importMatchOptionNames.filter(
-                (name): name is string => typeof name === "string",
-              )
-            : skuRows.filter((sku) => sku.productId === product.id).map((sku) => sku.optionKey),
+          skuRows.filter((sku) => sku.productId === product.id).length > 0
+            ? skuRows
+                .filter((sku) => sku.productId === product.id)
+                .map((sku) =>
+                  typeof sku.optionJson.rawOptionName === "string"
+                    ? sku.optionJson.rawOptionName
+                    : sku.optionKey,
+                )
+            : Array.isArray(product.metadata.importMatchOptionNames) &&
+                product.metadata.importMatchOptionNames.length > 0
+              ? product.metadata.importMatchOptionNames.filter(
+                  (name): name is string => typeof name === "string",
+                )
+              : [],
         productName: product.productName,
         productNameNorm: product.productNameNorm,
         status: product.status,

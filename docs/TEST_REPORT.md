@@ -335,3 +335,10 @@
 - 초기 실패: 별도 `.worktrees/p5-browser`가 생성되어 루트 Prettier가 다른 checkout의 11개 파일을 검사했다. `.gitignore`와 `.prettierignore`에 `.worktrees/`를 추가한 뒤 해결했다. 다른 checkout의 코드는 수정하지 않았다.
 - 중간 재실행에서 기존 API readiness 초기 50ms probe가 503을 반환해 1개 실패했다. 해당 API test 단독 2개 PASS 및 최종 전체 재실행 PASS; 타이밍 민감 가능성을 남기며 API/test 코드는 변경하지 않았다.
 - 원격 push/CI: NOT_RUN. 구현 상태는 기존 기록 방식대로 `IMPLEMENTED_NOT_VALIDATED`이며 로컬 통과와 구분한다. 실데이터 recall/대량 처리 성능·임의 SQL writer와의 동시성은 이번 검증 범위 밖이다.
+
+## 2026-09-14 — P2-10 SKU Normalizer / Mapper
+
+- 대상: `createSkuMapper.process(itemPublicId)`와 P2-08의 SKU 후 variant 비교 경계.
+- 단위: NFKC/공백/대소문자 결정성, 구두점·토큰 순서 보존, advisory lock key 결정성, 옵션·UUID/재시도 예산 입력 거절 2개 PASS.
+- PostgreSQL 18.6 일회용 DB 통합: P2-04→P2-06→P2-09→P2-10 흐름에서 두 옵션을 생성하고, 같은 source의 더 새 수집본이 NFKC 동등 option을 제공해도 canonical SKU public ID 2개를 재사용하며 price·stock·raw provenance를 source SKU에 갱신함을 확인했다. 같은 normalized option 중복은 partial write 없이 `REVIEW_REQUIRED`이고, MASTER 미연결/option 없음은 안전하게 skip한다.
+- 실행: importer build/typecheck, P2-10 unit 2개, 전용 integration 5개(parent 포함) PASS. 최종 `TEST_DATABASE_URL`을 일회용 PostgreSQL 18.6에 주입한 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 59개, integration 77개(parent 포함), lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.

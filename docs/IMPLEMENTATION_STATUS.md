@@ -28,5 +28,6 @@
 | P2-07 Embedded Identifier Extractor | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-006/007, explicit/raw allowlist extraction·provenance·bounded traversal, 최신 로컬 unit 55개·integration 59개 PASS | 공개 원격 CI PASS 후 상태 확정 |
 | P2-08 MASTER Matcher v1 | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-007, exact/ambiguous/conflict/variant/truncation/evidence unit 및 PostgreSQL read-only discovery PASS, 최종 unit 55개·integration 59개 PASS | 공개 원격 CI PASS 후 상태 확정; P2-09는 로컬 구현 착수 가능 |
 | P2-09 MASTER Creator / Race Control | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-008, identity lock·재조회·원자적 생성/연결·replay·review·retry 통합 12개 시나리오 PASS; 전체 unit 57개·integration 72개 및 pnpm check PASS | 원격 CI 미실행; P2-10 SKU Normalizer / Mapper 로컬 착수 가능 |
+| P2-10 SKU Normalizer / Mapper | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-009, deterministic option key·SKU/source SKU upsert·replay·collision review 및 PostgreSQL 재import 통합 PASS | 원격 CI 미실행; P2-11 이미지 등록 또는 P2-12 pipeline completion 로컬 착수 가능 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.
