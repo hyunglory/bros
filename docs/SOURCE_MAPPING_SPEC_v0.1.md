@@ -191,3 +191,18 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - 강한 후보가 정확히 하나이고 hard conflict와 extraction truncation이 없을 때만 기존 MASTER를 권고한다. 후보 provenance와 기존 identifier public ID를 evidence에 남겨 판단을 재현할 수 있게 한다.
 - resolved brand 불일치, GTIN 계열 값 불일치, 동일 model type 값 불일치, source option과 MASTER option의 명확한 비중첩, inactive MASTER는 hard conflict다. conflict, 강한 후보 복수, 제목/미검증 근거만 존재, `truncated: true`는 모두 `REVIEW_REQUIRED`다.
 - 기존 후보 근거가 없고 resolved brand와 상품 identifier가 있을 때만 `NEW_MASTER_CANDIDATE`를 반환한다. 브랜드 또는 상품 identity 근거가 부족하면 `REVIEW_REQUIRED`다. 신규 후보는 생성 완료 상태가 아니며 P2-09가 identifier lock 안에서 재조회한 뒤 생성 또는 review를 확정해야 한다.
+
+## 14. P2-09 MASTER Creator / Race Control
+
+`createMasterService(database).process(itemPublicId)`는 P2-06을 마친 `SUCCEEDED` import item을 처리한다. batch는 `SUCCEEDED` 또는 `PARTIAL_FAILED`여야 한다. 외부에서 만든 match 결과를 신뢰하지 않고 item의 `mappedInput`·context를 재검증하고 P2-05/P2-07/P2-08을 트랜잭션 내부에서 호출한다.
+
+- 잠금 순서: batch → item → source row → 정렬한 모든 identifier advisory transaction lock → 선택된 MASTER row. `READ COMMITTED`를 명시하고 advisory lock 대기 후 후보를 다시 조회한다. 같은 batch의 item은 집계 보호를 위해 직렬 처리되며 서로 다른 batch는 공유 식별자 범위에서만 직렬화된다.
+- 잠금 key: `BRAND_CODE`를 제외한 각 정규화 식별자를 `JSON.stringify(["bros/master-identity/v1", family, normalizedValue])`로 인코딩하고 SHA-256 선두 8바이트를 signed BIGINT로 해석한다. GTIN/EAN/UPC는 `GTIN` family, 나머지는 원래 type이다. 브랜드를 key에 넣지 않아 같은 번호·다른 브랜드도 재조회에서 충돌로 검출한다. key를 중복 제거하고 BIGINT 오름차순으로 획득한다. 이 namespace는 판단 규칙 버전과 독립이며 후속 identifier writer도 같은 규약을 따라야 한다. hash 충돌은 추가 직렬화만 만들고 identity를 확정하지 않는다.
+- 재시도: lock timeout 기본 1,000ms(1~10,000), 최대 시도 기본 3회(1~5). SQLSTATE 55P03/40P01/40001만 rollback 후 새 transaction에서 25ms × 이전 시도 횟수 대기로 재시도한다. 소진 시 `MASTER_LOCK_RETRY_EXHAUSTED`; 다른 DB 오류는 원문 없이 `MASTER_PERSISTENCE_FAILED`다. commit 응답 유실은 자동 재시도하지 않고 같은 item을 다시 요청해 결과를 확인한다.
+- 신규 생성: resolved brand + 상품 식별자, 기존 후보 없음, 충돌·truncation 없음일 때 `created_method=IMPORT_STRONG_IDENTIFIER`, `status=REVIEW_REQUIRED`, `identifier_status=CANDIDATE`로 생성한다. 식별자는 `is_verified=false`, `evidence_type=SOURCE_EMBEDDED`와 provenance로 저장한다. 전역 identifier UNIQUE를 추가하지 않는다. MASTER·미검증 identifier·Source 연결·item 결과·batch 집계는 모두 함께 commit 또는 rollback된다.
+- 기존 연결: 유일한 strong match를 잠근 뒤 재평가해 `MATCHED`로 연결한다. 기존 `product_id`가 다른 경우 자동 교체하거나 해제하지 않고 `EXISTING_LINK_CONFLICT` 검수로 남긴다. Source `MATCHED`는 제품 연결 상태이며 MASTER 활성화·식별자 검증 승인과 다르다. `match_confidence`는 보정된 점수가 없으므로 NULL이다.
+- 검수/과거 입력: title-only·unknown/evidence 부족·ambiguous·conflict·truncated 결과는 검수다. 한 identity family에 서로 다른 값이 여럿이면 SKU 식별자일 수 있어 기존 match·신규 생성 모두 차단한다. source 시각/상품명/브랜드/raw가 달라진 item은 `SKIPPED/SOURCE_SNAPSHOT_CHANGED`로 처리해 source를 수정하지 않는다. 같은 source·같은 시각의 item 간 explicit identifiers/options가 다르면 `SOURCE_IDENTITY_AMBIGUOUS` 검수다.
+- 이력/멱등성: 원본 envelope를 유지하고 `raw_json.masterCreation`에 stage, brand/extraction 입력, matcher 근거·충돌, public ID 결과, 완료 시각, P2-06의 source action을 저장한다. 같은 item 재호출은 같은 결과를 반환하며 집계를 다시 증가시키지 않는다. 검수 재처리는 새 item으로 수행하고 기존 이력을 덮어쓰지 않는다. batch 종료 상태·finished_at은 P2-06 이력으로 유지하고 terminal item 집계를 SQL로 재계산한다. P2-12는 pipeline 전체 완료 표시를 별도로 통합해야 한다.
+- P2-10 이전 variant 보호: 신규 MASTER metadata의 `importMatchOptionNames`에 원본 옵션명을 보존하며 matcher가 이를 우선 비교한다. 없으면 기존 SKU option_key를 사용한다. P2-10은 정규화 key와 원본 옵션명을 혼동하지 않도록 이 비교 계약을 인수해야 한다. SKU 생성·옵션 표준화는 이 단계에 포함하지 않는다.
+
+동시성 보장은 공유 식별자가 있고 위 잠금 규약을 준수하는 writer 사이에 적용한다. 식별자 교집합이 전혀 없는 동일 상품, 임의 SQL writer, 후보 조회의 실데이터 recall·대량 처리 성능은 별도 검증 대상이다. Resolver 자동승인 설정은 변경하지 않는다.

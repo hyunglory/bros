@@ -2,6 +2,7 @@ AGENTS.md
 doc/
 docs/
 node_modules/
+.worktrees/
 dist/
 coverage/
 tmp/

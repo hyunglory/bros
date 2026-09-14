@@ -1421,3 +1421,65 @@
 - 금지 변경: title-only 자동 연결, truncated/conflict/ambiguous 결과의 자동 처리, global identifier UNIQUE 추가, lock 밖 신규 MASTER 생성, source provenance 폐기.
 - 완료 조건: 동일 strong identifier의 동시 요청이 `pg_advisory_xact_lock` 또는 동등 lock 안 재조회 후 하나의 MASTER로 수렴하고, review 결과는 source/import 상태에 보존되며, lock timeout/retry 및 identifier 없는 유사상품 동시 유입 integration test가 PASS한다.
 - 재검토가 필요한 조건: verified identifier의 전역 소유권 제약을 추가하거나, title/option threshold를 자동승인에 사용하거나, 실제 데이터에서 GTIN type equivalence가 오매칭을 만든다는 증거가 확인될 때.
+
+## DEC-20260914-008 — P2-09 MASTER Creator / Race Control 로컬 구현·검증 완료
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-09 MASTER 생성·Source 연결·race control
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본(세부 모델 ID·추론 수준 미노출)
+- 관련 WBS Task: P2-09, 후속 P2-10/P2-12/P2-16
+- 검토 범위와 근거: AGENTS.md, 운영 지침 v0.3, DEC-20260914-004~007, WBS P2-09, 설계서 14.6~14.8, 구현 보완 명세 2장/5.1, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 14장, 현재 DB schema/P2-04~08 구현.
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260914-007의 P2-09 인수 조건을 구체화한다. P2-08의 기존 strong/conflict 결정은 유지하고 SKU 생성 전 옵션 metadata 조회를 추가한다.
+
+### 확정 결정
+
+- 입력은 P2-06 완료 item public UUID이며 저장한 mappedInput/context를 재검증한다. P2-05/07/08을 transaction 내부에서 호출해 외부 caller가 보낸 match 권고만으로 생성하지 않는다.
+- batch→item→source row lock 후 모든 상품 identity advisory transaction lock을 정렬해서 얻는다. GTIN/EAN/UPC는 같은 family, model은 같은 type 범위이며 BRAND_CODE는 제외한다. 브랜드를 lock key에서 제외해 같은 번호·다른 브랜드도 충돌 평가한다. `bros/master-identity/v1` namespace와 SHA-256 signed BIGINT key 규약은 판단 버전과 독립이다.
+- READ COMMITTED에서 lock 대기 후 재조회하고 선택 MASTER row lock 후 다시 평가한다. 신규 MASTER·미검증 identifier·source link·item 처리 이력·batch terminal 집계는 하나의 transaction이다. 전역 identifier UNIQUE와 새 migration은 추가하지 않는다.
+- 신규 MASTER는 IMPORT_STRONG_IDENTIFIER/REVIEW_REQUIRED/CANDIDATE, identifier는 is_verified=false/SOURCE_EMBEDDED다. source MATCHED는 제품 연결만 의미하며 Resolver 자동승인 설정·식별자 검증 상태를 승격하지 않는다.
+- 같은 item 재요청은 raw_json.masterCreation의 결과를 반환한다. 원본 envelope와 P2-06 source action, 브랜드/추출 입력·match evidence/conflict·provenance를 보존한다. 검수 재처리는 새 item으로 한다.
+- ambiguous/truncated/conflict/title-only/근거 부족은 검수다. 복수 identity 값은 SKU scope가 불명확해 기존 연결·신규 생성 모두 차단한다. 기존 다른 product_id는 보존한다. 오래된 source snapshot은 skip하고 동일 시각의 explicit identifiers/options 충돌은 검수한다.
+- lock timeout 기본 1초·3회 시도이며 55P03/40P01/40001만 새 transaction에서 bounded retry한다. 다른 DB 오류의 원문은 노출하지 않고 commit 응답 불명확 시 동일 item 재호출로 복구한다.
+- P2-06 batch 종료 이력은 유지하고 P2-09 item 결과에 맞춰 terminal 집계를 SQL로 재계산한다. pipeline 전체 완료의 표시·집계 통합은 P2-12가 인수한다. 신규 MASTER의 원본 옵션 metadata는 P2-10 전 variant 검수 근거다.
+- 별도 P5 worktree가 작업 중 생성된 것을 확인했다. 현재 checkout의 검사가 다른 checkout에 영향을 받지 않도록 `.worktrees/`만 Git·Prettier 제외 경로로 추가했다.
+
+### 기각한 선택지와 이유
+
+- lock 이전 matcher 결과로 생성: 대기 중 다른 transaction의 신규 MASTER를 놓친다.
+- 첫 identifier 하나만 잠금: 교집합이 있는 복수 identifier의 순서가 다르면 중복 생성 가능성이 있다.
+- 신규 식별자를 verified로 저장: source 추출 근거를 승인으로 오인한다.
+- 기존 연결 교체·검수 자동 병합: 기존 매핑과 variant/brand 검수 경계를 훼손한다.
+- terminal batch를 RUNNING으로 회귀: 기존 P2-06 완료 이력을 덮어쓴다.
+- 다른 worktree의 포맷 수정 또는 API의 50ms 제한 완화: P2-09 변경과 무관한 동시 작업/검증 계약에 영향을 준다.
+
+### 변경 파일
+
+- packages/importer/src/master-service.ts
+- packages/importer/src/master-matcher.ts
+- packages/importer/src/index.ts
+- packages/importer/test/master-service.test.mjs
+- tests/integration/master-service.integration.test.mjs
+- .gitignore, .prettierignore
+- docs/SOURCE_MAPPING_SPEC_v0.1.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/DECISIONS.md
+
+### 검증 증거
+
+- 실제 PostgreSQL 18.6 일회용 컨테이너에서 전용 통합 12개 시나리오(부모 포함 13개) PASS. 실제 lock 대기의 transaction 변경을 관찰하여 rollback/retry를 검증했고 강제 DB 실패 후 부분 쓰기가 없음을 확인했다.
+- 최종 `pnpm check` exit 0: Admin 6개, Node unit 57개, integration 72개, fail/skip 0개 및 lint/typecheck/format/build PASS. `git diff --check` PASS.
+- 초기 포맷 범위 실패와 중간 API readiness 타이밍 실패는 TEST_REPORT P2-09에 기록했다. API 단독 재현 및 최종 전체 검사는 통과했다.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN이므로 구현 현황은 IMPLEMENTED_NOT_VALIDATED.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 P2-09 blocker 없음. 공개 원격 push/CI는 수행하지 않았다.
+- 모든 MASTER/identifier writer가 동일 잠금 규약을 준수해야 한다. 임의 SQL, 공유 identifier가 없는 중복 상품, 운영 규모에서의 recall/성능은 보장하지 않는다.
+- P2-12에서 P2-06 source 단계 완료와 MASTER/SKU/image를 포함한 전체 pipeline 완료를 통합해야 한다. P2-10은 원본 옵션 metadata와 정규화 SKU key의 비교 경계를 인수한다.
+- 기존 API readiness test의 50ms 초기 연결 검증은 타이밍 민감 가능성이 있다. 재발 시 별도 test-harness 작업으로 다룬다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-10 SKU Normalizer / Mapper의 deterministic option_key·option_json·source_sku 연결과 재import 멱등성.
+- 금지 변경: identifier 자동 verified, title-only 병합, advisory lock namespace 무단 변경, 검수 결과 자동 승격, 기존 link/provenance 폐기, global identifier UNIQUE, 다른 worktree 코드 수정.
+- 완료 조건: 동일 옵션의 재import가 동일 SKU에 연결되고 MASTER/SKU 소유권·옵션 충돌·원본 순서와 provenance 보존을 실제 PostgreSQL에서 검증한다. P2-09 메타데이터와 SKU 표준화 결과의 비교가 일관되어야 한다.
+- 재검토가 필요한 조건: 상품 identifier를 SKU scope로 이동하거나 신규 writer를 추가하거나 lock namespace를 변경할 때. brand/title/variant 자동 판정 확대는 근거 데이터와 새 결정이 필요하다.

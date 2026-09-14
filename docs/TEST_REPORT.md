@@ -324,3 +324,14 @@
 - unit: unique verified GTIN exact, ambiguous exact, exact+GTIN conflict, exact+model conflict, similar title/different variant, truncated extraction, new candidate, insufficient evidence의 8개 matcher 시나리오 PASS.
 - PostgreSQL integration: 실제 baseline/pg_trgm에서 source GTIN과 verified EAN의 계열 exact 후보를 찾고 provenance·public identifier evidence를 반환하며 `source_product`를 쓰지 않음을 확인했다.
 - 전체 결과: 최종 근거 규칙 직전 로컬 `pnpm check` PASS — Admin Vitest 6개, Node unit 54개, integration 59개, fail/skip 0개. 최종 변경 후 전체 unit을 다시 실행해 Admin 6개·Node 55개 PASS했고 importer lint/typecheck/build도 PASS했다. 원격 CI는 이번 공개 전송 미승인으로 NOT_RUN이므로 구현 상태는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.
+
+## 2026-09-14 — P2-09 MASTER Creator / Race Control
+
+- 대상: `createMasterService.process(itemPublicId)`의 READ COMMITTED transaction, identity advisory lock, lock 후 P2-08 재조회, atomic MASTER/identifier/source/item/batch 쓰기.
+- 단위 검증: GTIN/EAN/UPC lock 동등성, model type 분리, BRAND_CODE 제외, 입력 순서 무관 lock 순서, 옵션 범위·public UUID 입력 거절 2개 PASS.
+- 실제 PostgreSQL 18.6 통합 12개 시나리오 PASS(부모 test 포함 13개): 별도 batch 4개 동시 요청의 MASTER 1개 수렴/GTIN label 교차, 같은 item 4회 동시 replay, 역순 복수 identifier lock, 기존 링크 보존, 같은 시각·다른 explicit identifier 검수, identifier 없는 유사상품 검수/집계, SKU 전 옵션 충돌/브랜드 충돌, ambiguous master/truncation/복수 identity 검수, stale source skip, item update 강제 실패의 전체 rollback/재실행, lock 재시도 소진과 재호출, 실제 서로 다른 transaction의 lock 대기를 관찰한 뒤 해제하는 자동 retry.
+- source 입력은 synthetic fixture만 사용했다. 신규 identifier는 미검증 상태이며 provenance, public ID, 원본 mappedInput 및 처리 이력을 확인했다. 운영 DB·실제 XLSX를 변경하지 않았다.
+- 전체 `pnpm check` 최종 exit 0: Admin Vitest 6개, Node unit 57개, integration 72개, fail/skip 0개; lint/typecheck/format/build PASS.
+- 초기 실패: 별도 `.worktrees/p5-browser`가 생성되어 루트 Prettier가 다른 checkout의 11개 파일을 검사했다. `.gitignore`와 `.prettierignore`에 `.worktrees/`를 추가한 뒤 해결했다. 다른 checkout의 코드는 수정하지 않았다.
+- 중간 재실행에서 기존 API readiness 초기 50ms probe가 503을 반환해 1개 실패했다. 해당 API test 단독 2개 PASS 및 최종 전체 재실행 PASS; 타이밍 민감 가능성을 남기며 API/test 코드는 변경하지 않았다.
+- 원격 push/CI: NOT_RUN. 구현 상태는 기존 기록 방식대로 `IMPLEMENTED_NOT_VALIDATED`이며 로컬 통과와 구분한다. 실데이터 recall/대량 처리 성능·임의 SQL writer와의 동시성은 이번 검증 범위 밖이다.

@@ -1,5 +1,5 @@
 import type { SourceIdentifierType, SourceOptionInput } from "@bros/contracts";
-import type { DatabaseClient } from "@bros/db";
+import type { DatabaseClient, JsonObject } from "@bros/db";
 import { sql } from "kysely";
 
 import type { BrandNormalizationResult } from "./brand-normalizer.js";
@@ -299,6 +299,7 @@ interface ProductRow {
   productNameNorm: string;
   status: "ACTIVE" | "INACTIVE" | "REVIEW_REQUIRED";
   titleSimilarity: number;
+  metadata: JsonObject;
 }
 
 export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
@@ -335,6 +336,7 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
             "app.product_master.product_name as productName",
             "app.product_master.product_name_norm as productNameNorm",
             "app.product_master.status as status",
+            "app.product_master.metadata_json as metadata",
             "app.brand.public_id as brandPublicId",
             titleSimilarity.as("titleSimilarity"),
           ])
@@ -360,6 +362,7 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
             "app.product_master.product_name as productName",
             "app.product_master.product_name_norm as productNameNorm",
             "app.product_master.status as status",
+            "app.product_master.metadata_json as metadata",
             "app.brand.public_id as brandPublicId",
             titleSimilarity.as("titleSimilarity"),
           ])
@@ -402,9 +405,14 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
             type: identifier.type,
           })),
         masterPublicId: product.masterPublicId,
-        optionKeys: skuRows
-          .filter((sku) => sku.productId === product.id)
-          .map((sku) => sku.optionKey),
+        // P2-09 saves source option names before P2-10 has created any SKUs.
+        optionKeys:
+          Array.isArray(product.metadata.importMatchOptionNames) &&
+          product.metadata.importMatchOptionNames.length > 0
+            ? product.metadata.importMatchOptionNames.filter(
+                (name): name is string => typeof name === "string",
+              )
+            : skuRows.filter((sku) => sku.productId === product.id).map((sku) => sku.optionKey),
         productName: product.productName,
         productNameNorm: product.productNameNorm,
         status: product.status,
