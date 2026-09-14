@@ -83,7 +83,9 @@ test(
         const names = (
           await fixture.client.query("SELECT name FROM bros_queue.queue ORDER BY name")
         ).rows.map((value) => value.name);
-        assert.deepEqual(names, [...queueNames].sort());
+        // pg-boss Timekeeper creates this provider-owned queue when scheduling starts.
+        const applicationNames = names.filter((name) => name !== "__pgboss__send-it");
+        assert.deepEqual(applicationNames.sort(), [...queueNames].sort());
         await assert.rejects(producer.publish("unknown", payload), /Unknown queue/);
         await assert.rejects(
           producer.publish("system.test", { ...payload, secret: "must-not-store" }),

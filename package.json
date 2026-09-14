@@ -28,6 +28,7 @@
     "test": "pnpm test:unit && pnpm test:integration",
     "test:integration": "pnpm build && node scripts/run-tests.mjs integration",
     "verify:r2-staging": "pnpm build && node scripts/verify-r2-staging.mjs",
+    "verify:public-staging": "pnpm build && node scripts/verify-public-staging.mjs",
     "test:unit": "pnpm run build:packages && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },

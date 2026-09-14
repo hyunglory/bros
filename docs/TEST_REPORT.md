@@ -415,3 +415,14 @@
 - PostgreSQL 18.6 disposable DB의 terminal Browser run 3개 artifact에서 hold 중 trace 1개 보존·screenshot/result 2개 삭제, hold release 뒤 trace 1개 삭제를 확인했다. audit event 순서는 `HOLD_SET`, `DELETED`, `DELETED`, `HOLD_RELEASED`, `DELETED`였고 삭제 event는 `provider=R2`와 실제 bucket을 기록했다.
 - 최초 진단용 PostgreSQL 16은 baseline의 `uuidv7()` 부재로 `42883`이 발생했다. 저장소 고정 이미지인 PostgreSQL 18.6으로 교체한 뒤 migration과 전체 R2 검증이 PASS했다. 실제 생성된 artifact 3개는 모두 삭제 확인했고 고유 test DB와 `--rm` 컨테이너를 제거했다. 24시간 검증 token도 Cloudflare에서 폐기했으며 private staging bucket은 유지했다.
 - 품질: `pnpm build`, 검증 스크립트 `node --check`와 Prettier check PASS. root `pnpm format:check`는 이번 범위와 무관한 Admin 기존 11개 파일과 함께 FAIL했으며, 전체 integration suite·remote CI·public HTTPS/DNS/firewall staging은 NOT_RUN이다.
+
+## 2026-09-15 — P6-10 Public Docker/HTTPS Staging
+
+- 상세 실행 경로·증거·재실행·제약은 [P6-10 staging 보고서](P6_10_STAGING.md), 결정은 DEC-20260915-002를 따른다. 공개 HTTPS는 Cloudflare Quick Tunnel의 TLS edge를 사용했다. custom-domain Linux VM의 DNS/host firewall/Caddy ACME 발급 검증은 NOT_RUN이다.
+- 공개 DNS 주소 2개, hostname/신뢰 체인 검사를 적용한 TLS 1.3, 전체 비인증 401·잘못된 Basic Auth 401, 인증 Admin/readiness 200, 위조 actor/proxy token의 정확한 값 교체·upstream Authorization 제거, 다른 Origin 변경 요청 403을 확인했다. 공개 3000 접근 거부, host port 미게시, edge network에서 loopback API/진단 및 internal DB 직접 연결 실패를 확인했다.
+- disposable PostgreSQL 18.6 migration, pg-boss 접수, Linux Worker 실제 Chromium 실행이 SUCCESS/completed로 종료됐다. private R2의 PNG/ZIP/JSON에 대해 authorized 300초 preview, HTTP 200, MIME/파일 signature/실제 SHA-256 metadata 일치와 unsigned GET 거부를 확인했다. Admin Browser 실행 UI/HTTP enqueue 검증은 범위에 포함하지 않았다.
+- API와 namespace dependent Caddy를 동시에 restart하면 OCI 오류가 발생했다. dependent service stop → API/Worker restart → dependent service recreate 순서로 수정한 뒤 같은 공개 E2E가 다시 PASS했다. Worker R2 egress와 Caddy readiness route도 실제 실패 근거로 보완했다.
+- 노출 토큰을 폐기하고 단일 private bucket의 Object Read & Write/24시간 교체 토큰으로 검증했다. loopback 수신→process environment 전달에 값의 대화/파일/명령행 출력을 사용하지 않았으나 Docker environment metadata에는 값이 보유된다. 검증 후 교체 토큰, helper, 테스트 컨테이너/DB/network를 제거했다. 최종 bucket은 private/empty이며 이번 검증의 테스트 파일은 복구 불가하게 삭제했다.
+- 자동 DELETE/GET 부재 확인은 run별 final/trace/result 3개였다. 잔여 start.png 6개는 정확한 이번 run prefix로 확인해 dashboard에서 삭제했다. 검증기의 start.png 정리 보완은 문법/lint 검증만 수행했으며 실제 R2 재실행은 NOT_RUN이다. 운영 retention inventory의 start.png 누락은 별도 P6-05 보완 사항이다.
+- Node unit 103개, Admin Vitest 13개, Linux 전체 integration 25파일/110개 PASS(실제 POSIX 종료/crash, pg-boss redelivery, 1k import 포함). 일반 실행기의 Vite 잔여 handle로 최종 Linux 통합은 `--test-force-exit --test-timeout=120000`을 사용했다. 일반 `pnpm test:integration` 종료 안정성은 PASS로 판정하지 않는다. 기존 인증/pg-boss 내부 큐 기대값을 현재 구현 계약에 맞췄으며 업무 구현을 완화하지 않았다.
+- API/Worker/edge Docker build, 전체 ESLint 및 변경 스크립트 문법 검증 PASS. remote CI, 기존 Admin formatting drift, P6-02/P6-06 및 custom-domain native deployment 검증이 남아 있으므로 P6-10 전체 상태는 `IMPLEMENTED_NOT_VALIDATED`다.

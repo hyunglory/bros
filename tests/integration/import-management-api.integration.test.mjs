@@ -216,6 +216,7 @@ test("P2-14 business API stays disabled without explicit loopback mode", async (
   const runtime = createApiApp(config, quietLogger());
   t.after(() => runtime.close());
   const response = await runtime.app.inject("/api/v1/import-batches");
-  assert.equal(response.statusCode, 503);
-  assert.equal(response.json().error.code, "BUSINESS_API_DISABLED");
+  // P6-01 rejects unauthenticated business requests before route availability.
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error.code, "AUTHENTICATION_REQUIRED");
 });

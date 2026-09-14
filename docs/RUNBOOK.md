@@ -350,3 +350,9 @@ caddy validate --config ops/Caddyfile --adapter caddyfile
 ```
 
 브라우저 demo job은 `handler_key=demo.browser`, `profile_key` 및 `{ "mode": "success" | "failure" }` config를 가진 BROWSER automation job으로 등록한다. Worker의 `browser.run` handler는 public run ID만 큐에 보내고 `automation_run`에 receipt·status·attempt·안전한 error code와 artifact key를 남긴다. artifact는 14일 보존 metadata와 함께 ObjectStorage에 기록된다. `STORAGE_DRIVER=r2`에서는 private R2 bucket과 host-injected secret이 준비된 경우 동일한 Worker/preview 경로가 R2 adapter를 사용한다.
+
+## P6-10 Docker/HTTPS staging
+
+운영 구성은 `compose.production.yml`, 임시 public Quick Tunnel 검증은 `compose.public-staging.yml`을 사용한다. 실제 검증 결과, secret 주입 범위, 안전한 API/Caddy 재시작 순서와 teardown은 [P6-10 staging 보고서](P6_10_STAGING.md)를 따른다. 공유 network namespace 때문에 API와 Caddy를 동시에 restart하지 않는다. API 재시작 후 Caddy를 recreate한다.
+
+주의: 현재 운영 retention 후보는 screenshot/trace/result에 한정되어 demo의 `start.png`가 누락된다. P6-05 artifact inventory 보완 전까지 start evidence 자동 정리를 완료된 것으로 판단하지 않는다.

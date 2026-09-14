@@ -1,12 +1,22 @@
 {
-	email {$BROS_ACME_EMAIL}
+	admin off
+	auto_https off
 }
 
-{$BROS_PUBLIC_HOST} {
+:8080 {
 	encode zstd gzip
 
 	basic_auth {
 		{$BROS_ADMIN_USERNAME} {$BROS_ADMIN_PASSWORD_HASH}
+	}
+
+	@identity path /__staging/identity
+	handle @identity {
+		reverse_proxy 127.0.0.1:{$BROS_IDENTITY_PORT} {
+			header_up -Authorization
+			header_up X-BROS-Actor "{http.auth.user.id}"
+			header_up X-BROS-Proxy-Token "{$BROS_PROXY_AUTH_TOKEN}"
+		}
 	}
 
 	@api path /api/* /health /ready

@@ -1,0 +1,156 @@
+name: bros-production
+
+x-runtime-environment: &runtime-environment
+  APP_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER:-bros}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bros}
+  DB_POOL_MAX: ${DB_POOL_MAX:-8}
+  DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-5000}
+  DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
+  DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-30000}
+  API_HOST: 127.0.0.1
+  API_PORT: 3000
+  API_PUBLIC_ORIGIN: https://${BROS_PUBLIC_HOST:?Set BROS_PUBLIC_HOST}
+  API_PROXY_AUTH_TOKEN: ${BROS_PROXY_AUTH_TOKEN:?Set BROS_PROXY_AUTH_TOKEN}
+  API_LOCAL_UNAUTHENTICATED: "false"
+  API_READINESS_TIMEOUT_MS: ${API_READINESS_TIMEOUT_MS:-1000}
+  API_SHUTDOWN_TIMEOUT_MS: ${API_SHUTDOWN_TIMEOUT_MS:-10000}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+  WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-15000}
+  IMPORT_CHUNK_SIZE: ${IMPORT_CHUNK_SIZE:-100}
+  IMPORT_CONCURRENCY: ${IMPORT_CONCURRENCY:-2}
+  IMPORT_MAX_QUEUED_BATCHES: ${IMPORT_MAX_QUEUED_BATCHES:-32}
+  STORAGE_DRIVER: r2
+  STORAGE_R2_ENDPOINT: ${STORAGE_R2_ENDPOINT:?Set STORAGE_R2_ENDPOINT}
+  STORAGE_R2_BUCKET: ${STORAGE_R2_BUCKET:?Set STORAGE_R2_BUCKET}
+  BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID: ${BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID:?Set R2 access key}
+  BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY: ${BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY:?Set R2 secret key}
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bros}
+      POSTGRES_USER: ${POSTGRES_USER:-bros}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  migrate:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+      target: api
+    restart: "no"
+    environment: *runtime-environment
+    command: ["node", "scripts/migrate.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+      target: api
+    restart: unless-stopped
+    environment: *runtime-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "${BROS_HTTP_BIND:-0.0.0.0}:${BROS_HTTP_PORT:-80}:80"
+      - "${BROS_HTTPS_BIND:-0.0.0.0}:${BROS_HTTPS_PORT:-443}:443"
+    networks:
+      - backend
+      - egress
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  edge:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+      target: edge
+    restart: unless-stopped
+    environment:
+      BROS_PUBLIC_HOST: ${BROS_PUBLIC_HOST:?Set BROS_PUBLIC_HOST}
+      BROS_ACME_EMAIL: ${BROS_ACME_EMAIL:?Set BROS_ACME_EMAIL}
+      BROS_API_PORT: 3000
+      BROS_ADMIN_USERNAME: ${BROS_ADMIN_USERNAME:?Set BROS_ADMIN_USERNAME}
+      BROS_ADMIN_PASSWORD_HASH: ${BROS_ADMIN_PASSWORD_HASH:?Set BROS_ADMIN_PASSWORD_HASH}
+      BROS_PROXY_AUTH_TOKEN: ${BROS_PROXY_AUTH_TOKEN:?Set BROS_PROXY_AUTH_TOKEN}
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  worker:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+      target: worker
+    restart: unless-stopped
+    environment: *runtime-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+    shm_size: 512mb
+    networks:
+      - backend
+      - egress
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
+    internal: true
+  egress:

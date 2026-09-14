@@ -2026,3 +2026,59 @@
 - 금지 변경: R2 bucket public-read, broad/long-lived credential, secret·presigned URL 로그/DB 저장, client actor/token 신뢰, source original/approved thumbnail 자동 삭제, current adapter 외 historical provider object 무단 삭제.
 - 완료 조건: public staging의 401/spoofed-header overwrite/direct-port 차단, authenticated R2 preview와 durable Browser run을 확인하고 전체 integration 및 required remote CI가 PASS한다.
 - 재검토가 필요한 조건: custom domain delivery, direct client upload, provider-native legal hold, bucket/provider migration, multi-region storage 또는 key rotation without restart 요구가 생길 때.
+
+## DEC-20260915-002 — P6-10 Public Docker/HTTPS E2E와 검증 토큰 교체·폐기
+
+- 일자: 2026-09-15
+- 종료 단계/분야: Phase 6 공개 Quick Tunnel staging의 Docker/Caddy 인증·DB/Queue/Browser/R2 E2E, 재시작 복구 및 보안 정리
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-10, P6-01, P6-04, P6-05, P5-06, P5-10
+- 검토 범위와 근거: AGENTS.md, 개발 운영 구성 지침, DEC-20260914-014/015/016/017, DEC-20260915-001, `ops/Caddyfile`, API 인증·artifact preview 경계, Worker durable 실행·retention 구현, pg-boss Timekeeper 내부 큐, 실제 Cloudflare dashboard·Docker·PostgreSQL·Chromium 실행, `docs/P6_10_STAGING.md`
+- 상태: ACCEPTED
+- supersedes: DEC-20260915-001의 public HTTPS 및 전체 integration NOT_RUN 상태 중 이번 Quick Tunnel E2E와 명시한 Linux 회귀 범위만 대체한다. native Caddy certificate issuance, custom-domain VM/host firewall, remote CI 미검증 상태와 기존 보안·보존 계약은 유지한다.
+
+### 확정 결정
+
+- 공개 검증 경로는 Cloudflare TLS edge → outbound Quick Tunnel → Caddy Basic Auth → loopback API다. disposable PostgreSQL/pg-boss에서 접수한 고유 demo job을 실제 Linux Worker/Chromium으로 실행하고 private R2 evidence를 authenticated API의 300초 signed preview로 확인했다. Admin 수동 Browser 실행 UI/HTTP enqueue는 검증하지 않았다.
+- production compose는 one-shot migration, internal PostgreSQL, loopback API와 network namespace를 공유하는 Caddy, 별도 outbound egress를 사용한다. production의 80/443 published port는 Caddy listener용이며 staging은 host port를 게시하지 않는다. 이 구현과 Quick Tunnel PASS가 실제 VM firewall·Caddy ACME 발급 PASS를 의미하지 않는다.
+- Caddy의 `/health`·`/ready`를 API route로 포함한다. client actor/token은 삭제 후 인증 username/host token으로 교체하며 upstream Authorization을 제거한다. 공개 hostname에서 비인증·위조 identity·다른 Origin·direct-port 경계를 검증했다.
+- API namespace를 공유하는 dependent service의 동시 restart는 사용하지 않는다. dependent stop → API/Worker restart → dependent recreate 순서로 재시작 후 동일 E2E PASS를 확인했다.
+- 노출된 기존 토큰은 먼저 폐기했다. 교체 토큰은 `bros-p6-staging-artifacts` 단일 bucket Object Read & Write, 24시간 TTL로 한정하고 검증 직후 폐기했다. loopback 수신→process environment 주입을 사용했으며 교체 값은 대화·저장소·명령행·`.env`에 기록하지 않았다. Docker environment metadata에 값이 보유되는 한계가 있어 엄밀한 Docker/OS 전체 memory-only storage를 충족했다고 판정하지 않는다. 모든 검증용 container/DB/network와 helper를 제거했으며 production secret hardening은 P6-02로 남긴다.
+- final/trace/result 자동 삭제 후 발견한 이번 run들의 start.png 6개도 정확한 key를 확인해 삭제했다. 최종 bucket은 empty/private로 유지한다. 검증기에 start.png 정리를 추가했지만 실제 R2 재검증은 토큰 폐기 후 수행하지 않았다. 운영 retention의 start.png inventory 누락은 확인된 후속 P6-05 문제이며 기존 hold 정책을 이번 작업에서 확대하지 않았다.
+- P6-10 전체는 `IMPLEMENTED_NOT_VALIDATED`다. 공개 tunnel E2E와 재시작 복구는 PASS, Linux 통합 assertion은 force-exit 조건부 PASS로 구분한다.
+
+### 기각한 선택지와 이유
+
+- Cloudflare account 전체 bucket/장기 credential 또는 bucket public-read 사용: 검증에 필요한 권한을 넘어 기존 private preview 경계를 훼손하므로 기각했다.
+- 계정에 zone이 없는 상태에서 도메인 구매·영구 DNS 임의 변경: 승인된 임시 검증 범위에 포함하지 않았다.
+- Quick Tunnel 결과로 native TLS 발급·실제 VM의 전체 firewall 검증 완료 판정: TLS termination 및 네트워크 경로가 다르므로 기각했다.
+- API와 namespace dependent service 동시 restart: 실제 OCI namespace 오류로 기각하고 순차 recreate를 검증했다.
+- Vite 잔여 handle을 숨기거나 전체 회귀를 무조건 PASS로 기록: 종료 안정성과 assertion 결과를 구분하기 위해 사용 옵션과 미해결 사항을 명시했다.
+- start.png 누락을 bucket 전체 삭제나 운영 cleanup prefix 확대만으로 처리: unrelated object/hold ownership을 침범할 수 있어 이번 테스트 key만 정리하고 운영 보완을 별도 인수 범위로 남겼다.
+
+### 변경 파일
+
+- `.dockerignore`, `compose.production.yml`, `compose.public-staging.yml`, `ops/Dockerfile`, `ops/Caddyfile`, `ops/Caddyfile.public-staging`
+- `package.json`, `scripts/verify-public-staging.mjs`, `scripts/staging-identity-server.mjs`
+- `tests/integration/production-deployment.integration.test.mjs`, `tests/integration/import-management-api.integration.test.mjs`, `tests/integration/queue.integration.test.mjs`
+- `docs/P6_10_STAGING.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/RUNBOOK.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: Cloudflare token scope/TTL·기존/교체 token 폐기·bucket empty/private 확인; Docker build 및 Caddy config validate; `node scripts/verify-public-staging.mjs`의 공개 E2E와 순차 restart 뒤 반복; Docker port binding 및 edge-network TCP probe; `node scripts/run-tests.mjs unit`; Admin `node node_modules/vitest/vitest.mjs run`; Linux PostgreSQL/Chromium의 `node --test --test-force-exit --test-timeout=120000` 전체 integration; 전체 ESLint 및 변경 스크립트 문법 검사.
+- 결과: 공개 DNS 2개/TLS 1.3, 401/403/identity overwrite, Admin/readiness 200, internal-port 격리, durable Chromium SUCCESS/completed, private R2 PNG/ZIP/JSON preview와 SHA-256·unsigned 거부, 재시작 반복 E2E PASS. Node unit 103개·Admin 13개·Linux integration 25파일/110개 PASS. Linux 최초 명세 fixture mount 누락은 수정 후 재실행 PASS다. 일반 runner Vite 잔여 handle은 미해결이며 root 전체 format/remote CI PASS를 주장하지 않는다. 마지막 start.png 정리 코드의 real R2 재실행은 NOT_RUN이다.
+- 정리: 기존·교체 토큰 목록 부재 확인, 검증용 artifact 삭제 및 최종 empty/private bucket 확인, scoped disposable Docker/DB/network 제거. 테스트 파일은 복구 불가이며 staging bucket과 기존 unrelated 환경은 유지했다.
+
+### 미해결 사항 및 Blocker
+
+- 실제 custom-domain Linux VM, DNS/host firewall 80·443/direct API 차단과 Caddy ACME 발급은 NOT_RUN이다. Quick Tunnel은 검증 후 종료했으며 지속 staging endpoint가 아니다.
+- P6-02 secret/profile hardening, P6-06 backup, remote CI 및 기존 Admin 11개 파일 format drift가 남는다.
+- P6-05 운영 retention은 DB의 screenshot/trace/result만 열거하므로 실제 demo의 start.png가 누락된다. artifact inventory와 hold/delete audit를 함께 보완해야 한다.
+- 일반 전체 integration runner는 Vite 잔여 handle로 종료되지 않는다. 최종 Linux PASS에는 명시적 force-exit 옵션을 사용했다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 우선 P6-05 start.png의 durable inventory/hold/cleanup을 기존 소유권 경계 안에서 보완하고 회귀 검증한다. 이후 P6-02/P6-06 및 승인된 custom-domain VM staging과 remote CI를 진행한다. 일반 test runner 종료 문제는 별도 검증 안정성 작업이다.
+- 금지 변경: source original/approved thumbnail 자동 삭제, bucket-wide 임의 삭제, hold 무시, bucket public-read, broad/long-lived credential, secret·signed URL 로그/DB 저장, client actor/token 신뢰, unrelated worktree/환경 변경, 승인 없는 domain 구매·영구 인프라 변경.
+- 완료 조건: start/final(or failure)/trace/result의 정확한 inventory 및 active hold 보존·release 뒤 삭제·append-only audit·replay를 disposable 환경에서 증명한다. 실제 R2 재검증 시 새 scoped token을 안전하게 주입하고 끝나면 token/fixture를 정리한다. P6-10 전체 PASS는 native-domain TLS/host firewall, secret/backup 준비와 required CI 증거를 별도로 충족해야 한다.
+- 재검토가 필요한 조건: inventory schema/retention 대상 또는 hold 의미 변경, provider migration, production secret injection 방식 변경, namespace topology 변경, custom domain·VM 배포 권한이 새로 제공될 때.
