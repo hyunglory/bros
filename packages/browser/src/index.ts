@@ -2,6 +2,14 @@ import { corePackageName } from "@bros/core";
 import { chromium } from "playwright";
 import type { LaunchOptions } from "playwright";
 
+export { createSessionManager, SessionManagerError } from "./session-manager.js";
+export type {
+  PersistentContextLauncher,
+  ProfileSessionRequest,
+  ProfileSessionResult,
+  SessionManager,
+} from "./session-manager.js";
+
 export const browserPackageName = "@bros/browser" as const;
 export const browserWorkspaceDependencies = [corePackageName] as const;
 
