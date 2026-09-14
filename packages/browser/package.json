@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@bros/core": "workspace:*",
+    "@bros/storage": "workspace:*",
     "playwright": "1.63.0"
   }
 }

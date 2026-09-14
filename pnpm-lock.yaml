@@ -126,6 +126,9 @@ importers:
       '@bros/core':
         specifier: workspace:*
         version: link:../core
+      '@bros/storage':
+        specifier: workspace:*
+        version: link:../storage
       playwright:
         specifier: 1.63.0
         version: 1.63.0

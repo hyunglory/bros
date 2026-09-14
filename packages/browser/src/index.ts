@@ -32,6 +32,16 @@ export {
   createBrowserRetryPolicy,
   mapBrowserError,
 } from "./error-taxonomy.js";
+export { BrowserArtifactServiceError, createBrowserArtifactService } from "./artifact-service.js";
+export { browserArtifactKinds } from "./artifact-service.js";
+export type {
+  BrowserArtifactKind,
+  BrowserArtifactPreviewAuthorization,
+  BrowserArtifactResultInput,
+  BrowserArtifactRun,
+  BrowserArtifactService,
+  StoredBrowserArtifact,
+} from "./artifact-service.js";
 export type {
   BrowserErrorCode,
   BrowserErrorMapper,
