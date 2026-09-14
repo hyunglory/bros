@@ -1779,3 +1779,62 @@
 - 금지 변경: Import raw/queue receipt 공개, 완료 item 초기화, MASTER/source/SKU/image identity 재해석, 자동승인 기본 OFF 변경, 인증 없는 non-loopback 업무 route, 별도 P5 worktree 수정.
 - 완료 조건: 하나의 MASTER에서 모든 연결 근거를 public UUID로 추적하고, missing relation과 concurrent expectedVersion conflict를 포함한 API/UI 검증 및 전체 회귀가 통과한다.
 - 재검토가 필요한 조건: P2-15 수정 대상 필드가 기존 version_no만으로 원자적 CAS를 표현하지 못하거나, P2-16 alias 승인과 MASTER 수정이 하나의 transaction/화면으로 결합되어야 할 때.
+
+## DEC-20260914-014 — P2-15 MASTER 상품관리 공개 관계와 versioned 기본정보 수정 확정
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-15 MASTER 상품 목록·상세·안전 수정 API와 Admin UI 구현·로컬 검증
+- 작성 모델/추론 수준: GPT-6 기반 Codex / 시스템 설정(정확한 추론 수준 미노출)
+- 관련 WBS Task: P2-15, 후속 P2-16/Phase 2 Gate/P6-01
+- 검토 범위와 근거: AGENTS.md, WBS P2-15~16 및 Phase 2 Gate, 구현 보완 명세 2.1~2.2/3.1~3.2, 설계서 12.4~12.9/21.2/22.3, DEC-20260914-008~013, 현재 baseline schema·MASTER/SKU/Image importer·Fastify/Admin 구현.
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-013의 P2-15 인수 조건을 완료한다. P2-14의 local 인증 fence, Import raw/receipt 비공개, 완료 item 불변성과 P2-09~11 identity 결정은 유지한다.
+
+### 확정 결정
+
+- `GET /api/v1/products`는 `(created_at,public_id)` 내림차순 opaque cursor, 기본 limit 50/최대 100을 사용한다. 정렬 입력은 받지 않고 MASTER status, Identifier status, 브랜드, Source, 상품명/Identifier 값만 allowlist filter로 허용한다. 상품명 검색은 기존 `product_name_norm`과 pg_trgm 인덱스에 맞춘 NFKC/공백/case 정규화를 사용한다.
+- `GET /api/v1/products/:publicId`는 MASTER에서 Brand, 표준 SKU, Identifier, Source Product, Source SKU, 원본 Image까지 공개 UUID로 추적한다. 관계가 없으면 오류나 추정값 대신 null/빈 배열을 반환한다. Source match 상태와 표준 SKU 연결 여부를 별도로 보여준다.
+- 응답에서 BIGINT PK/FK, MASTER metadata, Source/Source SKU raw, Identifier evidence, image metadata와 storage provider/bucket/object key/hash를 제외한다. 저장 여부와 안전한 표시 필드만 반환하며 Admin은 외부 이미지를 자동 inline fetch하지 않고 명시적 링크로 연다.
+- PATCH 허용 필드는 `productName`, `categoryKey`, `productType`, `status`다. 브랜드 재연결은 P2-16, Identifier 값과 검증 상태는 Phase 3 검수 경계이므로 제외한다. MASTER status를 ACTIVE로 바꾸는 것은 사람이 실행한 명시적 변경이며 자동승인 정책을 바꾸지 않는다.
+- PATCH는 JSON, `X-BROS-Operation: product-update`, `expectedVersion >= 1`, 공백이 아닌 `changeReason`, 한 개 이상의 허용 필드를 요구한다. `WHERE public_id AND version_no` 조건부 UPDATE가 성공한 경우만 version을 증가시키고, stale version은 409와 expected/actual version을 반환한다. 정규화 후 실제 변경이 없으면 version과 감사 이력을 늘리지 않는다.
+- 변경 시 기존 metadata를 보존하고 `managementChanges` 배열에 `LOCAL_ADMIN` actor source, 시각, 사유, 변경 필드별 이전값·이후값을 append한다. 이는 loopback 개발 단계의 actor 근거이며 P6-01에서 proxy 보증 사용자 actor로 확장한다.
+- `/products` 화면은 검색/필터, cursor 다음 page, loading/empty/error, 상세 공개 관계, 기본정보 편집, 409 후 최신 상세 reload를 제공한다. 업무 route는 P2-14와 동일하게 명시적 non-production loopback 모드에서만 활성화한다.
+
+### 기각한 선택지와 이유
+
+- 목록에서 offset/임의 sort 사용: 동시 데이터 추가 시 중복·누락 가능성이 있고 공통 cursor/allowlist 계약과 맞지 않는다.
+- 상세에 raw/evidence/metadata/storage 위치를 그대로 반환: 자격증명·원본 민감정보·내부 저장 구조 노출 위험이 있어 필요한 공개 projection만 정의했다.
+- MASTER 화면에서 brand_id 또는 Identifier를 직접 수정: Source 재처리, alias precedence, SKU/이미지 소유권, 검수 이력을 하나의 단순 PATCH로 안전하게 보장할 수 없어 전용 흐름으로 분리했다.
+- version 확인 뒤 무조건 UPDATE: 두 운영자의 마지막 저장이 앞선 변경을 덮어쓰므로 version 조건을 UPDATE 자체에 포함했다.
+- 변경 사유만 저장하거나 애플리케이션 로그만 사용: 재구성 가능한 전후값과 DB 내 durable 근거가 없어 필드별 before/after를 기존 metadata에 append한다.
+- 원본 URL을 `<img>`로 즉시 렌더링: 화면 진입만으로 외부 host에 요청과 추적 정보가 전달될 수 있어 명시적 링크를 사용한다.
+
+### 변경 파일
+
+- `packages/contracts/src/product-management.ts`, `packages/contracts/src/index.ts`, `packages/contracts/test/product-management.test.mjs`
+- `apps/api/src/product-management.ts`, `apps/api/src/app.ts`
+- `apps/admin/src/api/products.ts`, `apps/admin/src/api/products.test.ts`, `apps/admin/src/pages/ProductsPage.tsx`, `apps/admin/src/pages/ProductsPage.test.tsx`, `apps/admin/src/App.tsx`, `apps/admin/src/App.test.tsx`, `apps/admin/src/components/AppShell.tsx`, `apps/admin/src/styles.css`
+- `tests/integration/product-management-api.integration.test.mjs`
+- `docs/RUNBOOK.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행: package/API/Admin build·typecheck, contract/Admin unit, P2-15 전용 PostgreSQL 18.0 API integration, 최종 `pnpm check`, 변경 후 P2-15 integration/lint/typecheck/format/build 재검증, `git diff --check`.
+- P2-15 전용 integration 2개 PASS: 같은 millisecond cursor pagination, 5종 filter, 모든 관계의 공개 UUID projection, missing relation, invalid cursor/UUID, operation header, 기본 disabled fence, 동시 PATCH의 1 success/1 conflict와 version/audit 전후값을 실제 DB에서 확인했다.
+- 전체 `pnpm check` exit 0: Admin Vitest 20개, Node unit 73개, integration 101개(parent 포함), fail/skip 0 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 PASS했다.
+- 감사 전후값 보강 뒤 전용 integration 2개와 lint/typecheck/format/build를 다시 PASS했다.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN. 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 구현 blocker 없음. public remote push/CI는 이번 요청에서 수행하지 않았다.
+- Caddy Basic Auth, 보증된 사용자 actor, Origin/CSRF, 직접 API 포트 차단과 인증 실패 UX는 P6-01까지 NOT_RUN이다. 현재 local actor source를 사용자 신원으로 해석하지 않는다.
+- 한 MASTER의 상세 관계는 전부 반환한다. Pilot에서 단일 MASTER의 Source/SKU/Image가 비정상적으로 커지면 관계별 cursor endpoint와 응답 크기 목표를 P6 성능 측정에 근거해 추가한다.
+- P2-16의 alias 승인/거절 및 영향 Source 재처리는 아직 구현하지 않았다. MASTER 브랜드 재연결은 그 흐름을 우회해 이 API로 수행할 수 없다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-16 Brand Alias / Unresolved Brand Review API/UI에서 `import_item.REVIEW_REQUIRED`와 `raw_brand_name` 기반 목록, 기존 BRAND 연결, alias 승인/거절, 영향 Source 재처리를 구현한 뒤 Phase 2 Gate를 판정한다.
+- 금지 변경: unknown/fuzzy alias 자동 승인·신규 BRAND 자동 생성, MASTER 직접 brand 변경, Source raw 삭제, alias source precedence 완화, 자동승인 기본 OFF 변경, 인증 없는 non-loopback route, 별도 P5 worktree 수정.
+- 완료 조건: alias approve/reject, duplicate/race, platform-specific alias precedence, 승인된 alias만 이후 동일 표기를 resolve, 영향 Source 재처리 이력, 공개 UUID API/UI와 전체 회귀가 실제 PostgreSQL에서 통과한다.
+- 재검토가 필요한 조건: alias 승인이 기존 MASTER/Source를 즉시 재매핑해야 하거나, P2-15의 metadata 감사 이력을 별도 append-only audit table로 옮겨야 할 때.

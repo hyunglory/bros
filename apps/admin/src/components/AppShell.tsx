@@ -28,6 +28,12 @@ export function AppShell({ children }: PropsWithChildren) {
             </span>
             Import 관리
           </NavLink>
+          <NavLink className="nav-item" to="/products">
+            <span className="nav-icon" aria-hidden="true">
+              ◇
+            </span>
+            MASTER 상품
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">

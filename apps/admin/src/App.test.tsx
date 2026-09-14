@@ -13,6 +13,15 @@ describe("App routes", () => {
     expect(screen.getByRole("heading", { name: "Import 관리" })).toBeVisible();
   });
 
+  it("registers the MASTER product route", () => {
+    render(
+      <MemoryRouter initialEntries={["/products"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "MASTER 상품관리" })).toBeVisible();
+  });
+
   it("renders a fallback page for unknown routes", () => {
     render(
       <MemoryRouter initialEntries={["/missing"]}>

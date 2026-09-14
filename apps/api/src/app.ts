@@ -13,6 +13,7 @@ import {
 } from "@bros/contracts";
 import { createApiDataAccess } from "./database.js";
 import { registerImportManagementRoutes } from "./import-management.js";
+import { registerProductManagementRoutes } from "./product-management.js";
 
 export interface ApiAppOptions {
   queue?: QueuePort;
@@ -144,6 +145,7 @@ export function createApiApp(
     ...(queue ? { queue } : {}),
     maxQueuedBatches: config.importer.maxQueuedBatches,
   });
+  registerProductManagementRoutes(app, data.database, { enabled: businessEnabled });
   app.addHook("preClose", async () => {
     closing = true;
   });

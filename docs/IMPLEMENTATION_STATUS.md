@@ -33,5 +33,6 @@
 | P2-12 Import Batch / Item Tracking | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-011, mixed outcome 집계·item 단위 실패 격리·동시 기록·replay·stage completeness PostgreSQL 통합 PASS; 전체 unit 66개·integration 89개 PASS | 원격 CI 미실행; P2-13 Product Import Queue / Chunk Processor 로컬 착수 가능 |
 | P2-13 Product Import Queue / Chunk Processor | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-012, 원자적 접수·상한·chunk 100/concurrency 2·1k import·실패 격리·실제 Worker crash 복구 PASS; 전체 pnpm check PASS(unit 68·integration 97) | 원격 CI 미실행; P2-14 Import 관리 UI/API 로컬 착수 가능 |
 | P2-14 Import 관리 UI/API | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-013, cursor pagination·상태/건수·안전한 실패 원인·업무/처리 상태 분리·명시적 resume/replay·local 인증 fence PASS; 전체 pnpm check PASS(Admin 13·unit 71·integration 99) | 원격 CI 미실행; P2-15 MASTER 상품관리 API/UI 또는 P2-16 Brand Review 로컬 착수 가능 |
+| P2-15 MASTER 상품관리 API/UI | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-014, MASTER 목록 cursor/filter·공개 UUID 상세 관계·안전한 기본정보 CAS 수정·필드 전후값 감사 기록·missing relation/동시 충돌 PASS; 전체 pnpm check PASS(Admin 20·unit 73·integration 101) | 원격 CI 미실행; P2-16 Brand Review 후 Phase 2 Gate 판정 가능 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

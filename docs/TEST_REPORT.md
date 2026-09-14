@@ -375,3 +375,11 @@
 - PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond 안의 PostgreSQL 원본 timestamp 정밀도를 보존하는 생성시각+UUID cursor의 중복 없는 다음 page, batch/item 상태 filter, 안전한 detail projection, malformed cursor·404, 명시적 resume의 새 receipt, replay의 중복 publish 방지, 429 backpressure/retryAfter, 변경 header, business API disabled 경계를 확인했다. raw JSON, provider receipt와 내부 ID는 응답에 없음을 검사했다.
 - 인증 경계: 업무 API는 기본 disabled다. 비운영 loopback에서 `API_LOCAL_UNAUTHENTICATED=true`를 명시한 경우만 활성화하며, retry는 JSON과 `X-BROS-Operation: import-retry`를 요구한다. Caddy Basic Auth·actor·Origin/CSRF·직접 포트 차단의 운영 검증은 P6-01로 남겼다.
 - 최종 `pnpm check` exit 0: Admin Vitest 13개, Node unit 71개, integration 99개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-15 MASTER 상품관리 API/UI
+
+- 대상: `GET /api/v1/products`, `GET /api/v1/products/:publicId`, `PATCH /api/v1/products/:publicId`, Admin `/products`.
+- 계약/unit: 목록 기본 50/최대 100, `(created_at,public_id)` opaque cursor, MASTER/Identifier 상태와 브랜드·Source·상품명/품번 filter allowlist, strict request/response, UUIDv7 공개 관계를 검증했다. 수정은 `expectedVersion`, 변경 사유, 최소 한 개 허용 필드를 요구하고 내부 ID/raw/metadata/storage 위치 필드를 거절한다.
+- PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond의 cursor page, 5종 filter, MASTER→Brand/SKU/Identifier/Source/Source SKU/Image 공개 UUID 연결, 관계 없는 MASTER의 빈 배열, malformed UUID/cursor, 변경 header, 기본 disabled fence를 확인했다. 동일 version 동시 PATCH는 정확히 1건만 200이고 나머지는 409/actualVersion이며, 성공 건은 version 증가·정규화된 이름·필드별 전후값/사유를 보존한다.
+- Admin Vitest는 목록/검색 client, 상세 관계, 관계 없음, versioned edit, 409 후 최신 상세 reload를 검증했다. Source 이미지는 브라우저가 자동 요청하지 않도록 명시적 원본 링크로 제공한다.
+- 최종 `pnpm check` exit 0: Admin Vitest 20개, Node unit 73개, integration 101개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 감사 전후값 보강 뒤 P2-15 전용 PostgreSQL 통합 2개와 lint/typecheck/format/build를 다시 PASS했다. 원격 CI는 NOT_RUN이다.

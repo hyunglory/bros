@@ -303,3 +303,19 @@ retry는 `Content-Type: application/json`, `X-BROS-Operation: import-retry`와 `
 Admin에서 업무 상태는 실제 item 집계, Worker 처리는 Queue 실행 상태다. Worker 완료와 상품 전건 성공을 같은 의미로 읽지 않는다. raw row, Queue receipt와 내부 DB ID는 화면/API에 노출하지 않는다.
 
 현재 설정은 loopback 개발용 임시 인증 fence다. Caddy Basic Auth, 인증 actor 덮어쓰기, same-origin/CSRF 검증, 외부 API 포트 차단과 401 UX는 P6-01에서 완료해야 하며 그 전에는 업무 API를 외부 주소에 배포하지 않는다. XLSX 업로드와 새 batch 생성 endpoint도 아직 없으므로 P2-04 계약을 호출하는 내부/테스트 흐름에서 생성된 batch만 관리한다.
+
+## MASTER 상품관리 API/UI — P2-15
+
+P2-14와 같은 loopback 개발 설정에서 API와 Admin을 시작하고 `http://127.0.0.1:5173/products`로 접근한다. 목록은 생성시각과 공개 UUID 기반 cursor를 사용하며 임의 정렬은 받지 않는다.
+
+| Method / path | 용도 |
+|---|---|
+| `GET /api/v1/products?query=&brand=&source=&status=&identifierStatus=&limit=&cursor=` | 상품명/품번 검색, 브랜드·Source·상태 filter와 최신 MASTER 목록 |
+| `GET /api/v1/products/:publicId` | MASTER와 Brand/SKU/Identifier/Source/Source SKU/원본 이미지 관계 상세 |
+| `PATCH /api/v1/products/:publicId` | 상품명·카테고리·상품 유형·MASTER 상태의 낙관적 잠금 수정 |
+
+PATCH는 `Content-Type: application/json`, `X-BROS-Operation: product-update`, 현재 응답의 `expectedVersion`, 공백이 아닌 `changeReason`과 최소 한 개의 수정 필드를 요구한다. 허용 필드는 `productName`, `categoryKey`, `productType`, `status`뿐이다. 성공하면 version이 1 증가하며 다른 요청이 먼저 저장했으면 409 `PRODUCT_VERSION_CONFLICT`와 expected/actual version을 반환한다. 같은 값만 보낸 요청은 이력을 만들거나 version을 올리지 않는다.
+
+변경 이력은 기존 `product_master.metadata_json`을 보존하면서 `managementChanges`에 시각, local actor source, 변경 사유, 필드별 이전값·이후값을 추가한다. 현재 actor source는 loopback 개발 fence를 뜻한다. P6-01 적용 시 proxy가 보증하는 사용자 actor로 확장해야 한다.
+
+API와 화면에는 BIGINT PK, MASTER metadata, Source raw, Identifier evidence, storage bucket/object key가 나오지 않는다. Source 이미지는 자동 inline fetch 대신 원본 링크를 눌렀을 때만 연다. 브랜드 연결 변경과 Identifier 값/검증 상태 변경은 이 화면에서 하지 않으며 각각 P2-16과 Phase 3 검수 흐름을 사용한다.

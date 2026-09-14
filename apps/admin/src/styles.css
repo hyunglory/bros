@@ -391,6 +391,19 @@ select {
   color: #19352c;
   background: #fff;
 }
+input,
+textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #28483d38;
+  border-radius: 8px;
+  color: #19352c;
+  background: #fff;
+  font: inherit;
+}
+textarea {
+  resize: vertical;
+}
 .table-scroll {
   overflow-x: auto;
 }
@@ -524,6 +537,171 @@ td code {
 .item-toolbar {
   padding: 28px 28px 14px;
 }
+.product-filter-panel {
+  overflow: visible;
+}
+.product-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(130px, 1fr)) auto;
+  align-items: end;
+  gap: 14px;
+  padding: 22px 24px;
+}
+.product-filters label,
+.edit-grid label,
+.reason-field {
+  display: grid;
+  gap: 7px;
+  color: #60736c;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.product-filters select {
+  width: 100%;
+  min-width: 0;
+}
+.product-summary {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 0.55fr;
+  gap: 1px;
+  background: #18382d16;
+}
+.product-summary > div {
+  min-width: 0;
+  padding: 18px 22px;
+  background: #fcfbf7;
+}
+.product-summary span,
+.product-summary strong,
+.product-summary code {
+  display: block;
+}
+.product-summary span {
+  margin-bottom: 7px;
+  color: #718179;
+  font-size: 0.72rem;
+}
+.product-summary code,
+.relation-grid code,
+.source-card code {
+  overflow-wrap: anywhere;
+  color: #526a61;
+  font-size: 0.7rem;
+}
+.product-edit-form {
+  margin: 24px 28px;
+  padding: 22px;
+  border: 1px solid #18382d1a;
+  border-radius: 14px;
+  background: #f7f6ef;
+}
+.form-heading,
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.form-heading h3,
+.relation-section h3 {
+  margin: 0;
+}
+.form-heading p {
+  margin: 5px 0 0;
+  color: #718179;
+  font-size: 0.75rem;
+}
+.edit-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 14px;
+  margin-top: 20px;
+}
+.reason-field {
+  margin-top: 14px;
+}
+.form-actions {
+  margin-top: 16px;
+}
+.form-message {
+  color: #1f7049;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.form-message--error {
+  color: #99483c;
+}
+.product-edit-form button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+.relation-section {
+  padding: 24px 28px;
+  border-top: 1px solid #18382d16;
+}
+.relation-section h3 {
+  margin-bottom: 16px;
+  font-size: 1rem;
+}
+.relation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.relation-grid article,
+.source-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #18382d14;
+  border-radius: 11px;
+  background: #f8f7f1;
+}
+.relation-grid article > span,
+.relation-grid article > small,
+.source-card small {
+  color: #718179;
+  font-size: 0.72rem;
+}
+.relation-grid a {
+  color: #225f49;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.source-list {
+  display: grid;
+  gap: 12px;
+}
+.source-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.source-card p,
+.source-card > small,
+.source-card ul {
+  grid-column: 1 / -1;
+}
+.source-card p {
+  margin: 2px 0;
+}
+.source-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 4px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid #18382d12;
+  list-style: none;
+}
+.source-card li {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(160px, 1fr) minmax(220px, 1.2fr);
+  gap: 12px;
+}
+.empty-relation {
+  margin: 0;
+  color: #718179;
+  font-size: 0.82rem;
+}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -557,6 +735,8 @@ td code {
     border: 0;
   }
   .sidebar nav {
+    display: flex;
+    gap: 2px;
     margin: 0 0 0 auto;
   }
   .sidebar-foot {
@@ -569,6 +749,14 @@ td code {
     grid-template-columns: 1fr;
   }
   .batch-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .product-filters,
+  .edit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .product-summary,
+  .relation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .module-list {
@@ -602,6 +790,20 @@ td code {
     justify-content: space-between;
   }
   .batch-metrics {
+    grid-template-columns: 1fr;
+  }
+  .product-filters,
+  .edit-grid,
+  .product-summary,
+  .relation-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-heading,
+  .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .source-card li {
     grid-template-columns: 1fr;
   }
   .brand-block div {
