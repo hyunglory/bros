@@ -4,6 +4,7 @@ export const queueNames = [
   "identifier.resolve",
   "thumbnail.generate",
   "browser.run",
+  "artifact.cleanup",
 ] as const;
 export type QueueName = (typeof queueNames)[number];
 

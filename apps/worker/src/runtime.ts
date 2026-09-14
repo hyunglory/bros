@@ -6,6 +6,10 @@ import type { QueuePort, QueueName, QueueJob } from "@bros/queue";
 import { createObjectStorage } from "@bros/storage";
 import { createBrowserRunHandler, createDefaultBrowserRunExecutors } from "./browser-run.js";
 import type { BrowserRunExecutor } from "./browser-run.js";
+import {
+  createArtifactRetentionHandler,
+  reconcileArtifactCleanupSchedule,
+} from "./artifact-retention.js";
 import { createWorkerDataAccess } from "./database.js";
 import { createSystemTestHandler } from "./system-test.js";
 import type { SystemTestAction } from "./system-test.js";
@@ -26,11 +30,10 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
     options.queue ??
     createPgBossQueue(config.database, { localConcurrency: config.worker.concurrency });
   const logger = options.logger ?? createRedactedLogger();
-  const browserExecutors =
-    options.browserExecutors ??
-    createDefaultBrowserRunExecutors(
-      createObjectStorage(config.storage, { secretProvider: new EnvSecretProvider(process.env) }),
-    );
+  const storage = createObjectStorage(config.storage, {
+    secretProvider: new EnvSecretProvider(process.env),
+  });
+  const browserExecutors = options.browserExecutors ?? createDefaultBrowserRunExecutors(storage);
   const scheduler = createSchedulerService({
     flowRegistry: {
       registeredHandlerKeys: () => browserExecutors.map((executor) => executor.handlerKey).sort(),
@@ -67,6 +70,7 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
     ["system.test", createSystemTestHandler(data.database, action, logger)],
     ["product.import", createProductImportHandler(data.database, config.importer, logger)],
     ["browser.run", createBrowserRunHandler(data.database, browserExecutors, logger)],
+    ["artifact.cleanup", createArtifactRetentionHandler(data.database, storage, logger)],
   ]);
   let state: "idle" | "starting" | "ready" | "stopping" | "stopped" | "failed" = "idle";
   let starting: Promise<void> | undefined;
@@ -97,6 +101,7 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
             .execute();
           await queue.start();
           await scheduler.reconcile();
+          await reconcileArtifactCleanupSchedule(queue);
           for (const [name, handler] of registry)
             await queue.work(
               name,

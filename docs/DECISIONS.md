@@ -1927,3 +1927,55 @@
 - 금지 변경: R2 bucket public-read/ACL 설정, secret·presigned URL 로그/DB 저장, API/Worker 업무 코드의 provider 직접 의존, client actor/token 신뢰, local unauthenticated production 허용.
 - 완료 조건: real private R2 bucket에서 put/get/delete, metadata, 300초 preview URL, wrong credential 401/403 mapping과 no-public-ACL를 확인하거나, P6-05의 retention/hold/delete audit 계약과 test를 완성한다.
 - 재검토가 필요한 조건: custom domain artifact delivery, direct client upload, multipart large object, key rotation without restart, cross-region S3 provider 또는 object legal hold 요구가 생길 때.
+
+## DEC-20260914-017 — P6-05 Browser Artifact Retention, Hold, Cleanup Audit
+
+- 일자: 2026-09-14
+- 종료 단계/분야: Phase 6 P6-05 artifact retention/cleanup 구현 및 disposable DB 검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-05, P5-10, P6-01, P6-04
+- 검토 범위와 근거: AGENTS.md, DEC-20260913-004, DEC-20260914-014/015/016, WBS P6-05 acceptance/test, Browser artifact key/result contract, ObjectStorage port, automation_run schema, RUNBOOK 및 TEST_REPORT
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- 자동 cleanup은 terminal `automation_run`의 `screenshot_key`, `trace_key`, `result_json.artifact.resultKey`만 대상으로 한다. `finished_at` 기준 기본 14일이 지난 portable key를 하루 한 번 UTC 03:17에 최대 100개 처리한다. source original과 승인/생성 thumbnail은 후보 query에 포함하지 않아 보존한다.
+- `app.artifact_retention_event`는 `HOLD_SET`, `HOLD_RELEASED`, `DELETED`, `DELETE_FAILED` append-only audit ledger다. 최신 hold가 무기한이거나 종료 시각보다 이르면 삭제하지 않으며, release는 기존 hold를 갱신하지 않고 새 event를 추가한다.
+- 삭제 성공은 실행 시점의 current ObjectStorage provider/bucket과 함께 기록한다. provider 오류 원문은 DB/log에 저장하지 않고 `ARTIFACT_DELETE_FAILED` stable code만 기록한다. malformed DB key 및 이미 삭제된 key는 fail-closed로 skip한다.
+- cleanup schedule key는 pg-boss 허용 문자만 사용한 `artifact-retention-daily`로 고정한다. queue payload에는 maintenance UUIDv7 reference만 담으며 object key·secret·run input은 담지 않는다.
+- cleanup은 current configured storage adapter에만 호출한다. provider/bucket을 이전한 historical object를 목록 조회하거나 삭제하지 않으며, 해당 migration은 별도 운영 절차와 새 결정이 필요하다.
+
+### 기각한 선택지와 이유
+
+- product_image 또는 모든 storage object를 prefix/listing으로 일괄 삭제: source original·승인 thumbnail 보존 정책과 provider-independent DB ownership 경계를 위반한다.
+- mutable hold table로 과거 hold/delete 상태를 덮어쓰기: 법적/운영 예외와 삭제 시점의 감사 증거를 보존하지 못한다.
+- provider 오류/endpoint/signed URL을 event 또는 log에 그대로 기록: credential 및 capability 노출 위험이 있어 stable code로 제한한다.
+- schedule key에 `:` 사용: pg-boss가 허용하지 않아 worker startup을 실패시킨다.
+
+### 변경 파일
+
+- packages/db/src/migrations/002-artifact-retention.ts, migration-runtime.ts, schema.ts
+- packages/queue/src/port.ts
+- apps/worker/src/artifact-retention.ts, runtime.ts, index.ts, test/artifact-retention.test.mjs
+- tests/integration/artifact-retention.integration.test.mjs, database-schema.integration.test.mjs
+- docs/DB_MIGRATION_SPEC.md, doc/README.md, doc/BROS_구현_보완_명세_v0.2.md, doc/brand_resell_os_design_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/RUNBOOK.md, docs/DECISIONS.md
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, 변경 파일 Prettier check, `git diff --check`; 별도 이름·포트의 disposable PostgreSQL 18.6에서 `node --test tests/integration/artifact-retention.integration.test.mjs tests/integration/browser-durable.integration.test.mjs tests/integration/database-schema.integration.test.mjs`.
+- 결과: IMPLEMENTED_NOT_VALIDATED — Admin 13개와 Node unit 103개 PASS. P6-05 hold/delete audit 및 실제 Local object 삭제, 19 table/266 column migration/rollback, pg-boss browser durable 회귀를 포함한 대상 integration 10개 PASS. 전체 integration 24-file suite와 remote CI, real R2, public HTTPS staging은 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- Cloudflare account ID/private bucket/scoped credential이 제공되지 않아 real R2 cleanup과 historical provider migration은 NOT_RUN이다.
+- 전체 integration suite는 최초 실행에서 pg-boss key 제약으로 durable startup FAIL을 발견해 수정했으나, 수정 후 전체 24-file suite를 다시 실행하지 않았다.
+- root `pnpm format:check`는 P6-04에서 확인한 이번 범위와 무관한 `apps/admin` 11개 기존 formatting drift 때문에 아직 FAIL이다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: scoped credential이 제공되면 P6-04/P6-05 real private R2 staging validation을 수행하거나, 외부 staging 권한이 없으면 P6-10 public Docker/HTTPS deployment boundary를 준비한다.
+- 금지 변경: source original/approved thumbnail 자동 삭제, R2 bucket public-read/ACL 설정, event/log/queue payload에 secret·presigned URL·raw input을 저장, current adapter 외 historical provider object의 무단 삭제.
+- 완료 조건: real private R2에서 held/unheld artifact delete와 DELETED/DELETE_FAILED audit, 300초 authorized preview, wrong credential mapping을 확인하거나 public staging TLS/proxy/queue smoke를 증거로 남긴다.
+- 재검토가 필요한 조건: object legal hold의 provider-native enforcement, retention 기간/대상 확대, provider/bucket migration, multi-region storage 또는 대량 backlog 처리 요구가 생길 때.

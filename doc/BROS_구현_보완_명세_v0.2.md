@@ -7,7 +7,7 @@
 
 ## 1. 적용 범위와 문서 우선순위
 
-기존 Modular Monolith, Node 24 계열, PostgreSQL 18, Fastify, React/Vite, pg-boss, Worker 전용 이미지/브라우저 처리, 18개 업무 테이블과 85개 WBS Task를 유지한다. 이번 개정은 누락된 구현 계약과 검증 기준을 보완한다.
+기존 Modular Monolith, Node 24 계열, PostgreSQL 18, Fastify, React/Vite, pg-boss, Worker 전용 이미지/브라우저 처리, baseline 18개 업무 테이블과 85개 WBS Task를 유지한다. P6-05는 Browser artifact 보존·hold·삭제 감사 목적의 append-only `artifact_retention_event` 1개를 명시적으로 추가하여 현재 업무 테이블은 19개다. 이번 개정은 누락된 구현 계약과 검증 기준을 보완한다.
 
 사용자의 현재 지시 → 이 보완 명세의 명시적 변경 사항 → 설계서의 도메인 정책 → WBS의 작업 범위·Acceptance Criteria → 실행 가이드 순으로 적용한다. WBS는 설계를 암묵적으로 확대하지 않는다. 새 충돌은 DECISIONS에 근거와 영향을 기록한다.
 

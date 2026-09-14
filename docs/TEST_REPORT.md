@@ -399,3 +399,11 @@
 - 회귀: storage/core/browser/API/Worker build·storage typecheck·Browser artifact service 6개·API security 2개 PASS. 실제 Chromium artifact integration 1개는 sandbox의 `spawn EPERM` 이후 승인된 동일 명령에서 PASS했다.
 - 품질: `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`(Admin 13개·Node 100개), 변경 파일 Prettier check, `git diff --check` PASS. root `pnpm format:check`는 이번 변경과 무관한 Admin 11개 파일의 기존 formatting drift로 FAIL했다.
 - 실제 Cloudflare R2 account/bucket PUT/GET/DELETE와 real credential failure, remote CI, public HTTPS staging은 NOT_RUN이다.
+
+## 2026-09-14 — P6-05 Artifact Retention / Cleanup
+
+- 정책/단위: `apps/worker/test/artifact-retention.test.mjs` 3개 PASS. terminal `automation_run`의 screenshot/trace/result artifact만 `finished_at` 기준 14일 뒤 후보로 만들고, malformed key·이미 `DELETED`인 key·active `HOLD_SET`은 삭제하지 않았다. `HOLD_RELEASED` 뒤에는 삭제가 재개되며, 실패는 원문 없이 `DELETE_FAILED`/`ARTIFACT_DELETE_FAILED` 이벤트로 남는다.
+- DB/실저장소: 별도 이름·포트의 disposable PostgreSQL 18.6 컨테이너에서 `tests/integration/artifact-retention.integration.test.mjs` PASS. `002-artifact-retention` migration, 19개 업무 테이블/266개 컬럼 계약, hold/release/delete 5개 append-only event, 실제 Local screenshot/result 삭제와 hold 중 trace·비대상 source original 보존을 확인했다.
+- durable 회귀: 같은 disposable DB에서 `tests/integration/browser-durable.integration.test.mjs` PASS. worker start 시 daily `artifact.cleanup` schedule 등록 후에도 pg-boss browser manual success/failure, receipt 멱등성, DB 상태와 artifact evidence가 유지됐다. pg-boss schedule key는 colon을 허용하지 않아 `artifact-retention-daily`로 고정했다.
+- 품질: `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`(Admin 13개·Node 103개), 변경 파일 Prettier check, `git diff --check` PASS.
+- 전체 `pnpm test:integration`은 수정 전 schedule key에서 P6 durable startup FAIL을 발견했고 이를 수정했다. 이후 P6-05/durable/schema 대상 10개 테스트는 PASS했으나, 24-file 전체 suite는 재실행하지 않았다. 실제 R2 cleanup, remote CI, public HTTPS staging은 NOT_RUN이다.

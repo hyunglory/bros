@@ -16,6 +16,20 @@ export const workerWorkspaceDependencies = [
 
 export { createWorkerDataAccess } from "./database.js";
 export {
+  artifactCleanupSchedule,
+  ArtifactRetentionError,
+  createArtifactRetentionHandler,
+  createArtifactRetentionRepository,
+  createArtifactRetentionService,
+  reconcileArtifactCleanupSchedule,
+} from "./artifact-retention.js";
+export type {
+  ArtifactRetentionEvent,
+  ArtifactRetentionEventType,
+  ArtifactRetentionRepository,
+  ArtifactRetentionService,
+} from "./artifact-retention.js";
+export {
   createBrowserRunHandler,
   createDefaultBrowserRunExecutors,
   createDemoBrowserRunExecutor,

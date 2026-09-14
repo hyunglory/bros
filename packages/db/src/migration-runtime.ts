@@ -3,6 +3,7 @@ import { Migrator } from "kysely/migration";
 import pg from "pg";
 
 import * as baseline from "./migrations/001-baseline.js";
+import * as artifactRetention from "./migrations/002-artifact-retention.js";
 
 // Migration-only connection. Runtime repositories and pooling belong to P1-06.
 export function createMigrationDatabase(connectionString: string): Kysely<unknown> {
@@ -24,7 +25,12 @@ export function createMigrator(db: Kysely<unknown>): Migrator {
   return new Migrator({
     db,
     migrationTableSchema: "bros_migrations",
-    provider: { getMigrations: async () => ({ "001-baseline": baseline }) },
+    provider: {
+      getMigrations: async () => ({
+        "001-baseline": baseline,
+        "002-artifact-retention": artifactRetention,
+      }),
+    },
   });
 }
 

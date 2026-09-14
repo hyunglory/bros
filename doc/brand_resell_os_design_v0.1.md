@@ -534,7 +534,7 @@ erDiagram
 
 ---
 
-# 10. MVP 업무 테이블 목록 — 18개
+# 10. MVP 업무 테이블 목록 — 19개
 
 | # | Table | 역할 |
 | --- | --- | --- |
@@ -556,6 +556,7 @@ erDiagram
 | 16 | thumbnail_review | QA/수동검수 |
 | 17 | automation_job | 자동화 정의 |
 | 18 | automation_run | 자동화 실행이력 |
+| 19 | artifact_retention_event | Browser artifact 보존·hold·삭제 감사 이력 |
 
 pg-boss 내부 테이블은 기술 스키마로 별도 관리하고 업무 테이블 수에 포함하지 않는다.
 
@@ -1127,6 +1128,32 @@ TIMEOUT
 CANCELLED
 ```
 
+## 12.19 `artifact_retention_event`
+
+Browser 실행 증적의 보존 예외와 삭제 결과를 append-only로 기록한다. 원본 이미지와 승인 썸네일은 이 테이블과 cleanup 대상에서 제외한다.
+
+```
+id
+public_id
+object_key
+event_type
+hold_until nullable
+reason nullable
+storage_provider nullable
+storage_bucket nullable
+error_code nullable
+created_at
+```
+
+Event Type:
+
+```
+HOLD_SET
+HOLD_RELEASED
+DELETED
+DELETE_FAILED
+```
+
 ---
 
 # 13. Phase 1 — 실행 가능한 Skeleton
@@ -1152,6 +1179,7 @@ product.import
 identifier.resolve
 thumbnail.generate
 browser.run
+artifact.cleanup
 ```
 
 ## 13.3 API/Worker 분리

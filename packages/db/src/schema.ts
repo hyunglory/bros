@@ -362,6 +362,19 @@ export interface AutomationRunTable {
   created_at: DefaultTimestamp;
 }
 
+export interface ArtifactRetentionEventTable {
+  id: Identity;
+  public_id: PublicId;
+  object_key: string;
+  event_type: "HOLD_SET" | "HOLD_RELEASED" | "DELETED" | "DELETE_FAILED";
+  hold_until: NullableTimestamp;
+  reason: string | null;
+  storage_provider: string | null;
+  storage_bucket: string | null;
+  error_code: string | null;
+  created_at: DefaultTimestamp;
+}
+
 export interface Database {
   "app.platform": PlatformTable;
   "app.brand": BrandTable;
@@ -381,4 +394,5 @@ export interface Database {
   "app.thumbnail_review": ThumbnailReviewTable;
   "app.automation_job": AutomationJobTable;
   "app.automation_run": AutomationRunTable;
+  "app.artifact_retention_event": ArtifactRetentionEventTable;
 }

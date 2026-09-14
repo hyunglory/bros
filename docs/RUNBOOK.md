@@ -225,6 +225,22 @@ pnpm --filter @bros/storage run build
 node --test packages/storage/test/storage.test.mjs
 ```
 
+## Artifact Retention / Cleanup — P6-05
+
+Worker는 시작 시 `artifact.cleanup` queue의 `artifact-retention-daily` schedule을 UTC `03:17`에 reconciliation한다. payload는 maintenance schedule 식별용 UUIDv7 하나뿐이며 artifact key·URL·raw run input·secret을 queue에 넣지 않는다.
+
+- cleanup 후보는 `SUCCESS`, `FAILED`, `TIMEOUT`, `CANCELLED` terminal `automation_run` 중 `finished_at`이 14일보다 오래된 행의 `screenshot_key`, `trace_key`, `result_json.artifact.resultKey`뿐이다. 한 실행은 최대 100개의 고유하고 portable한 key만 처리한다.
+- source original과 approved/generated thumbnail은 후보 query에 포함하지 않으며 자동 삭제하지 않는다.
+- `app.artifact_retention_event`는 append-only다. 운영/법적 보존 예외는 reason과 함께 `HOLD_SET`으로 기록하고, 종료 시 `HOLD_RELEASED`로 별도 기록한다. 최신 hold가 만료되지 않았거나 종료 시각이 없으면 삭제하지 않는다.
+- 성공 삭제는 당시 configured storage의 provider/bucket을 포함한 `DELETED` event, provider 오류는 원문 없는 `DELETE_FAILED`/`ARTIFACT_DELETE_FAILED` event로 기록한다. 삭제는 현재 configured adapter에만 수행하므로 storage provider/bucket을 이전한 historical object는 운영자가 별도 migration/hold 절차로 처리한다.
+
+로컬 검증은 disposable PostgreSQL URL을 주입한 뒤 수행한다.
+
+```powershell
+node --test apps/worker/test/artifact-retention.test.mjs
+node --test tests/integration/artifact-retention.integration.test.mjs tests/integration/browser-durable.integration.test.mjs tests/integration/database-schema.integration.test.mjs
+```
+
 ## Secret과 로그
 
 - 외부 provider와 browser 자격증명은 `SecretProvider`를 통해 조회한다.

@@ -1,7 +1,7 @@
 # P1-05 DB Migration 컬럼 명세
 
 - 기준: `doc/brand_resell_os_design_v0.1.md` 11·12장, `doc/BROS_구현_보완_명세_v0.2.md` 2장 및 3.2장.
-- 범위: `app` schema의 18개 업무 테이블, 256개 컬럼. 이 문서는 migration 작성 전 작성한 metadata 대조 기준이다.
+- 범위: `app` schema의 19개 업무 테이블, 266개 컬럼. 이 문서는 migration 작성 전 작성한 metadata 대조 기준이다.
 - Kysely 이력은 `bros_migrations` schema로 분리한다. `pg_trgm`은 public schema에 설치하며 down에서 공유 extension을 삭제하지 않는다.
 - `NN`은 NOT NULL, `NULL`은 SQL NULL 허용, `—`는 기본값 없음이다. JSON raw의 SQL NULL은 금지하고 JSON null·배열·스칼라는 허용한다.
 - UUID는 NOT NULL / UNIQUE / uuidv7() 기본값이며 API 계약에서 버전 7을 검증한다. BIGINT·NUMERIC은 pg 기본 string 반환을 유지한다.
@@ -432,6 +432,28 @@
 - `UNIQUE (request_key)`
 - `CHECK (started_at <= finished_at)`
 - `CHECK ((queue_provider IS NULL) = (queue_job_id IS NULL))`
+
+## artifact_retention_event
+
+| 컬럼 | 타입 | NULL | 기본값 | 컬럼 제약 |
+| --- | --- | --- | --- | --- |
+| id | bigint | NN | IDENTITY | PRIMARY KEY |
+| public_id | uuid | NN | uuidv7() | UNIQUE |
+| object_key | text | NN | — | object_key ~ '[^[:space:]]' |
+| event_type | varchar(32) | NN | — | event_type IN ('HOLD_SET', 'HOLD_RELEASED', 'DELETED', 'DELETE_FAILED') |
+| hold_until | timestamptz | NULL | — | — |
+| reason | text | NULL | — | — |
+| storage_provider | varchar(30) | NULL | — | — |
+| storage_bucket | text | NULL | — | — |
+| error_code | varchar(64) | NULL | — | — |
+| created_at | timestamptz | NN | now() | — |
+
+추가 제약:
+
+- `CHECK ((storage_provider IS NULL) = (storage_bucket IS NULL))`
+- `CHECK (event_type <> 'HOLD_SET' OR reason ~ '[^[:space:]]')`
+- `CHECK (event_type <> 'DELETE_FAILED' OR error_code ~ '[^[:space:]]')`
+- `CHECK (event_type NOT IN ('HOLD_SET', 'HOLD_RELEASED') OR (storage_provider IS NULL AND error_code IS NULL))`
 
 ## 추가 인덱스와 업무 서비스 책임
 
