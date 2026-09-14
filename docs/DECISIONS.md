@@ -1979,3 +1979,50 @@
 - 금지 변경: source original/approved thumbnail 자동 삭제, R2 bucket public-read/ACL 설정, event/log/queue payload에 secret·presigned URL·raw input을 저장, current adapter 외 historical provider object의 무단 삭제.
 - 완료 조건: real private R2에서 held/unheld artifact delete와 DELETED/DELETE_FAILED audit, 300초 authorized preview, wrong credential mapping을 확인하거나 public staging TLS/proxy/queue smoke를 증거로 남긴다.
 - 재검토가 필요한 조건: object legal hold의 provider-native enforcement, retention 기간/대상 확대, provider/bucket migration, multi-region storage 또는 대량 backlog 처리 요구가 생길 때.
+
+## DEC-20260915-001 — P6-04/P6-05 Private R2 실환경 검증
+
+- 일자: 2026-09-15
+- 종료 단계/분야: Phase 6 private Cloudflare R2 adapter, authorized preview, artifact hold/cleanup staging 검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-04, P6-05, P5-10, P6-01
+- 검토 범위와 근거: AGENTS.md, DEC-20260914-014/015/016/017, `packages/storage/src/r2.ts`, `packages/browser/src/artifact-service.ts`, `apps/api/src/artifact-preview.ts`, `apps/worker/src/artifact-retention.ts`, Cloudflare R2 private bucket·single-bucket API token, PostgreSQL 18.6 실환경 실행 결과
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-016과 DEC-20260914-017의 실제 R2 account/bucket/credential 및 cleanup `NOT_RUN` 상태만 대체한다. public HTTPS·remote CI 미검증 상태와 기존 보안/보존 계약은 유지한다.
+
+### 확정 결정
+
+- `bros-p6-staging-artifacts`는 public access를 활성화하지 않은 private staging bucket으로 유지한다. 검증 credential은 해당 bucket 하나에 대한 `Object Read & Write`와 24시간 TTL로 제한했고 검증 직후 폐기했다.
+- 실제 R2 adapter에서 PUT/GET, `content-type`과 SHA-256 metadata, unsigned access 거부, wrong-secret `STORAGE_AUTH_FAILED`, authorization 뒤 300초 presigned GET과 HTTP 200/body를 확인했다. secret과 presigned URL은 파일·명령행·로그·DB에 저장하지 않았다.
+- 실제 PostgreSQL 18.6 terminal Browser run을 기준으로 active hold의 trace 1개는 보존하고 unheld screenshot/result 2개를 삭제했다. hold release 뒤 trace도 삭제했으며 `HOLD_SET`, `DELETED`, `HOLD_RELEASED` append-only audit과 삭제 시점 `provider=R2`/bucket 기록을 확인했다.
+- 검증기는 생성에 성공한 임의 UUIDv7 key만 `finally`에서 정리한다. 실제 artifact 3개, 고유 test DB, disposable 컨테이너와 검증 token은 제거했고 private bucket만 후속 staging용으로 남겼다.
+
+### 기각한 선택지와 이유
+
+- bucket public-read 또는 custom public domain 활성화: 기존 private object와 authenticated preview 경계를 우회하므로 기각했다.
+- account 전체 bucket 또는 장기 credential 사용: 실검증에 필요한 권한·시간 범위를 넘으므로 single-bucket 24시간 token으로 제한했다.
+- credential을 `.env*`, 명령행 또는 검증 로그에 기록: secret 노출 면적을 넓히므로 일회성 메모리 전달만 사용했다.
+- 브라우저 credential relay helper를 운영 스크립트로 유지: 이번 환경의 sandbox 경계 통과에만 필요하고 일반 운영 secret injection을 대체하면 안 되므로 실행 후 저장소에서 제거했다.
+
+### 변경 파일
+
+- `package.json`, `scripts/verify-r2-staging.mjs`
+- `docs/IMPLEMENTATION_STATUS.md`, `docs/RUNBOOK.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: Cloudflare dashboard에서 private bucket·24시간 single-bucket token 확인 및 token 폐기, PostgreSQL 18.6 digest 고정 `--rm` container, 승인된 외부 프로세스의 `node scripts/verify-r2-staging.mjs`, `pnpm build`, 검증 스크립트 `node --check`/Prettier check, 검증 후 test DB/container 부재 확인.
+- 결과: PASS — 실제 private R2의 put/get, metadata, unsigned denial, wrong credential mapping, 300초 authorized preview, held/unheld cleanup과 audit, artifact/token/DB/container 정리가 모두 PASS했다. 전체 integration suite·remote CI·public HTTPS staging은 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- public hostname의 TLS certificate issuance, DNS, firewall direct API port 차단과 production host secret injection은 아직 실제 staging에서 검증하지 않았다.
+- 전체 integration suite와 remote CI는 이번 외부 R2 검증 범위에서 재실행하지 않았다.
+- root `pnpm format:check`는 이번 변경과 무관한 `apps/admin` 기존 11개 파일의 formatting drift 때문에 FAIL한다. 이번 변경 파일은 formatter를 통과했다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P6-10 public Docker/HTTPS staging에서 TLS·DNS·firewall·Caddy auth·R2-backed preview/browser run을 end-to-end 검증하거나, 먼저 전체 integration suite와 remote CI를 재실행한다.
+- 금지 변경: R2 bucket public-read, broad/long-lived credential, secret·presigned URL 로그/DB 저장, client actor/token 신뢰, source original/approved thumbnail 자동 삭제, current adapter 외 historical provider object 무단 삭제.
+- 완료 조건: public staging의 401/spoofed-header overwrite/direct-port 차단, authenticated R2 preview와 durable Browser run을 확인하고 전체 integration 및 required remote CI가 PASS한다.
+- 재검토가 필요한 조건: custom domain delivery, direct client upload, provider-native legal hold, bucket/provider migration, multi-region storage 또는 key rotation without restart 요구가 생길 때.

@@ -225,6 +225,19 @@ pnpm --filter @bros/storage run build
 node --test packages/storage/test/storage.test.mjs
 ```
 
+실제 private R2 staging 검증은 PostgreSQL 18의 `uuidv7()`을 사용하므로 18.6 disposable DB와 single-bucket `Object Read & Write` R2 credential을 준비한다. credential은 짧은 TTL로 발급하고 process environment 또는 승인된 host secret injection으로만 전달한다. 값이나 presigned URL을 `.env*`, 명령행, 로그, DB에 남기지 않는다.
+
+```powershell
+$env:TEST_DATABASE_URL='<disposable-postgresql-18-url>'
+$env:STORAGE_R2_ENDPOINT='https://<account-id>.r2.cloudflarestorage.com'
+$env:STORAGE_R2_BUCKET='<private-staging-bucket>'
+$env:BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID='<host-secret>'
+$env:BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY='<host-secret>'
+pnpm verify:r2-staging
+```
+
+검증기는 임의 UUIDv7 Browser artifact 3개만 생성한다. unsigned GET 거부, wrong-secret `STORAGE_AUTH_FAILED`, 300초 authorized preview와 `content-type`/`x-amz-meta-content-sha256`, held/unheld cleanup 및 R2 provider/bucket audit을 확인한다. 성공·실패와 관계없이 생성에 성공한 key만 `finally`에서 재삭제하고 고유 test DB를 drop한다. 완료 후 검증용 credential을 폐기하며 private bucket 자체는 후속 staging에서 재사용할 수 있다.
+
 ## Artifact Retention / Cleanup — P6-05
 
 Worker는 시작 시 `artifact.cleanup` queue의 `artifact-retention-daily` schedule을 UTC `03:17`에 reconciliation한다. payload는 maintenance schedule 식별용 UUIDv7 하나뿐이며 artifact key·URL·raw run input·secret을 queue에 넣지 않는다.

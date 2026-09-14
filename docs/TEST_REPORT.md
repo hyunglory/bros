@@ -407,3 +407,11 @@
 - durable 회귀: 같은 disposable DB에서 `tests/integration/browser-durable.integration.test.mjs` PASS. worker start 시 daily `artifact.cleanup` schedule 등록 후에도 pg-boss browser manual success/failure, receipt 멱등성, DB 상태와 artifact evidence가 유지됐다. pg-boss schedule key는 colon을 허용하지 않아 `artifact-retention-daily`로 고정했다.
 - 품질: `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`(Admin 13개·Node 103개), 변경 파일 Prettier check, `git diff --check` PASS.
 - 전체 `pnpm test:integration`은 수정 전 schedule key에서 P6 durable startup FAIL을 발견했고 이를 수정했다. 이후 P6-05/durable/schema 대상 10개 테스트는 PASS했으나, 24-file 전체 suite는 재실행하지 않았다. 실제 R2 cleanup, remote CI, public HTTPS staging은 NOT_RUN이다.
+
+## 2026-09-15 — P6-04/P6-05 Private R2 Staging
+
+- Cloudflare에서 public access를 활성화하지 않은 `bros-p6-staging-artifacts` bucket과 해당 bucket 하나에만 `Object Read & Write` 권한을 가진 24시간 account API token을 사용했다. credential은 파일·명령행·로그에 기록하지 않고 일회성 loopback 메모리 전달로 승인된 외부 검증 프로세스에 주입했다.
+- `node scripts/verify-r2-staging.mjs` 실환경 경로에서 실제 R2 PUT/GET, `application/json`과 `x-amz-meta-content-sha256`, unsigned GET 거부, 잘못된 secret의 `STORAGE_AUTH_FAILED`, API authorization 뒤 300초 presigned GET과 실제 HTTP 200/body를 확인했다.
+- PostgreSQL 18.6 disposable DB의 terminal Browser run 3개 artifact에서 hold 중 trace 1개 보존·screenshot/result 2개 삭제, hold release 뒤 trace 1개 삭제를 확인했다. audit event 순서는 `HOLD_SET`, `DELETED`, `DELETED`, `HOLD_RELEASED`, `DELETED`였고 삭제 event는 `provider=R2`와 실제 bucket을 기록했다.
+- 최초 진단용 PostgreSQL 16은 baseline의 `uuidv7()` 부재로 `42883`이 발생했다. 저장소 고정 이미지인 PostgreSQL 18.6으로 교체한 뒤 migration과 전체 R2 검증이 PASS했다. 실제 생성된 artifact 3개는 모두 삭제 확인했고 고유 test DB와 `--rm` 컨테이너를 제거했다. 24시간 검증 token도 Cloudflare에서 폐기했으며 private staging bucket은 유지했다.
+- 품질: `pnpm build`, 검증 스크립트 `node --check`와 Prettier check PASS. root `pnpm format:check`는 이번 범위와 무관한 Admin 기존 11개 파일과 함께 FAIL했으며, 전체 integration suite·remote CI·public HTTPS/DNS/firewall staging은 NOT_RUN이다.
