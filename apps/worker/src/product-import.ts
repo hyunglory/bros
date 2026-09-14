@@ -1,108 +1,18 @@
 import { createRedactedLogger } from "@bros/core";
 import type { DatabaseClient, DbTransaction, JsonObject, JsonValue } from "@bros/db";
-import { createImportChunkProcessor, validateImportChunkOptions } from "@bros/importer";
+import {
+  createImportChunkProcessor,
+  ProductImportError,
+  productImportQueueVersion,
+  validateImportChunkOptions,
+} from "@bros/importer";
 import type { ImportChunkOptions, ImportChunkProgress } from "@bros/importer";
-import { queueTransaction } from "@bros/queue";
-import type { QueueJob, QueuePort } from "@bros/queue";
-import { sql } from "kysely";
+import type { QueueJob } from "@bros/queue";
 
-const version = "P2-13/v1";
-const publicIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const version = productImportQueueVersion;
 function object(value: JsonValue | undefined): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-export class ProductImportError extends Error {
-  constructor(readonly code: string) {
-    super(code);
-    this.name = "ProductImportError";
-  }
-}
-
-export interface ProductImportAdmissionOptions {
-  maxQueuedBatches?: number;
-  // Explicit operator recovery also covers a process killed on the final provider attempt.
-  // Successful items are immutable; the previous receipt is fenced out.
-  resume?: boolean;
-}
-
-export async function enqueueProductImport(
-  database: DatabaseClient,
-  queue: QueuePort,
-  batchPublicId: string,
-  options: ProductImportAdmissionOptions = {},
-) {
-  const limit = options.maxQueuedBatches ?? 32;
-  if (!publicIdPattern.test(batchPublicId)) throw new ProductImportError("INVALID_IMPORT_BATCH_ID");
-  if (!Number.isInteger(limit) || limit < 1 || limit > 1000)
-    throw new ProductImportError("INVALID_IMPORT_ADMISSION_LIMIT");
-  return database
-    .transaction(async (tx) => {
-      // Serialize admission counts across producer processes, without locking active handlers.
-      await sql`select pg_advisory_xact_lock(1112686419, 213)`.execute(tx);
-      const batch = await tx
-        .selectFrom("app.import_batch")
-        .selectAll()
-        .where("public_id", "=", batchPublicId)
-        .forUpdate()
-        .executeTakeFirst();
-      if (!batch) throw new ProductImportError("IMPORT_BATCH_NOT_FOUND");
-      if (batch.total_count === 0) throw new ProductImportError("EMPTY_IMPORT_BATCH");
-      if (batch.status === "CANCELLED") throw new ProductImportError("IMPORT_BATCH_CANCELLED");
-      const prior = batch.config_json.importQueue;
-      if (object(prior)) {
-        if (
-          prior.version !== version ||
-          typeof prior.provider !== "string" ||
-          typeof prior.providerId !== "string"
-        )
-          throw new ProductImportError("IMPORT_QUEUE_STATE_INVALID");
-        if (prior.status === "SUCCESS" || !options.resume)
-          return {
-            publicId: batchPublicId,
-            provider: prior.provider,
-            providerId: prior.providerId,
-          };
-      }
-      const active = await tx
-        .selectFrom("app.import_batch")
-        .select(sql<number>`count(*)::int`.as("count"))
-        .where("id", "!=", batch.id)
-        .where(
-          sql<boolean>`config_json->'importQueue'->>'status' in ('QUEUED','RUNNING','RETRY_WAIT')`,
-        )
-        .executeTakeFirstOrThrow();
-      if (active.count >= limit) throw new ProductImportError("IMPORT_BACKPRESSURE");
-      const receipt = await queue.publish(
-        "product.import",
-        { publicId: batchPublicId },
-        queueTransaction(tx),
-      );
-      await tx
-        .updateTable("app.import_batch")
-        .set({
-          config_json: JSON.stringify({
-            ...batch.config_json,
-            importQueue: {
-              version,
-              ...receipt,
-              status: "QUEUED",
-              attempt: 0,
-              queuedAt: new Date().toISOString(),
-              completedAt: null,
-              progress: null,
-            },
-          }),
-        })
-        .where("id", "=", batch.id)
-        .execute();
-      return { publicId: batchPublicId, ...receipt };
-    })
-    .catch((error: unknown) => {
-      if (error instanceof ProductImportError) throw error;
-      throw new ProductImportError("IMPORT_ENQUEUE_FAILED");
-    });
-}
-
 async function lockedBatch(tx: DbTransaction, job: QueueJob) {
   const batch = await tx
     .selectFrom("app.import_batch")
@@ -121,6 +31,8 @@ async function lockedBatch(tx: DbTransaction, job: QueueJob) {
     throw new ProductImportError("IMPORT_DELIVERY_MISMATCH");
   return { batch, state };
 }
+
+export { enqueueProductImport, ProductImportError } from "@bros/importer";
 
 export function createProductImportHandler(
   database: DatabaseClient,

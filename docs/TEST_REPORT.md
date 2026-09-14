@@ -367,3 +367,11 @@
 - 실제 재시작: source insert에 짧은 지연을 주고 일부 행 commit을 관측한 뒤 Worker 자식 프로세스를 SIGKILL했다. 같은 queue job이 attempt 2 이상으로 재전달되어 30개 source와 pipeline item 30개를 중복 없이 완료했다. 정상 종료는 Windows IPC로 등록된 SIGTERM handler를 실행했다.
 - 최종 `pnpm check` exit 0: lint/typecheck/unit/integration/format/build PASS; integration 97개(parent 포함), fail/skip 0개. 일회용 PostgreSQL을 사용했으며 기존 `examples/`·운영 DB·별도 P5 worktree는 변경하지 않았다. 원격 push/CI NOT_RUN.
 - 환경 이슈: sandbox 안에서 pnpm 의존성 재구성이 장시간 멈춰 중단했고 승인된 offline install로 기존 캐시에서 복구했다. 설치 후 불필요한 자동 재설치를 막기 위해 검증 프로세스에만 `pnpm_config_verify_deps_before_run=false`를 설정했다. 신규 외부 dependency 버전은 없으며 기존 Kysely와 importer workspace link만 Worker에 추가했다.
+
+## 2026-09-14 — P2-14 Import 관리 UI/API
+
+- 대상: `GET /api/v1/import-batches`, `GET /api/v1/import-batches/:publicId`, `POST /api/v1/import-batches/:publicId/retry`, Admin `/imports`, P2-13 admission의 package 경계.
+- 계약/unit: Batch 업무 상태와 Queue 처리 상태를 별도 필드로 반환하고, cursor pagination 기본 50/최대 100과 status allowlist, strict 응답/요청, 공개 UUID를 검증했다. Admin은 목록·상세·실패 원인·filter·loading/empty/error/retry 상태를 검증했다.
+- PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond 안의 PostgreSQL 원본 timestamp 정밀도를 보존하는 생성시각+UUID cursor의 중복 없는 다음 page, batch/item 상태 filter, 안전한 detail projection, malformed cursor·404, 명시적 resume의 새 receipt, replay의 중복 publish 방지, 429 backpressure/retryAfter, 변경 header, business API disabled 경계를 확인했다. raw JSON, provider receipt와 내부 ID는 응답에 없음을 검사했다.
+- 인증 경계: 업무 API는 기본 disabled다. 비운영 loopback에서 `API_LOCAL_UNAUTHENTICATED=true`를 명시한 경우만 활성화하며, retry는 JSON과 `X-BROS-Operation: import-retry`를 요구한다. Caddy Basic Auth·actor·Origin/CSRF·직접 포트 차단의 운영 검증은 P6-01로 남겼다.
+- 최종 `pnpm check` exit 0: Admin Vitest 13개, Node unit 71개, integration 99개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 원격 CI는 NOT_RUN이다.

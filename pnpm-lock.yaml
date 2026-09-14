@@ -81,12 +81,18 @@ importers:
       '@bros/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@bros/importer':
+        specifier: workspace:*
+        version: link:../../packages/importer
       '@bros/queue':
         specifier: workspace:*
         version: link:../../packages/queue
       fastify:
         specifier: 5.12.4
         version: 5.12.4
+      kysely:
+        specifier: 0.29.5
+        version: 0.29.5
 
   apps/worker:
     dependencies:
@@ -166,6 +172,9 @@ importers:
       '@bros/db':
         specifier: workspace:*
         version: link:../db
+      '@bros/queue':
+        specifier: workspace:*
+        version: link:../queue
       '@e965/xlsx':
         specifier: 0.20.3
         version: 0.20.3

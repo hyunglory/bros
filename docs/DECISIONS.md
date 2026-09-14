@@ -1718,3 +1718,64 @@
 - 금지 변경: P2-12 완료 item 이력 초기화, raw exception/queue 원문 공개, provider SUCCESS와 업무 성공 혼동, source/MASTER/SKU/image identity 변경, 별도 P5 worktree 변경.
 - 완료 조건: 운영자가 실제 저장된 결과와 processing 상태를 구분해 확인하고, 상한 초과·재시도·권한/검증 오류를 이해하며 기존 receipt replay와 명시적 resume을 API 테스트로 검증한다.
 - 재검토 조건: 여러 Worker에 걸친 전역 item 동시성 상한, batch 취소 API, zero-row import 허용, 자동 최종 crash reconciliation, 대량 데이터의 chunk별 provider job 분리가 요구될 때.
+
+## DEC-20260914-013 — P2-14 Import 관리 UI/API와 local 인증 fence 확정
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-14 Import batch 조회·상품 결과·처리 재개 API 및 Admin UI 구현·로컬 검증
+- 작성 모델/추론 수준: GPT-5 기반 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P2-14, 후속 P2-15/P2-16/P6-01
+- 검토 범위와 근거: AGENTS.md, WBS P2-14~16, 구현 보완 명세 3.1~3.2/상태 전이, 설계서 23.1, DEC-20260913-003 및 DEC-20260914-003/011/012, Source Mapping Spec 17~18, 현재 Fastify/Admin/QueuePort/import schema와 P2-13 admission 구현.
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-012의 미해결 사항 중 “XLSX 업로드·batch 생성 API를 P2-14 범위로 둔다”는 부분만 대체한다. WBS P2-14의 명시 범위와 Acceptance Criteria는 기존 batch 목록/상세·상태/건수·실패 이유·재실행 진입점이며 binary 업로드는 원본 보존/인증/원자성 결정과 함께 별도 후속 범위로 둔다. P2-13의 retry·완료 item 보호 결정은 유지한다.
+
+### 확정 결정
+
+- `GET /api/v1/import-batches`는 batch 상태 filter와 `(created_at,public_id)` opaque cursor를 사용한다. `GET /api/v1/import-batches/:publicId`는 item 상태 filter와 독립 cursor를 사용한다. cursor 비교에는 Node Date로 잘리지 않은 PostgreSQL 원본 timestamp text를 사용해 같은 millisecond 안의 행도 건너뛰지 않는다. 두 limit은 기본 50, 최대 100이다.
+- 응답은 UUIDv7 public ID만 사용한다. batch 업무 status/counts/pipeline completion과 Queue processing status/progress를 별도 필드로 반환한다. 내부 BIGINT, `raw_json`, provider/receipt, Queue 원문과 예외는 반환하지 않는다. item 오류는 안정된 code와 최대 512자 message만 반환한다.
+- P2-13 admission을 `@bros/importer`로 이동해 API와 Worker가 같은 원자적 접수/상한/replay 규칙을 사용한다. Worker는 기존 public export를 유지한다. 상세 admission 결과만 API가 사용하여 새 접수는 202/QUEUED, 기존 receipt는 200/current processing status로 정확히 구분한다.
+- retry의 `resume`은 새 receipt로 미완료 처리를 재개하고 이전 receipt를 차단한다. `replay`는 기존 상태만 돌려준다. P2-12에서 확정한 성공·실패·검수·스킵 item은 초기화하지 않는다. 확정 실패 상품 재검수는 새 batch/item으로 수행한다.
+- 업무 API는 기본 disabled다. `API_LOCAL_UNAUTHENTICATED=true`와 development/test loopback host를 함께 명시한 경우만 활성화하며 production/non-loopback 조합은 config 단계에서 거절한다. 변경 요청은 JSON과 `X-BROS-Operation: import-retry`를 요구한다. 이 설정은 P6-01 인증을 대체하지 않는다.
+- Admin `/imports`는 batch status filter, 목록/상세 cursor 다음 page, 업무/처리 상태, 건수, progress, item 실패 code/message, loading/empty/error/retry 상태를 제공한다. Queue SUCCESS를 상품 성공으로 표시하지 않는다.
+
+### 기각한 선택지와 이유
+
+- API가 Worker 앱의 admission 구현을 직접 import: app 간 역방향 결합과 runtime 경계를 만들므로 공유 importer service로 이동했다.
+- offset pagination과 임의 sort: 동시 Import 중 중복/누락 가능성이 있고 공통 HTTP 계약의 cursor/allowlist를 위반한다.
+- provider job 성공을 batch 성공으로 표시: validation 실패·검수·스킵이 있는 정상 Worker 완료를 전건 성공으로 오인한다.
+- 완료 item을 retry에서 PENDING으로 초기화: 원본/판정 이력과 P2-12 replay 불변성을 훼손한다.
+- 무인증 업무 API를 개발 기본값으로 활성화하거나 0.0.0.0에 바인딩: 보완 명세의 명시적 loopback local mode 조건을 충족하지 않는다.
+- P2-14에서 binary XLSX upload를 함께 추가: WBS 명시 범위를 넘고, JSON-only 업무 API·25MB body·ObjectStorage 원본 보존·validation/enqueue transaction과 운영 인증을 먼저 함께 결정해야 한다.
+
+### 변경 파일
+
+- `.env.example`, `pnpm-lock.yaml`
+- `packages/core/src/config/index.ts`, `packages/core/test/config.test.mjs`
+- `packages/contracts/src/import-management.ts`, `packages/contracts/src/index.ts`, `packages/contracts/test/import-management.test.mjs`
+- `packages/importer/src/product-import-admission.ts`, `packages/importer/src/index.ts`, `packages/importer/package.json`
+- `apps/worker/src/product-import.ts`
+- `apps/api/src/import-management.ts`, `apps/api/src/app.ts`, `apps/api/src/bootstrap.ts`, `apps/api/src/index.ts`, `apps/api/package.json`
+- `apps/admin/src/api/imports.ts`, `apps/admin/src/api/imports.test.ts`, `apps/admin/src/pages/ImportsPage.tsx`, `apps/admin/src/pages/ImportsPage.test.tsx`, `apps/admin/src/App.tsx`, `apps/admin/src/App.test.tsx`, `apps/admin/src/components/AppShell.tsx`, `apps/admin/src/styles.css`
+- `tests/integration/import-management-api.integration.test.mjs`
+- `docs/SOURCE_MAPPING_SPEC_v0.1.md`, `docs/RUNBOOK.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/TEST_REPORT.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+
+- 실행: package/API/Worker/Admin build·typecheck, Admin Vitest, P2-14 전용 PostgreSQL 18.0 API integration, 최종 `pnpm check`, `git diff --check`.
+- P2-14 전용 integration 2개 PASS: batch/item cursor+filter, safe projection, invalid cursor/404, 명시적 resume와 기존 receipt replay, 429 backpressure, operation header, 기본 disabled fence를 실제 DB에서 확인했다.
+- 전체 `pnpm check` exit 0: Admin Vitest 13개, Node unit 71개, integration 99개(parent 포함), fail/skip 0 및 lint/typecheck/format/build PASS. P2-13 1k import(50,058ms)와 실제 Worker crash 복구도 회귀 PASS했다.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN. 구현 현황은 `IMPLEMENTED_NOT_VALIDATED`.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 구현 blocker 없음. public remote push/CI는 수행하지 않았다.
+- 운영 인증(Caddy Basic Auth/actor), Origin·CSRF, 직접 API 포트 차단과 인증 실패 UX는 P6-01 전까지 NOT_RUN이다. `API_LOCAL_UNAUTHENTICATED`를 외부 배포에 사용하지 않는다.
+- XLSX upload/new batch 운영 경계는 결정 필요다. binary 수신 또는 ObjectStorage 사전 업로드, 원본 file hash/보존, validation+enqueue 원자성, 실패 시 생성 batch의 재개 UX를 함께 정해야 한다.
+- cursor는 현재 opaque encoding이며 서명하지 않는다. 허용 필드와 UUID/date를 재검증하므로 조회 범위 탈출은 없지만 장기 public API에서 변조 방지·만료가 필요하면 P6에서 서명 cursor를 추가한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 우선 P2-15 MASTER 상품관리 API/UI에서 목록/상세, Source/SKU/Identifier/Image 추적, match 상태, version 기반 안전한 기본정보 수정과 pagination/filter를 구현한다. P2-16 Brand Review도 P2-14를 선행 완료했으므로 병렬 가능한 후속 후보다.
+- 금지 변경: Import raw/queue receipt 공개, 완료 item 초기화, MASTER/source/SKU/image identity 재해석, 자동승인 기본 OFF 변경, 인증 없는 non-loopback 업무 route, 별도 P5 worktree 수정.
+- 완료 조건: 하나의 MASTER에서 모든 연결 근거를 public UUID로 추적하고, missing relation과 concurrent expectedVersion conflict를 포함한 API/UI 검증 및 전체 회귀가 통과한다.
+- 재검토가 필요한 조건: P2-15 수정 대상 필드가 기존 version_no만으로 원자적 CAS를 표현하지 못하거나, P2-16 alias 승인과 MASTER 수정이 하나의 transaction/화면으로 결합되어야 할 때.

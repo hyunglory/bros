@@ -21,6 +21,7 @@
   "dependencies": {
     "@bros/contracts": "workspace:*",
     "@bros/db": "workspace:*",
+    "@bros/queue": "workspace:*",
     "@e965/xlsx": "0.20.3",
     "kysely": "0.29.5"
   }

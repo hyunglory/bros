@@ -280,3 +280,26 @@ pnpm worker:import <batch-public-uuid> --resume
 `--resume`은 새 receipt로 기존 작업을 차단하고 미완료 항목만 재개한다. 이미 SUCCESS인 batch는 일반 replay다. 이미 P2-12에서 확정한 FAILED item은 과거 결과를 유지하므로, 해당 상품을 다시 검증하려면 새 batch를 만든다. 취소·빈 batch는 접수 불가다. 접수 상한에 도달하면 생산자가 대기/재요청해야 하며 CLI는 실패 종료한다. 별도 자동 재조정 daemon은 아직 없다.
 
 정상 종료는 활성 batch drain을 기다린다. 긴 batch가 종료 deadline을 넘으면 기존 P1-10 규칙대로 소유 프로세스를 종료하고 재전달로 복구한다. 잠금 연결 손실·DB 장애에서는 현재 진행 중인 stage가 commit됐을 수 있으며 재시도는 저장된 stage 결과를 기준으로 수행한다. 네트워크 fetch나 이미지 binary 저장은 이 Worker에 포함하지 않는다.
+
+## Import 관리 UI/API — P2-14
+
+업무 API는 기본적으로 비활성화되어 있다. 로컬 개발에서만 `.env`의 API host를 loopback으로 유지하고 다음 설정을 명시한다. production 또는 non-loopback host와 함께 사용하면 config validation이 실패한다.
+
+```dotenv
+API_HOST=127.0.0.1
+API_LOCAL_UNAUTHENTICATED=true
+```
+
+PostgreSQL migration 후 API, Worker, Admin을 각각 시작하고 `http://127.0.0.1:5173/imports`에서 확인한다. API readiness는 이 모드에서 DB와 Queue producer가 모두 시작된 뒤에만 성공한다.
+
+| Method / path | 용도 |
+|---|---|
+| `GET /api/v1/import-batches?status=&limit=&cursor=` | 최신 Batch 목록, 업무 상태/건수와 처리 상태 |
+| `GET /api/v1/import-batches/:publicId?itemStatus=&itemLimit=&itemCursor=` | Batch 상세와 상품별 결과/오류 원인 |
+| `POST /api/v1/import-batches/:publicId/retry` | 기존 접수 replay 또는 미완료 처리 resume |
+
+retry는 `Content-Type: application/json`, `X-BROS-Operation: import-retry`와 `{ "mode": "replay" }` 또는 `{ "mode": "resume" }`를 요구한다. 새 접수는 202/QUEUED, 기존 receipt 재생은 200과 현재 processing status다. 접수 상한은 429 `IMPORT_BACKPRESSURE`와 `retryAfterSeconds`를 반환한다. 완료 item과 업무 실패 이력은 resume으로 초기화되지 않는다.
+
+Admin에서 업무 상태는 실제 item 집계, Worker 처리는 Queue 실행 상태다. Worker 완료와 상품 전건 성공을 같은 의미로 읽지 않는다. raw row, Queue receipt와 내부 DB ID는 화면/API에 노출하지 않는다.
+
+현재 설정은 loopback 개발용 임시 인증 fence다. Caddy Basic Auth, 인증 actor 덮어쓰기, same-origin/CSRF 검증, 외부 API 포트 차단과 401 UX는 P6-01에서 완료해야 하며 그 전에는 업무 API를 외부 주소에 배포하지 않는다. XLSX 업로드와 새 batch 생성 endpoint도 아직 없으므로 P2-04 계약을 호출하는 내부/테스트 흐름에서 생성된 batch만 관리한다.

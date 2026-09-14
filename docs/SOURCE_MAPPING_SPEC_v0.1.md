@@ -252,3 +252,13 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - `importQueue`에는 version, receipt, attempt, QUEUED/RUNNING/RETRY_WAIT/SUCCESS/FAILED 상태, 설정값, chunk progress와 시각, 안정된 error code만 저장한다. 완료 항목은 이후 MASTER/SKU/image 단계 호출로 덮어쓸 수 없다. 신규 attempt나 receipt가 기록되면 오래된 작업은 progress/상태를 덮어쓰지 못한다.
 - 접수 상한은 전체 DB의 QUEUED/RUNNING/RETRY_WAIT batch 기본 32개다. 접수 전역 advisory lock 안에서 검사하며 초과 요청은 `IMPORT_BACKPRESSURE`로 거절하고 enqueue를 남기지 않는다. CLI 또는 API 호출자는 `IMPORT_MAX_QUEUED_BATCHES`를 admission 옵션에 전달한다.
 - pg-boss retry/expiry/종료 정책은 P1-09를 따른다. 한 provider job이 batch를 chunk 단위로 순회한다. 프로세스 crash나 expiry 후 새 시도는 저장 결과에서 재개한다. 마지막 provider 시도에서 crash하거나 DB 장애로 상태 기록까지 실패하면 자동 복구가 보장되지 않으므로 명시적 `resume`으로 새 receipt를 발급한다. 완료 item은 유지하며 기존 receipt를 차단한다.
+
+## 19. P2-14 Import 관리 UI/API
+
+운영 조회는 `/api/v1/import-batches` 목록과 `/api/v1/import-batches/:publicId` 상세를 사용한다. 외부에는 batch/item/source product의 UUIDv7만 반환하고 내부 BIGINT, `raw_json`, Queue provider/receipt, 원본 예외는 반환하지 않는다.
+
+- 목록은 `created_at DESC, public_id DESC`, 상세 item은 `created_at ASC, public_id ASC` 순서의 opaque cursor를 사용한다. limit 기본 50, 최대 100이며 batch/item 상태 filter만 허용한다. 임의 sort나 raw 검색은 받지 않는다.
+- batch의 `status`와 counts는 P2-12 업무 결과다. `processingStatus`와 progress는 P2-13 Queue 처리 상태다. `processingStatus=SUCCESS`여도 업무 상태가 `PARTIAL_FAILED`/`FAILED`일 수 있으므로 UI에서 두 상태를 별도로 표시한다.
+- item 상세는 입력 행 번호, 외부 상품 ID, 연결된 source UUID, 최종 상태/action, 안정된 오류 code/message만 보여준다. 오류 message는 응답에서 512자로 제한한다.
+- retry API의 `replay`는 기존 receipt 상태를 반환하며 publish하지 않는다. `resume`은 FAILED/RETRY_WAIT 등 미완료 처리에 새 receipt를 발급하고 기존 receipt를 fence한다. P2-12에서 확정된 item 결과는 초기화하지 않으며 업무 실패 상품을 다시 검증하려면 새 batch가 필요하다.
+- XLSX 파일 업로드와 새 batch 생성은 WBS P2-14의 명시 범위·Acceptance Criteria에 포함되지 않아 이번 API에 추가하지 않았다. 25MB binary 수신, ObjectStorage 원본 보존, validation+enqueue 원자성, 운영 인증 경계를 함께 확정하는 후속 설계가 필요하다.

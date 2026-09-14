@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
 describe("App routes", () => {
+  it("registers the Import management route", () => {
+    render(
+      <MemoryRouter initialEntries={["/imports"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Import 관리" })).toBeVisible();
+  });
+
   it("renders a fallback page for unknown routes", () => {
     render(
       <MemoryRouter initialEntries={["/missing"]}>

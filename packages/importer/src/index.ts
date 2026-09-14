@@ -6,6 +6,7 @@ export * from "./import-result-recorder.js";
 export * from "./import-chunk-processor.js";
 export * from "./master-matcher.js";
 export * from "./master-service.js";
+export * from "./product-import-admission.js";
 export * from "./source-product-upsert.js";
 export * from "./sku-mapper.js";
 export * from "./xlsx-import-adapter.js";

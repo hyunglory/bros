@@ -22,6 +22,7 @@ test("loads development defaults from a valid environment", () => {
       port: 3000,
       readinessTimeoutMs: 1000,
       shutdownTimeoutMs: 10000,
+      localUnauthenticated: false,
     },
     worker: {
       concurrency: 1,
@@ -139,6 +140,7 @@ test("loads explicit production settings without development defaults", () => {
       port: 8080,
       readinessTimeoutMs: 1000,
       shutdownTimeoutMs: 10000,
+      localUnauthenticated: false,
     },
     worker: {
       concurrency: 4,
@@ -166,6 +168,29 @@ test("does not include an invalid environment value in the error", () => {
       return true;
     },
   );
+});
+
+test("allows local unauthenticated APIs only with an explicit loopback development setting", () => {
+  const base = { DATABASE_URL: "postgresql://localhost/bros" };
+  assert.equal(
+    loadConfig({ ...base, API_LOCAL_UNAUTHENTICATED: "true" }).api.localUnauthenticated,
+    true,
+  );
+  for (const environment of [
+    { ...base, API_HOST: "0.0.0.0", API_LOCAL_UNAUTHENTICATED: "true" },
+    {
+      ...base,
+      APP_ENV: "production",
+      API_HOST: "127.0.0.1",
+      API_PORT: "3000",
+      WORKER_CONCURRENCY: "1",
+      STORAGE_DRIVER: "r2",
+      API_LOCAL_UNAUTHENTICATED: "true",
+    },
+    { ...base, API_LOCAL_UNAUTHENTICATED: "yes" },
+  ]) {
+    assert.throws(() => loadConfig(environment), ConfigValidationError);
+  }
 });
 
 test("validates configurable pool and timeout bounds", () => {

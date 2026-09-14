@@ -3,6 +3,8 @@ import Fastify, { LogController } from "fastify";
 import type { FastifyBaseLogger } from "fastify";
 import type { AppConfig } from "@bros/core";
 import { createRedactedLogger } from "@bros/core";
+import { createPgBossQueue } from "@bros/queue";
+import type { QueuePort } from "@bros/queue";
 import {
   createErrorEnvelope,
   ErrorEnvelopeSchema,
@@ -10,12 +12,20 @@ import {
   ReadyResponseSchema,
 } from "@bros/contracts";
 import { createApiDataAccess } from "./database.js";
+import { registerImportManagementRoutes } from "./import-management.js";
+
+export interface ApiAppOptions {
+  queue?: QueuePort;
+}
 
 export function createApiApp(
   config: AppConfig,
   logger: FastifyBaseLogger = createRedactedLogger(),
+  options: ApiAppOptions = {},
 ) {
   const data = createApiDataAccess(config.database);
+  const businessEnabled = config.api.localUnauthenticated;
+  const queue = businessEnabled ? (options.queue ?? createPgBossQueue(config.database)) : undefined;
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -31,6 +41,8 @@ export function createApiApp(
   let closing = false;
   let closePromise: Promise<void> | undefined;
   let probe: Promise<boolean> | undefined;
+  let queueReady = false;
+  let startPromise: Promise<void> | undefined;
   // Share any still-running probe so repeated timeouts cannot fill the pool queue.
   async function isReady(): Promise<boolean> {
     probe ??= data.database.db
@@ -45,12 +57,13 @@ export function createApiApp(
       });
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([
+      const databaseReady = await Promise.race([
         probe,
         new Promise<boolean>((resolve) => {
           timer = setTimeout(() => resolve(false), config.api.readinessTimeoutMs);
         }),
       ]);
+      return databaseReady && (!businessEnabled || queueReady);
     } finally {
       clearTimeout(timer);
     }
@@ -126,15 +139,30 @@ export function createApiApp(
       );
     },
   );
+  registerImportManagementRoutes(app, data.database, {
+    enabled: businessEnabled,
+    ...(queue ? { queue } : {}),
+    maxQueuedBatches: config.importer.maxQueuedBatches,
+  });
   app.addHook("preClose", async () => {
     closing = true;
   });
   app.addHook("onClose", async () => {
-    await data.database.close();
+    try {
+      if (queueReady) await queue?.stop();
+    } finally {
+      await data.database.close();
+    }
   });
   return {
     app,
     data,
+    start: () =>
+      (startPromise ??= (async () => {
+        if (!queue) return;
+        await queue.start();
+        queueReady = true;
+      })()),
     close: () => {
       closing = true;
       return (closePromise ??= app.close());

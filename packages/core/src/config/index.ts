@@ -32,6 +32,7 @@ export interface AppConfig {
     port: number;
     readinessTimeoutMs: number;
     shutdownTimeoutMs: number;
+    localUnauthenticated: boolean;
   };
   worker: {
     concurrency: number;
@@ -39,6 +40,20 @@ export interface AppConfig {
   };
   importer: { chunkSize: number; concurrency: number; maxQueuedBatches: number };
   storage: StorageConfig;
+}
+
+function readBoolean(
+  environment: EnvironmentSource,
+  key: string,
+  issues: string[],
+  defaultValue = false,
+): boolean {
+  const rawValue = environment[key]?.trim().toLowerCase();
+  if (rawValue === undefined || rawValue === "") return defaultValue;
+  if (rawValue === "true") return true;
+  if (rawValue === "false") return false;
+  issues.push(`${key} must be true or false`);
+  return defaultValue;
 }
 
 export class ConfigValidationError extends Error {
@@ -162,6 +177,13 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     minimum: 1,
     required: production,
   });
+  const localUnauthenticated = readBoolean(environment, "API_LOCAL_UNAUTHENTICATED", issues);
+  if (
+    localUnauthenticated &&
+    (production || !["127.0.0.1", "::1", "localhost"].includes(apiHost.toLowerCase()))
+  ) {
+    issues.push("API_LOCAL_UNAUTHENTICATED requires a non-production loopback API_HOST");
+  }
   const workerConcurrency = readInteger(environment, "WORKER_CONCURRENCY", issues, {
     defaultValue: production ? undefined : 1,
     maximum: 100,
@@ -249,6 +271,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
       port: apiPort,
       readinessTimeoutMs,
       shutdownTimeoutMs,
+      localUnauthenticated,
     },
     worker: {
       concurrency: workerConcurrency,

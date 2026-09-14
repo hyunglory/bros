@@ -22,6 +22,12 @@ export function AppShell({ children }: PropsWithChildren) {
             </span>
             대시보드
           </NavLink>
+          <NavLink className="nav-item" to="/imports">
+            <span className="nav-icon" aria-hidden="true">
+              ⇣
+            </span>
+            Import 관리
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">
@@ -36,7 +42,7 @@ export function AppShell({ children }: PropsWithChildren) {
             <span className="eyebrow">ADMIN CONSOLE</span>
             <strong>운영 관리</strong>
           </div>
-          <span className="phase-badge">Phase 1</span>
+          <span className="phase-badge">Phase 2</span>
         </header>
         <main>{children}</main>
       </div>

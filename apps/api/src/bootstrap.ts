@@ -31,6 +31,7 @@ export async function startApi(config: AppConfig) {
   process.on("SIGTERM", onSignal);
   process.on("SIGINT", onSignal);
   try {
+    await runtime.start();
     await runtime.app.listen({ host: config.api.host, port: config.api.port });
   } catch {
     await shutdown();
