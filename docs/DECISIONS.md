@@ -1363,3 +1363,61 @@
 - 금지 변경: free-text identifier 자동추정, numeric raw 복원, identifier 자동 승인, product_identifier/master 자동 생성.
 - 완료 조건: P2-08은 hard conflict와 evidence 부족을 review로 남기고, candidate provenance 및 brand resolution을 재현 가능한 판단 입력으로 보존한다.
 - 재검토가 필요한 조건: 실제 source가 barcode array/object 또는 새로운 identifier header를 제공하거나 candidate 제한을 넘는 raw payload가 확인될 때.
+
+## DEC-20260914-007 — P2-08 MASTER Matcher v1 구현 및 검증 상태 기록
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-08 existing MASTER candidate discovery와 evidence/conflict decision
+- 작성 모델/추론 수준: GPT-6 Codex / 시스템 기본
+- 관련 WBS Task: P2-08, 후속 P2-09/P2-10/P2-16
+- 검토 범위와 근거: DEC-20260914-004~006, WBS P2-08/P2-09, `doc/brand_resell_os_design_v0.1.md` 14.6/14.8, `doc/BROS_구현_보완_명세_v0.2.md` 5.1, `docs/SOURCE_MAPPING_SPEC_v0.1.md` 11~13장, baseline의 MASTER/identifier/SKU index와 pg_trgm
+- 상태: ACCEPTED
+- supersedes: 없음
+
+### 확정 결정
+
+- P2-08은 P2-05 brand result, P2-07 identifier candidate/provenance, product name과 source option name을 입력으로 기존 MASTER를 조회·평가한다. 결과는 권고이며 source link, match status, MASTER/SKU/identifier를 수정하지 않는다.
+- 후보 pool은 `BRAND_CODE`를 제외한 normalized identifier exact와 resolved brand 내 pg_trgm similarity 0.3 이상 상위 20건을 합친다. 0.3은 후보 조회 recall 하한이며 승인 임계값이 아니다. title similarity만으로는 어떤 score에서도 기존 MASTER를 선택하지 않는다.
+- verified GTIN/EAN/UPC 계열 exact, verified same-type MODEL_NO/MPN/STYLE_CODE exact, resolved brand와 same-type identifier exact는 strong evidence다. evidence에는 source JSON-pointer provenance와 기존 identifier public ID를 보존한다.
+- strong 후보가 하나이고 hard conflict와 extraction truncation이 없을 때만 `MATCH_EXISTING`을 권고한다. strong 복수, resolved brand 불일치, GTIN 계열 불일치, 동일 model type 불일치, 명확한 option 비중첩, inactive MASTER, truncated extraction은 `REVIEW_REQUIRED`다.
+- 기존 candidate evidence가 없고 resolved brand와 `BRAND_CODE`가 아닌 상품 identifier가 함께 있을 때만 `NEW_MASTER_CANDIDATE`를 반환한다. brand 또는 상품 identity 근거가 부족하면 review이며, P2-09는 신규 후보도 곧바로 생성 완료로 해석하지 않고 transaction/advisory lock 안에서 identifier를 재조회해야 한다.
+
+### 기각한 선택지와 이유
+
+- 상품명 유사도 기반 자동 연결: labeled holdout과 승인 임계값이 없고 WBS가 명시적으로 title-only 자동확정을 금지한다.
+- `BRAND_CODE`를 상품 identifier로 exact match: 브랜드 식별자를 상품 identity로 오인해 같은 브랜드 전체에서 오매칭을 만들 수 있다.
+- P2-08에서 source link 또는 MASTER를 즉시 생성: P2-09의 transaction, advisory lock, lock 후 재조회 경계를 우회해 병렬 import 중 중복 MASTER를 만들 수 있다.
+- GTIN/EAN/UPC를 서로 다른 type으로만 비교: 동일한 국제 상품번호가 source와 MASTER에서 다른 GTIN 계열 label로 저장된 경우 기존 MASTER를 놓친다.
+
+### 변경 파일
+
+- packages/importer/src/master-matcher.ts
+- packages/importer/src/index.ts
+- packages/importer/package.json
+- packages/importer/test/master-matcher.test.mjs
+- tests/integration/master-matcher.integration.test.mjs
+- pnpm-lock.yaml
+- docs/SOURCE_MAPPING_SPEC_v0.1.md
+- docs/IMPLEMENTATION_STATUS.md
+- docs/TEST_REPORT.md
+- docs/DECISIONS.md
+
+### 검증 증거
+
+- unit: exact, ambiguous, conflicting GTIN/model, similar-title different variant, truncated extraction, new candidate, insufficient evidence의 matcher 8개 시나리오 PASS.
+- integration: PostgreSQL 18.6 disposable DB에서 baseline/pg_trgm 후보 조회, GTIN↔verified EAN exact, provenance/public ID evidence, source_product non-write를 확인했다.
+- 전체 실행: 최종 근거 규칙 직전 `TEST_DATABASE_URL`을 일회용 PostgreSQL에 process 주입한 `pnpm check` PASS — Admin Vitest 6개, Node unit 54개, integration 59개, fail/skip 0개; lint/typecheck/format/build PASS. 최종 근거 규칙 변경 후 전체 unit을 다시 실행해 Admin 6개·Node 55개 PASS했고 importer lint/typecheck/build도 PASS했다.
+- 결과: IMPLEMENTED_NOT_VALIDATED — 최종 코드에 대한 공개 원격 CI는 이번 요청에서 전송 승인이 없어 NOT_RUN이다.
+
+### 미해결 사항 및 Blocker
+
+- P2-08 로컬 구현 blocker는 없다. name candidate threshold/limit은 auto-accept 기준이 아니며 실제 labeled import corpus의 recall·latency 측정 전까지 운영 승인 수치로 사용하지 않는다.
+- 첫 실제 XLSX 20행은 identifier 후보가 0건이므로 P2-08 strong-match 실데이터 평가는 불가능하다. 실제 identifier 포함 source 표본이 확보되면 후보 recall과 false-review를 별도로 측정한다.
+- P2-05/P2-07/P2-08 최종 공개 원격 CI PASS가 없어 구현 상태 표는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-09 MASTER Creator / Race Control. P2-08 결과를 소비해 기존 MASTER 연결 또는 신규 MASTER 생성 여부를 transaction에서 처리한다.
+- 금지 변경: title-only 자동 연결, truncated/conflict/ambiguous 결과의 자동 처리, global identifier UNIQUE 추가, lock 밖 신규 MASTER 생성, source provenance 폐기.
+- 완료 조건: 동일 strong identifier의 동시 요청이 `pg_advisory_xact_lock` 또는 동등 lock 안 재조회 후 하나의 MASTER로 수렴하고, review 결과는 source/import 상태에 보존되며, lock timeout/retry 및 identifier 없는 유사상품 동시 유입 integration test가 PASS한다.
+- 재검토가 필요한 조건: verified identifier의 전역 소유권 제약을 추가하거나, title/option threshold를 자동승인에 사용하거나, 실제 데이터에서 GTIN type equivalence가 오매칭을 만든다는 증거가 확인될 때.

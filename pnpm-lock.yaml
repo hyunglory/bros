@@ -163,6 +163,9 @@ importers:
       '@e965/xlsx':
         specifier: 0.20.3
         version: 0.20.3
+      kysely:
+        specifier: 0.29.5
+        version: 0.29.5
 
   packages/queue:
     dependencies:

@@ -315,3 +315,12 @@
 - 안전 경계: identifier value는 NFKC·trim·공백 통합·대문자 norm을 사용하고, traversal depth/node/candidate 상한에 걸리면 `truncated: true`로 이후 단계의 자동 확정을 막을 수 있게 한다.
 - 실행 결과: nested raw JSON, 중복 provenance, unknown/numeric non-inference, traversal determinism/boundary를 포함한 Node unit 47개 PASS. importer build PASS.
 - 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check` 종료 증거와 원격 CI PASS는 P2-05와 함께 아직 없다.
+
+## 2026-09-14 — P2-08 MASTER Matcher v1
+
+- 대상: `matchMasterCandidates`, `createProductMatcher`의 existing MASTER 후보 조회와 결정적 evidence/conflict 평가. DB mutation과 MASTER 생성·source 연결은 범위에서 제외했다.
+- 후보/강한 근거: `BRAND_CODE` 제외 identifier exact와 resolved-brand pg_trgm 후보를 합친다. verified GTIN/EAN/UPC 계열 exact, verified same-type model exact, resolved brand + same-type identifier exact만 강한 근거가 된다. title similarity는 조회·검수 근거일 뿐 자동 match 근거가 아니다.
+- 차단 경계: strong 후보 복수, brand/GTIN/model/variant/inactive conflict, P2-07 truncation은 `REVIEW_REQUIRED`이며 selected MASTER를 반환하지 않는다. 기존 후보가 없을 때도 resolved brand와 상품 identifier가 함께 있어야 `NEW_MASTER_CANDIDATE`이며, identity 근거가 없으면 review다.
+- unit: unique verified GTIN exact, ambiguous exact, exact+GTIN conflict, exact+model conflict, similar title/different variant, truncated extraction, new candidate, insufficient evidence의 8개 matcher 시나리오 PASS.
+- PostgreSQL integration: 실제 baseline/pg_trgm에서 source GTIN과 verified EAN의 계열 exact 후보를 찾고 provenance·public identifier evidence를 반환하며 `source_product`를 쓰지 않음을 확인했다.
+- 전체 결과: 최종 근거 규칙 직전 로컬 `pnpm check` PASS — Admin Vitest 6개, Node unit 54개, integration 59개, fail/skip 0개. 최종 변경 후 전체 unit을 다시 실행해 Admin 6개·Node 55개 PASS했고 importer lint/typecheck/build도 PASS했다. 원격 CI는 이번 공개 전송 미승인으로 NOT_RUN이므로 구현 상태는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.

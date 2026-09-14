@@ -181,3 +181,13 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - allowlist는 `modelNo`/`모델번호`/`품번`, `styleCode`/`스타일코드`, `productNo`/`상품번호`, `mpn`, `gtin`, `ean`, `upc`, `barcode`/`바코드`, `brandCode`/`브랜드코드`다. key의 NFKC·공백/underscore/hyphen 차이만 흡수한다.
 - 임의 product name/free text와 numeric raw value는 후보로 추론하지 않는다. 숫자 raw는 leading zero 손실 여부를 판단할 수 없으므로 문자열 source만 수용한다.
 - candidate는 type+normalized value로 중복 제거하고 explicit field 및 raw JSON pointer provenance를 전부 남긴다. traversal 상한에 걸린 결과는 `truncated: true`여서 후속 단계가 자동 승인하면 안 된다.
+
+## 13. P2-08 MASTER Matcher v1
+
+`createProductMatcher`는 P2-05의 brand resolution과 P2-07의 identifier extraction을 입력으로 받아 기존 MASTER snapshot을 읽고 `MATCH_EXISTING`, `REVIEW_REQUIRED`, `NEW_MASTER_CANDIDATE` 중 하나를 권고한다. 이 단계는 `source_product.product_id`나 match 상태, MASTER/SKU/identifier를 쓰지 않는다. 실제 연결·신규 생성과 동시성 제어는 P2-09가 담당한다.
+
+- 후보 조회는 `BRAND_CODE`를 제외한 identifier normalized value exact와, resolved brand 범위의 `pg_trgm similarity >= 0.3` 상위 20건을 합친다. 0.3은 후보 recall을 제한하는 조회 하한일 뿐 승인 임계값이 아니며 상품명 유사도는 어떤 값에서도 `MATCH_EXISTING`을 만들지 않는다.
+- verified `GTIN`/`EAN`/`UPC`는 같은 GTIN 계열의 exact value를 강한 근거로 취급한다. verified `MODEL_NO`/`MPN`/`STYLE_CODE`는 같은 type exact일 때 강한 근거다. 승인 brand가 같고 동일 type identifier가 exact인 경우도 강한 근거다.
+- 강한 후보가 정확히 하나이고 hard conflict와 extraction truncation이 없을 때만 기존 MASTER를 권고한다. 후보 provenance와 기존 identifier public ID를 evidence에 남겨 판단을 재현할 수 있게 한다.
+- resolved brand 불일치, GTIN 계열 값 불일치, 동일 model type 값 불일치, source option과 MASTER option의 명확한 비중첩, inactive MASTER는 hard conflict다. conflict, 강한 후보 복수, 제목/미검증 근거만 존재, `truncated: true`는 모두 `REVIEW_REQUIRED`다.
+- 기존 후보 근거가 없고 resolved brand와 상품 identifier가 있을 때만 `NEW_MASTER_CANDIDATE`를 반환한다. 브랜드 또는 상품 identity 근거가 부족하면 `REVIEW_REQUIRED`다. 신규 후보는 생성 완료 상태가 아니며 P2-09가 identifier lock 안에서 재조회한 뒤 생성 또는 review를 확정해야 한다.
