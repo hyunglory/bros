@@ -97,6 +97,7 @@ async function processItem(tx: DbTransaction, itemPublicId: string, lockTimeoutM
     .executeTakeFirstOrThrow();
   if (!record(item.raw_json)) throw new MasterServiceError("PERSISTED_INPUT_INVALID");
   const envelope = item.raw_json;
+  if (record(envelope.pipelineTracking)) throw new MasterServiceError("IMPORT_ITEM_FINALIZED");
   if (record(envelope.masterCreation) && envelope.masterCreation.stage === stage) {
     // Only this service adds this reserved field to the validated envelope.
     return envelope.masterCreation.result as unknown as MasterCreationResult;

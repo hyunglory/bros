@@ -184,27 +184,19 @@ async function aggregateBatch(
     total_count: number;
   },
 ): Promise<ImportBatchTrackingResult> {
-  const items = await tx
+  const counts = await tx
     .selectFrom("app.import_item")
-    .select(["public_id", "raw_json", "status"])
+    .select([
+      sql<number>`count(*) filter (where status = 'SUCCEEDED')::int`.as("successCount"),
+      sql<number>`count(*) filter (where status = 'FAILED')::int`.as("failedCount"),
+      sql<number>`count(*) filter (where status = 'SKIPPED')::int`.as("skippedCount"),
+      sql<number>`count(*) filter (where status = 'REVIEW_REQUIRED')::int`.as("reviewCount"),
+      sql<number>`count(*) filter (where raw_json->'pipelineTracking'->>'stage' = ${stage})::int`.as(
+        "recordedCount",
+      ),
+    ])
     .where("import_batch_id", "=", batch.id)
-    .execute();
-  const counts = items.reduce(
-    (value, item) => {
-      if (item.status === "SUCCEEDED") value.successCount++;
-      if (item.status === "FAILED") value.failedCount++;
-      if (item.status === "SKIPPED") value.skippedCount++;
-      if (item.status === "REVIEW_REQUIRED") value.reviewCount++;
-      if (
-        record(item.raw_json) &&
-        readPersistedItemResult(item.raw_json, item.public_id) !== null
-      ) {
-        value.recordedCount++;
-      }
-      return value;
-    },
-    { failedCount: 0, recordedCount: 0, reviewCount: 0, skippedCount: 0, successCount: 0 },
-  );
+    .executeTakeFirstOrThrow();
   const completed = counts.recordedCount === batch.total_count;
   const status =
     counts.failedCount === batch.total_count
@@ -241,7 +233,8 @@ async function aggregateBatch(
       failed_count: counts.failedCount,
       review_count: counts.reviewCount,
       skipped_count: counts.skippedCount,
-      status: completed ? status : batch.status,
+      // CHECK constraints require status to agree with counts even before pipeline completion.
+      status,
       success_count: counts.successCount,
     })
     .where("id", "=", batch.id)
@@ -289,7 +282,14 @@ async function processItem(
   }
   let itemResult: ImportPipelineItemResult =
     failure === null
-      ? classifyImportPipeline(envelope, itemPublicId)
+      ? item.status === "FAILED" && item.source_product_id === null
+        ? {
+            action: "FAILED",
+            itemPublicId,
+            reason: item.error_code ?? "SOURCE_UPSERT_FAILED",
+            status: "FAILED",
+          }
+        : classifyImportPipeline(envelope, itemPublicId)
       : {
           action: "FAILED",
           itemPublicId,

@@ -1656,3 +1656,65 @@
 - 금지 변경: P2-04 validation 원본 envelope 덮어쓰기, P2-09~11 결과 재해석, P2-12 item별 독립 transaction 제거, 임의 raw exception 저장, 다른 worktree 수정.
 - 완료 조건: 1k synthetic import를 chunk 처리하고 worker restart와 일부 실패 뒤 재실행해도 source/MASTER/SKU/image 및 P2-12 집계가 중복되지 않으며 backpressure와 retry 한계가 관측된다.
 - 재검토가 필요한 조건: queue job이 item이 아닌 batch 전체 원자성을 요구하거나, 운영자가 완료된 같은 item의 새 시도를 기존 row에 덮어써야 한다는 정책이 승인될 때.
+
+## DEC-20260914-012 — P2-13 Import Queue·Chunk 처리와 재시작 복구 검증
+
+- 일자: 2026-09-14
+- 종료 단계/분야: P2-13 Product Import Queue / Chunk Processor 구현·로컬 검증
+- 작성 모델/추론 수준: GPT-6 기반 Codex / 시스템 설정(정확한 추론 수준 미노출)
+- 관련 WBS Task: P2-13, P2-06/P2-12 호환 보완, 후속 P2-14
+- 검토 범위와 근거: AGENTS.md, doc/README.md, 구현 보완 명세 2장·6장, WBS P2-13, 개발 운영 지침, DEC-20260913-001/002 및 DEC-20260914-003/004/008~011, Source Mapping Spec, QueuePort/설치된 pg-boss adapter, Worker lifecycle, DB baseline import CHECK, 기존 importer 단계 코드·통합 테스트.
+- 상태: ACCEPTED
+- supersedes: DEC-20260914-011의 “마지막 item에서만 batch status를 갱신한다” 부분과 빈 batch 미정 부분만 대체한다. 그 외 item별 transaction·원본 근거·finished_at·pipeline 완료 시각·재실행 불변성은 유지한다.
+
+### 확정 결정
+
+- P2-04가 저장한 batch UUID를 `enqueueProductImport`로 접수한다. batch row lock 안에서 `product.import` enqueue와 receipt/config 기록을 같은 DB transaction에 commit한다. 반복 접수는 같은 receipt이며 새 Import는 새 batch UUID다. 빈 batch와 CANCELLED batch는 접수 오류다. 큐에는 UUID 참조만 전송하고 업무 원문을 넣지 않는다.
+- Worker 한 프로세스당 import batch 1개, item 동시성 기본 2(1~16), chunk 기본 100(1~1000)으로 동작한다. UUID·행 번호 keyset 조회와 현재 chunk drain 이후 다음 조회로 메모리·진행량을 제한한다. `QueuePort.work`의 선택적 concurrency 옵션은 기존 호출과 호환된다. 다른 queue의 기본 동시성은 유지한다.
+- source upsert를 PENDING item별 transaction으로 처리하는 경로와 source 완료 집계를 추가한다. 기존 batch `process` API는 유지한다. 모든 source가 종료된 뒤 MASTER→SKU→image→recorder를 진행하며 각 단계의 기존 idempotency 결과를 재사용한다.
+- retry가 남아 있으면 실패 항목을 미완료로 두고 다른 항목을 계속 처리한다. 마지막 시도에서는 source/MASTER/SKU/image 실패를 고정 code/message로 확정한다. DB 장애로 실패 기록 자체가 불가능하면 해당 item은 미완료로 유지하고 queue 처리 실패로 남긴다. 업무 item 실패가 있어도 전체 항목을 기록한 Worker 처리 자체는 SUCCESS일 수 있다.
+- batch별 advisory transaction lock의 전용 연결을 유지하고, 매 stage 경계에서 취소 신호·잠금 연결·receipt/attempt 소유권을 검사한다. 이 transaction은 업무 쓰기를 포함하지 않으며 항목별 commit은 별도다. Worker DB pool 최소 2, 기본 5; item 동시성 2를 DB에서도 활용하려면 최소 3개 연결이 필요하다. 모든 in-flight stage를 drain한 뒤 lease를 해제한다.
+- `config_json.importQueue`에 접수·실행 상태, receipt, attempt, 설정값, 단계별 chunk/visited count와 시각, 안전한 error code를 기록한다. 이전 receipt/attempt는 새 작업의 상태를 덮어쓸 수 없다. P2-12 결과가 확정된 item에는 하위 단계가 새 쓰기를 하지 못한다.
+- 접수는 DB 전체 QUEUED/RUNNING/RETRY_WAIT batch 기본 32개(1~1000) 상한을 적용한다. 전역 admission lock 아래 상한을 검사하고 초과하면 enqueue 없이 IMPORT_BACKPRESSURE로 거절한다. `pnpm worker:import <batch UUID>`는 설정을 적용하는 접수 CLI다.
+- crash/expiry는 pg-boss의 기존 bounded retry로 복구한다. 마지막 시도에서 죽거나 상태 기록이 실패하면 운영자가 `--resume`으로 새 receipt를 발급하고 미완료 항목을 재개한다. 기존 완료 item과 최종 실패 item을 덮어쓰지 않는다. 성공한 batch의 resume도 기존 receipt replay다.
+- P2-12 중간 신규 실패에서 기존 SUCCEEDED 상태를 유지하면 DB CHECK가 거절한다는 회귀를 실제 DB에서 확인했다. 이제 매 기록의 status와 counts를 함께 갱신하고 전체 완료 판정은 오직 `pipelineTracking.completed`로 구분한다. 집계는 DB에서 count하여 전체 raw payload를 매번 읽지 않는다. P2-06 finished_at은 그대로 보존한다.
+
+### 기각한 선택지와 이유
+
+- 전체 batch 업무를 하나의 transaction에서 commit: 단건 오류와 crash에 대한 복구 비용이 커지고 P2-12 독립 commit 계약과 충돌한다.
+- 모든 item job을 한꺼번에 enqueue: 초기 기본 청크 크기를 넘어 provider backlog를 늘리고 접수·처리 backpressure를 분리하기 어렵다. 한 batch reference job이 제한된 chunk를 순회하도록 선택했다.
+- pg-boss 완료를 상품 import 성공으로 사용: 입력 검증 실패·검토·스킵을 구분할 수 없다.
+- 완료 FAILED item을 resume에서 초기화: 이미 기록한 검수/원본 이력을 덮어쓴다. 재검수는 새 batch/item으로 처리한다.
+- 마지막 시도의 프로세스 사망까지 자동 성공/실패 판정: 실행 증거가 없어 추정하지 않고 명시적 복구 경로를 둔다.
+
+### 변경 파일
+
+- apps/worker/src/product-import.ts, apps/worker/src/send-product-import.ts, apps/worker/src/runtime.ts, apps/worker/src/index.ts, apps/worker/package.json
+- packages/importer/src/import-chunk-processor.ts, packages/importer/src/source-product-upsert.ts, packages/importer/src/import-result-recorder.ts, packages/importer/src/master-service.ts, packages/importer/src/sku-mapper.ts, packages/importer/src/image-registrar.ts, packages/importer/src/index.ts
+- packages/queue/src/port.ts, packages/queue/src/pg-boss.ts
+- packages/core/src/config/index.ts, packages/core/test/config.test.mjs
+- packages/importer/test/import-chunk-processor.test.mjs, tests/integration/product-import.integration.test.mjs, tests/integration/product-import-process-fixture.mjs
+- package.json, pnpm-lock.yaml, .env.example
+- docs/SOURCE_MAPPING_SPEC_v0.1.md, docs/RUNBOOK.md, docs/IMPLEMENTATION_STATUS.md, docs/TEST_REPORT.md, docs/DECISIONS.md
+
+### 검증 증거
+
+- 실행: 기존 캐시의 offline install, package/Worker build, lint/typecheck, 신규 unit 및 PostgreSQL 전용 통합, 최종 `pnpm check`, `git diff --check`.
+- 전용 integration 최종 7개 시나리오(parent 포함 8개) PASS. 1k synthetic actual Worker는 성공 900·검증 실패 100·recorded 1000, source/source SKU/image 각각 900개를 기록했으며 최종 55,568ms였다.
+- 실제 PG 동시 작업 2개와 chunk 완료 전 다음 chunk 미처리, 중복 batch lease 거절, enqueue 롤백, 부분 실패 격리, resume receipt fencing, SIGKILL 뒤 재전달과 정확한 최종 집계를 확인했다.
+- 전체 `pnpm check` exit 0: Admin 6개, Node unit 68개, integration 97개(parent 포함), fail/skip 0 및 lint/typecheck/format/build PASS.
+- 결과: 로컬 PASS, 원격 CI NOT_RUN. 상태는 IMPLEMENTED_NOT_VALIDATED로 기록한다.
+
+### 미해결 사항 및 Blocker
+
+- 로컬 구현 blocker 없음. public remote push/CI는 수행하지 않았다.
+- P6의 혼합 부하·API 5 RPS·30분·4 vCPU/8GB 성능 검증은 NOT_RUN이다. 현재 1k 측정을 운영 SLA로 사용하지 않는다.
+- provider 최종 crash 또는 DB 장애 후 정지된 RUNNING/RETRY_WAIT의 자동 재조정 daemon은 없다. Runbook의 명시적 resume을 사용한다. 큰 batch가 반복 expiry되면 chunk/Worker 및 provider timeout 설정을 실측 후 조정한다.
+- XLSX 업로드·batch 생성 API, batch 목록/상세·실패 재검수 화면은 P2-14 범위다. 원본 파일 업로드와 validation commit까지의 원자적 접수는 해당 API 경계에서 추가 설계한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: P2-14 Import 관리 UI/API에서 batch 목록·상세·상태/건수·실패 원인·재실행 진입점과 pagination/filter/UI 오류 표시를 구현한다.
+- 금지 변경: P2-12 완료 item 이력 초기화, raw exception/queue 원문 공개, provider SUCCESS와 업무 성공 혼동, source/MASTER/SKU/image identity 변경, 별도 P5 worktree 변경.
+- 완료 조건: 운영자가 실제 저장된 결과와 processing 상태를 구분해 확인하고, 상한 초과·재시도·권한/검증 오류를 이해하며 기존 receipt replay와 명시적 resume을 API 테스트로 검증한다.
+- 재검토 조건: 여러 Worker에 걸친 전역 item 동시성 상한, batch 취소 API, zero-row import 허용, 자동 최종 crash reconciliation, 대량 데이터의 chunk별 provider job 분리가 요구될 때.

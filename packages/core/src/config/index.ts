@@ -37,6 +37,7 @@ export interface AppConfig {
     concurrency: number;
     shutdownTimeoutMs: number;
   };
+  importer: { chunkSize: number; concurrency: number; maxQueuedBatches: number };
   storage: StorageConfig;
 }
 
@@ -219,6 +220,23 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
     minimum: 1000,
     maximum: 300000,
   });
+  const importer = {
+    chunkSize: readInteger(environment, "IMPORT_CHUNK_SIZE", issues, {
+      defaultValue: 100,
+      minimum: 1,
+      maximum: 1000,
+    }),
+    concurrency: readInteger(environment, "IMPORT_CONCURRENCY", issues, {
+      defaultValue: 2,
+      minimum: 1,
+      maximum: 16,
+    }),
+    maxQueuedBatches: readInteger(environment, "IMPORT_MAX_QUEUED_BATCHES", issues, {
+      defaultValue: 32,
+      minimum: 1,
+      maximum: 1000,
+    }),
+  };
   if (issues.length > 0) {
     throw new ConfigValidationError(issues);
   }
@@ -236,6 +254,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
       concurrency: workerConcurrency,
       shutdownTimeoutMs: workerShutdownTimeoutMs,
     },
+    importer,
     storage:
       storageDriver === "local"
         ? { driver: storageDriver, localRoot: storageLocalRoot ?? "" }

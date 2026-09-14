@@ -14,6 +14,7 @@
     "admin:preview": "pnpm --filter @bros/admin run preview",
     "worker:start": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/main.js",
     "worker:test": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-system-test.js",
+    "worker:import": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-product-import.js",
     "build": "pnpm -r --if-present run build",
     "build:packages": "pnpm --filter \"./packages/**\" -r --if-present run build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",

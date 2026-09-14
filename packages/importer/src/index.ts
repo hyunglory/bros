@@ -3,6 +3,7 @@ export * from "./embedded-identifier-extractor.js";
 export * from "./import-validation.js";
 export * from "./image-registrar.js";
 export * from "./import-result-recorder.js";
+export * from "./import-chunk-processor.js";
 export * from "./master-matcher.js";
 export * from "./master-service.js";
 export * from "./source-product-upsert.js";

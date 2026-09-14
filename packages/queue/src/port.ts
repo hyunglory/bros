@@ -33,6 +33,10 @@ export interface QueuePort {
     data: QueuePayload,
     transaction?: QueueTransaction,
   ): Promise<QueueReceipt>;
-  work(name: QueueName, handler: (job: QueueJob) => Promise<void>): Promise<void>;
+  work(
+    name: QueueName,
+    handler: (job: QueueJob) => Promise<void>,
+    options?: { concurrency: number },
+  ): Promise<void>;
   stop(): Promise<void>;
 }

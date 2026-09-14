@@ -118,6 +118,7 @@ async function processItem(tx: DbTransaction, itemPublicId: string, lockTimeoutM
   if (!item) throw new SkuMapperError("IMPORT_ITEM_NOT_FOUND");
   if (!record(item.raw_json)) throw new SkuMapperError("PERSISTED_INPUT_INVALID");
   const envelope = item.raw_json;
+  if (record(envelope.pipelineTracking)) throw new SkuMapperError("IMPORT_ITEM_FINALIZED");
   if (record(envelope.skuMapping) && envelope.skuMapping.stage === stage) {
     return envelope.skuMapping.result as unknown as SkuMappingResult;
   }

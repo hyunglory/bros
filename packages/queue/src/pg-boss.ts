@@ -144,16 +144,19 @@ export function createPgBossQueue(
         }
       });
     },
-    work(name, handler) {
+    work(name, handler, overrides) {
       return perform(async () => {
         validate(name);
+        const concurrency = overrides?.concurrency ?? options.localConcurrency;
+        if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 100)
+          throw new Error("Invalid queue worker concurrency");
         if (registrations.has(name)) throw new Error("Queue handler already registered");
         registrations.add(name);
         try {
           const workOptions = {
             batchSize: 1,
             includeMetadata: true as const,
-            localConcurrency: options.localConcurrency,
+            localConcurrency: concurrency,
             pollingIntervalSeconds: options.pollingIntervalSeconds,
           };
           await boss.work<QueuePayload, undefined, typeof workOptions>(

@@ -143,6 +143,7 @@ async function processItem(tx: DbTransaction, itemPublicId: string, lockTimeoutM
   if (!item) throw new ImageRegistrarError("IMPORT_ITEM_NOT_FOUND");
   if (!record(item.raw_json)) throw new ImageRegistrarError("PERSISTED_INPUT_INVALID");
   const envelope = item.raw_json;
+  if (record(envelope.pipelineTracking)) throw new ImageRegistrarError("IMPORT_ITEM_FINALIZED");
   if (record(envelope.imageRegistration) && envelope.imageRegistration.stage === stage) {
     return envelope.imageRegistration.result as unknown as ImageRegistrationResult;
   }

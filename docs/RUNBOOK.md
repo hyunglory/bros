@@ -250,3 +250,33 @@ pnpm build
 - GitHub repository는 `https://github.com/hyunglory/bros`이며 기본 브랜치는 `main`이다. repository ruleset `main required quality`(ID 23149676)가 `install / lint / typecheck / test / build`를 strict required check로 적용하고 bypass actor는 두지 않는다. ruleset이나 check 이름을 변경하면 정상 PR 성공과 실패 PR `mergeStateStatus=BLOCKED`를 다시 검증한다.
 
 운영 절차는 해당 WBS Task가 구현되고 검증될 때 추가한다.
+
+## Product Import Worker — P2-13
+
+P2-04 validation으로 저장한 batch UUID를 접수하고 별도 터미널에서 Worker를 실행한다. 접수 CLI는 `IMPORT_MAX_QUEUED_BATCHES` 설정을 적용한다. XLSX 파일 업로드·새 batch 생성 API/UI는 P2-14 범위다.
+
+```powershell
+pnpm worker:import <batch-public-uuid>
+pnpm worker:start
+```
+
+| 설정 | 기본값 | 범위/의미 |
+|---|---|---|
+| IMPORT_CHUNK_SIZE | 100 | 1~1000, 한 번에 읽는 item UUID/행 번호 수 |
+| IMPORT_CONCURRENCY | 2 | 1~16, Worker 한 프로세스의 동시에 처리하는 item 수 |
+| IMPORT_MAX_QUEUED_BATCHES | 32 | 1~1000, DB 전체의 접수·실행·재시도 대기 batch 상한 |
+| DB_POOL_MAX | 5 | Import Worker는 최소 2; 잠금 전용 연결 1개 + stage 처리 연결 사용 |
+
+`WORKER_CONCURRENCY`는 기존 queue 기본값이다. `product.import`는 프로세스당 batch 1개로 제한하고 item 수는 `IMPORT_CONCURRENCY`로 조절한다. 여러 Worker 프로세스를 켜면 서로 다른 batch를 나눠 처리한다. 같은 batch는 DB advisory lock으로 한 프로세스만 처리하며 브라우저 동시성 정책에 영향을 주지 않는다.
+
+`import_batch.config_json.importQueue`의 status, attempt, progress.phase/chunks/visitedCount, checkpointAt, errorCode를 확인한다. 정상 로그는 `IMPORT_CHUNK_COMPLETED`/`IMPORT_PROCESSING_COMPLETED`, 실패는 `IMPORT_PROCESSING_FAILED`다. 진행 건수는 현재 시도의 방문 건수이고 실제 상품 결과는 `success_count/failed_count/skipped_count/review_count` 및 `config_json.pipelineTracking`을 조회한다. 처리 종료 `importQueue.status=SUCCESS`에도 개별 입력 실패가 있으면 batch 업무 상태는 `PARTIAL_FAILED` 또는 `FAILED`일 수 있다.
+
+같은 UUID를 일반 접수하면 기존 receipt가 반환된다. Worker가 죽으면 pg-boss expiry와 남은 retry에 따라 자동 재전달되며 source/MASTER/SKU/image/item 결과를 재사용한다. 마지막 시도에서 죽거나 DB 장애가 겹치면 `importQueue`가 RUNNING/RETRY_WAIT에 남을 수 있다. Worker/DB 상태와 checkpoint 정지를 확인하고 다음 명령으로 복구한다.
+
+```powershell
+pnpm worker:import <batch-public-uuid> --resume
+```
+
+`--resume`은 새 receipt로 기존 작업을 차단하고 미완료 항목만 재개한다. 이미 SUCCESS인 batch는 일반 replay다. 이미 P2-12에서 확정한 FAILED item은 과거 결과를 유지하므로, 해당 상품을 다시 검증하려면 새 batch를 만든다. 취소·빈 batch는 접수 불가다. 접수 상한에 도달하면 생산자가 대기/재요청해야 하며 CLI는 실패 종료한다. 별도 자동 재조정 daemon은 아직 없다.
+
+정상 종료는 활성 batch drain을 기다린다. 긴 batch가 종료 deadline을 넘으면 기존 P1-10 규칙대로 소유 프로세스를 종료하고 재전달로 복구한다. 잠금 연결 손실·DB 장애에서는 현재 진행 중인 stage가 commit됐을 수 있으며 재시도는 저장된 stage 결과를 기준으로 수행한다. 네트워크 fetch나 이미지 binary 저장은 이 Worker에 포함하지 않는다.

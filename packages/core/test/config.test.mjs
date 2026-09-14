@@ -27,6 +27,7 @@ test("loads development defaults from a valid environment", () => {
       concurrency: 1,
       shutdownTimeoutMs: 15000,
     },
+    importer: { chunkSize: 100, concurrency: 2, maxQueuedBatches: 32 },
     storage: {
       driver: "local",
       localRoot: "./storage",
@@ -65,6 +66,32 @@ test("rejects a missing required database URL", () => {
       return true;
     },
   );
+});
+
+test("importer chunk, concurrency, and admission budgets are independently configurable", () => {
+  const env = { DATABASE_URL: "postgresql://unused@localhost/unused" };
+  assert.deepEqual(
+    loadConfig({
+      ...env,
+      IMPORT_CHUNK_SIZE: "25",
+      IMPORT_CONCURRENCY: "3",
+      IMPORT_MAX_QUEUED_BATCHES: "4",
+    }).importer,
+    { chunkSize: 25, concurrency: 3, maxQueuedBatches: 4 },
+  );
+  for (const [key, value] of [
+    ["IMPORT_CHUNK_SIZE", "1001"],
+    ["IMPORT_CONCURRENCY", "0"],
+    ["IMPORT_MAX_QUEUED_BATCHES", "secret-marker"],
+  ]) {
+    assert.throws(
+      () => loadConfig({ ...env, [key]: value }),
+      (error) =>
+        error instanceof ConfigValidationError &&
+        error.message.includes(key) &&
+        !error.message.includes("secret-marker"),
+    );
+  }
 });
 
 test("requires explicit production settings", () => {
@@ -117,6 +144,7 @@ test("loads explicit production settings without development defaults", () => {
       concurrency: 4,
       shutdownTimeoutMs: 15000,
     },
+    importer: { chunkSize: 100, concurrency: 2, maxQueuedBatches: 32 },
     storage: {
       driver: "r2",
     },

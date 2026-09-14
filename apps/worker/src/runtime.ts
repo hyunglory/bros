@@ -5,6 +5,7 @@ import type { QueuePort, QueueName, QueueJob } from "@bros/queue";
 import { createWorkerDataAccess } from "./database.js";
 import { createSystemTestHandler } from "./system-test.js";
 import type { SystemTestAction } from "./system-test.js";
+import { createProductImportHandler } from "./product-import.js";
 
 export interface WorkerOptions {
   queue?: QueuePort;
@@ -13,6 +14,8 @@ export interface WorkerOptions {
 }
 
 export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
+  if (config.database.poolMax < 2)
+    throw new Error("Import Worker requires at least two DB connections");
   const data = createWorkerDataAccess(config.database);
   const queue =
     options.queue ??
@@ -29,6 +32,7 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
     });
   const registry = new Map<QueueName, (job: QueueJob) => Promise<void>>([
     ["system.test", createSystemTestHandler(data.database, action, logger)],
+    ["product.import", createProductImportHandler(data.database, config.importer, logger)],
   ]);
   let state: "idle" | "starting" | "ready" | "stopping" | "stopped" | "failed" = "idle";
   let starting: Promise<void> | undefined;
@@ -58,7 +62,12 @@ export function createWorker(config: AppConfig, options: WorkerOptions = {}) {
             .limit(0)
             .execute();
           await queue.start();
-          for (const [name, handler] of registry) await queue.work(name, handler);
+          for (const [name, handler] of registry)
+            await queue.work(
+              name,
+              handler,
+              name === "product.import" ? { concurrency: 1 } : undefined,
+            );
           if (state === "starting") {
             state = "ready";
             logger.info({ code: "WORKER_READY" }, "Worker ready");

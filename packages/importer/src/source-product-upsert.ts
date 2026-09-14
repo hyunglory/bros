@@ -265,6 +265,67 @@ async function process(
 
 export function createSourceProductUpsertService(database: Pick<DatabaseClient, "transaction">) {
   return {
+    // Queue consumers commit one source row at a time; the legacy batch API is unchanged.
+    processItem: (itemPublicId: string) =>
+      database.transaction(async (tx) => {
+        const item = await tx
+          .selectFrom("app.import_item")
+          .selectAll()
+          .where("public_id", "=", itemPublicId)
+          .forUpdate()
+          .executeTakeFirstOrThrow();
+        if (item.status !== "PENDING") return;
+        const batch = await tx
+          .selectFrom("app.import_batch as b")
+          .innerJoin("app.platform as p", "p.id", "b.platform_id")
+          .select(["b.id", "b.status", "p.code as platformCode", "p.id as platformId"])
+          .where("b.id", "=", item.import_batch_id)
+          .executeTakeFirstOrThrow();
+        if (batch.status !== "RUNNING")
+          throw new SourceProductUpsertError(
+            "IMPORT_BATCH_NOT_RUNNING",
+            "Import batch is not running",
+          );
+        await upsertSourceProduct(tx, batch, {
+          id: item.id,
+          externalProductId: item.external_product_id,
+          rawJson: item.raw_json,
+        });
+      }),
+    failItem: (itemPublicId: string) =>
+      database.transaction(async (tx) => {
+        await tx
+          .updateTable("app.import_item")
+          .set({
+            status: "FAILED",
+            action_type: "FAILED",
+            error_code: "SOURCE_UPSERT_FAILED",
+            error_message: "Source upsert failed",
+            processed_at: new Date(),
+          })
+          .where("public_id", "=", itemPublicId)
+          .where("status", "=", "PENDING")
+          .execute();
+      }),
+    finish: (batchPublicId: string) =>
+      database.transaction(async (tx) => {
+        const batch = await tx
+          .selectFrom("app.import_batch")
+          .selectAll()
+          .where("public_id", "=", batchPublicId)
+          .forUpdate()
+          .executeTakeFirstOrThrow();
+        if (batch.status !== "RUNNING") return;
+        const pending = await tx
+          .selectFrom("app.import_item")
+          .select("id")
+          .where("import_batch_id", "=", batch.id)
+          .where("status", "in", ["PENDING", "RUNNING"])
+          .limit(1)
+          .executeTakeFirst();
+        if (pending) throw new Error("SOURCE_ITEMS_INCOMPLETE");
+        await completeBatch(tx, { ...batch, platformCode: "", platformId: batch.platform_id });
+      }),
     process: (batchPublicId: string): Promise<SourceProductUpsertResult> =>
       database.transaction((transaction) => process(transaction, batchPublicId)),
   };

@@ -18,3 +18,4 @@ export { createWorkerDataAccess } from "./database.js";
 export * from "./runtime.js";
 export * from "./bootstrap.js";
 export * from "./system-test.js";
+export * from "./product-import.js";

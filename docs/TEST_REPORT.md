@@ -357,3 +357,13 @@
 - PostgreSQL 18.6 전용 통합 4개(parent 포함) PASS: 한 batch의 성공·검토·stale skip·validation 실패를 동시에 기록해 각각 1건과 `PARTIAL_FAILED`를 얻었고, P2-04와 P2-09~11 evidence 보존, P2-06 `finished_at` 보존, P2-12 완료 시각 고정, 동시 호출 직렬화와 replay 집계 불변을 확인했다.
 - 명시적 P2-10 실패는 해당 item transaction만 `FAILED`로 끝나고 batch가 정확히 `FAILED`가 되며 raw exception 없이 안정된 code/message와 failure stage만 남는다. 승인 item에 P2-09~11 중 하나라도 없으면 `PIPELINE_STAGE_INCOMPLETE`로 전체 write가 rollback된다.
 - 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 66개, integration 89개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 실제 상품 원본이나 운영 DB는 변경하지 않았고 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-13 Product Import Queue / Chunk Processor
+
+- 대상: `createImportChunkProcessor`, Worker `product.import` 등록·접수·receipt/attempt 기록, chunk/concurrency/admission 설정, source item별 commit, P2-12 중간 집계 CHECK 보완과 확정 item 보호.
+- 단위: chunk/concurrency 범위·UUID 경계와 환경변수 설정·안전한 오류 검사 추가. 최종 전체 Admin 6개·Node unit 68개 PASS.
+- PostgreSQL 18.6 전용 통합 7개 시나리오(parent 포함 8개) PASS: 동시 접수 4개의 동일 receipt 수렴, UUID-only queue payload, 접수 상한·트랜잭션 enqueue 롤백, source/image 강제 실패와 마지막 시도 실패 격리, 중간 새 실패의 정확한 status/count, 실제 PG 동시 작업 2개 관측·chunk 완료 대기·같은 batch 잠금 거절, 성공 형제 item의 raw/timestamp 보존과 명시적 resume의 기존 receipt 차단, 1k actual Worker 처리, 실제 SIGKILL 뒤 새 Worker의 pg-boss 재전달 복구를 확인했다.
+- 1k synthetic batch: 100건은 필수 ID 결측, 900건은 동일 MASTER/옵션의 서로 다른 source다. 최종 성공 900·실패 100, pipeline recorded 1000·completed=true, pipeline 10 chunks, source/source SKU/image 각각 900개다. 반복 접수·완료 replay 후 동일 건수이며 첫 실행 측정 52,470ms, 최종 전체 검증에서 55,568ms였다. 이 수치는 현재 Windows/Docker 로컬 환경 측정이며 P6의 4 vCPU/8GB·동시 Provider 부하·30분 성능 목표를 검증한 것은 아니다.
+- 실제 재시작: source insert에 짧은 지연을 주고 일부 행 commit을 관측한 뒤 Worker 자식 프로세스를 SIGKILL했다. 같은 queue job이 attempt 2 이상으로 재전달되어 30개 source와 pipeline item 30개를 중복 없이 완료했다. 정상 종료는 Windows IPC로 등록된 SIGTERM handler를 실행했다.
+- 최종 `pnpm check` exit 0: lint/typecheck/unit/integration/format/build PASS; integration 97개(parent 포함), fail/skip 0개. 일회용 PostgreSQL을 사용했으며 기존 `examples/`·운영 DB·별도 P5 worktree는 변경하지 않았다. 원격 push/CI NOT_RUN.
+- 환경 이슈: sandbox 안에서 pnpm 의존성 재구성이 장시간 멈춰 중단했고 승인된 offline install로 기존 캐시에서 복구했다. 설치 후 불필요한 자동 재설치를 막기 위해 검증 프로세스에만 `pnpm_config_verify_deps_before_run=false`를 설정했다. 신규 외부 dependency 버전은 없으며 기존 Kysely와 importer workspace link만 Worker에 추가했다.

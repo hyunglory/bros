@@ -237,5 +237,18 @@ P2-02 표준 계약과 validation 테스트는 PASS다. 다음 P2-03은 이 계�
 - 성공 action은 P2-09의 `CREATED` 또는 `MATCHED`를 유지한다. 최종 결과와 완료 시각은 원본 envelope의 `raw_json.pipelineTracking`에 `P2-12/v1`로 추가하며 P2-04와 P2-09~11 근거를 덮어쓰지 않는다. 같은 item 재호출은 저장된 결과를 반환한다.
 - stage 실행 자체가 실패하면 `recordFailure({ itemPublicId, stage, errorCode })`로 해당 item만 실패 처리한다. stage는 P2-09~11, error code는 대문자·숫자·underscore 64자 이내로 제한하고 raw exception이나 입력값은 DB 오류 메시지에 저장하지 않는다. 기존 P2-04 validation 오류 code/message는 보존한다.
 - 각 item은 독립 transaction으로 기록하므로 한 건의 실패가 다른 item을 rollback하지 않는다. 같은 batch의 동시 기록은 batch row 다음 item row 순서로 잠그고, lock timeout 기본 1초와 최대 3회 재시도를 적용한다. SQLSTATE 55P03/40P01/40001만 새 transaction에서 재시도한다.
-- 매 기록마다 해당 batch의 item 상태를 SQL로 다시 읽어 success/failed/skipped/review count와 기록 완료 수를 계산한다. 모든 item에 P2-12 결과가 생길 때만 batch를 최종 확정한다. 실패가 전부면 `FAILED`, 일부면 `PARTIAL_FAILED`, 없으면 `SUCCEEDED`다. review와 skip은 실패 건수로 계산하지 않는다.
+- 매 기록마다 해당 batch의 item 상태를 SQL로 집계해 success/failed/skipped/review count와 기록 완료 수를 계산한다. DB CHECK를 만족하도록 중간 기록에서도 status와 count를 함께 갱신한다. 모든 item에 P2-12 결과가 생길 때만 `pipelineTracking.completed=true`로 확정한다. 실패가 전부면 `FAILED`, 일부면 `PARTIAL_FAILED`, 없으면 `SUCCEEDED`다. review와 skip은 실패 건수로 계산하지 않는다. 이 보완은 DEC-20260914-012를 따른다.
 - P2-06의 `finished_at`은 source upsert 완료 이력으로 유지한다. pipeline 전체 완료 여부와 시각, 최종 집계는 `import_batch.config_json.pipelineTracking`에 별도로 기록하고 replay에서 완료 시각을 바꾸지 않는다.
+
+## 18. P2-13 Product Import Queue / Chunk Processor
+
+접수 입력은 P2-04가 저장한 단일 플랫폼 batch UUID다. `enqueueProductImport`는 batch를 잠그고 `product.import` enqueue와 `config_json.importQueue` receipt를 동일 트랜잭션에 저장한다. 같은 batch의 재접수는 기존 receipt를 반환한다. 새로운 import는 새로운 batch UUID로 구분하며, 같은 source 외부 ID는 기존 P2-06 upsert 계약으로 수렴한다. 빈 batch와 취소된 batch는 접수하지 않는다.
+
+- 큐 payload는 `{publicId: batchPublicId}`만 포함한다. provider 상태는 업무 결과가 아니며, 접수·실행 상태는 `importQueue`, 성공/실패/검토/스킵과 전체 완료 여부는 P2-12 `pipelineTracking`이 담당한다. 새 업무 테이블은 추가하지 않는다.
+- 기본 chunk 100, item concurrency 2이며 범위는 각각 1~1000, 1~16이다. `(import_batch_id,input_row_no)` 인덱스를 사용하는 keyset 조회로 한 chunk의 UUID·행 번호만 읽는다. 현재 chunk의 모든 실행을 기다린 뒤 다음 chunk를 읽으며 Worker 한 프로세스는 import batch 한 개만 소비한다. 다른 Worker 프로세스를 늘리면 서로 다른 batch의 총 동시성은 늘어난다.
+- source 단계는 `processItem`으로 PENDING item 하나씩 독립 commit하고 모든 source item이 종료된 후 `finish`로 P2-06 batch를 종료한다. 기존 `process(batchPublicId)` API는 유지한다. pipeline 단계는 item별 P2-09→P2-10→P2-11→P2-12 순으로 실행한다.
+- source 실패는 재시도 소진 시 `SOURCE_UPSERT_FAILED`, 하위 단계 실패는 `MASTER_STAGE_FAILED`/`SKU_STAGE_FAILED`/`IMAGE_STAGE_FAILED`로 확정한다. 재시도 여지가 있으면 해당 item의 미완료 단계를 남기고 다른 item을 계속 처리한다. batch 재전달 시 완료된 단계와 item은 재사용한다. 이미 확정된 실패의 재검수는 새 item/batch로 수행한다.
+- batch UUID에서 파생한 advisory transaction lock으로 프로세스 간 중복 처리를 막는다. 이 잠금 전용 트랜잭션은 업무 쓰기를 포함하지 않고 DB 연결 하나를 점유한다. stage 쓰기는 별도 트랜잭션이다. 단계 경계에서 취소 신호, 잠금 연결, 현재 receipt/attempt를 확인하고 오류 발생 시 진행 중 stage들을 drain한 뒤 잠금을 해제한다. Worker DB pool은 최소 2, 기본 5이며 동시성 2를 온전히 활용하려면 최소 3개 연결이 필요하다.
+- `importQueue`에는 version, receipt, attempt, QUEUED/RUNNING/RETRY_WAIT/SUCCESS/FAILED 상태, 설정값, chunk progress와 시각, 안정된 error code만 저장한다. 완료 항목은 이후 MASTER/SKU/image 단계 호출로 덮어쓸 수 없다. 신규 attempt나 receipt가 기록되면 오래된 작업은 progress/상태를 덮어쓰지 못한다.
+- 접수 상한은 전체 DB의 QUEUED/RUNNING/RETRY_WAIT batch 기본 32개다. 접수 전역 advisory lock 안에서 검사하며 초과 요청은 `IMPORT_BACKPRESSURE`로 거절하고 enqueue를 남기지 않는다. CLI 또는 API 호출자는 `IMPORT_MAX_QUEUED_BATCHES`를 admission 옵션에 전달한다.
+- pg-boss retry/expiry/종료 정책은 P1-09를 따른다. 한 provider job이 batch를 chunk 단위로 순회한다. 프로세스 crash나 expiry 후 새 시도는 저장 결과에서 재개한다. 마지막 provider 시도에서 crash하거나 DB 장애로 상태 기록까지 실패하면 자동 복구가 보장되지 않으므로 명시적 `resume`으로 새 receipt를 발급한다. 완료 item은 유지하며 기존 receipt를 차단한다.

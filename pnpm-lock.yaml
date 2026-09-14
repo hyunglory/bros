@@ -102,12 +102,18 @@ importers:
       '@bros/image':
         specifier: workspace:*
         version: link:../../packages/image
+      '@bros/importer':
+        specifier: workspace:*
+        version: link:../../packages/importer
       '@bros/queue':
         specifier: workspace:*
         version: link:../../packages/queue
       '@bros/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      kysely:
+        specifier: 0.29.5
+        version: 0.29.5
 
   packages/browser:
     dependencies:

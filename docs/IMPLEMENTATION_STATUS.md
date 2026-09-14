@@ -31,5 +31,6 @@
 | P2-10 SKU Normalizer / Mapper | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-009, deterministic option key·SKU/source SKU upsert·replay·collision review 및 PostgreSQL 재import 통합 PASS | 원격 CI 미실행; P2-11 이미지 등록 또는 P2-12 pipeline completion 로컬 착수 가능 |
 | P2-11 Source Image Registrar | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-010, immutable source revision·option SKU ownership·replay/concurrency/rollback PostgreSQL 통합 PASS | 원격 CI 미실행; P2-12 pipeline completion 로컬 착수 가능 |
 | P2-12 Import Batch / Item Tracking | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-011, mixed outcome 집계·item 단위 실패 격리·동시 기록·replay·stage completeness PostgreSQL 통합 PASS; 전체 unit 66개·integration 89개 PASS | 원격 CI 미실행; P2-13 Product Import Queue / Chunk Processor 로컬 착수 가능 |
+| P2-13 Product Import Queue / Chunk Processor | IMPLEMENTED_NOT_VALIDATED | DEC-20260914-012, 원자적 접수·상한·chunk 100/concurrency 2·1k import·실패 격리·실제 Worker crash 복구 PASS; 전체 pnpm check PASS(unit 68·integration 97) | 원격 CI 미실행; P2-14 Import 관리 UI/API 로컬 착수 가능 |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.
