@@ -35,7 +35,7 @@
     "verify:db-backup:r2-staging": "pnpm build && node scripts/verify-database-backup-r2-staging.mjs",
     "verify:public-staging": "pnpm build && node scripts/verify-public-staging.mjs",
     "verify:db-backup": "pnpm build && node scripts/verify-database-backup.mjs",
-    "test:unit": "pnpm run build:packages && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
+    "test:unit": "pnpm build && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
