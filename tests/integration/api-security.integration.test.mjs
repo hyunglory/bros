@@ -94,7 +94,7 @@ test("Caddy protects all browser-visible routes and replaces caller actor header
   assert.match(caddyfile, /basic_auth/);
   assert.match(caddyfile, /header_up -Authorization/);
   assert.match(caddyfile, /header_up X-BROS-Actor "\{http\.auth\.user\.id\}"/);
-  assert.match(caddyfile, /header_up X-BROS-Proxy-Token/);
+  assert.match(caddyfile, /import \/run\/secrets\/caddy_proxy/);
   assert.doesNotMatch(caddyfile, /header_up -X-BROS-Actor/);
   assert.doesNotMatch(caddyfile, /header_up -X-BROS-Proxy-Token/);
   assert.match(caddyfile, /reverse_proxy 127\.0\.0\.1:/);

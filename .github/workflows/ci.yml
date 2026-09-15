@@ -57,6 +57,9 @@ jobs:
       - name: Install from lockfile
         run: pnpm install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: pnpm --filter @bros/browser exec playwright install --with-deps chromium
+
       - name: Lint
         run: pnpm lint
 
