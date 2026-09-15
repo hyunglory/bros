@@ -101,6 +101,7 @@ try {
         admin: { username: "operator", passwordHash: hash },
         r2: { accessKeyId: randomUUID(), secretAccessKey: randomUUID() },
         backupEncryptionKey: randomUUID().replaceAll("-", "").repeat(2),
+        backupAlertWebhookUrl: "https://alerts.invalid/bros",
       },
     ]),
   );

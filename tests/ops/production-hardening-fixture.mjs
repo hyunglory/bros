@@ -26,6 +26,7 @@ if (mode === "prepare") {
       api: ["database_url", "proxy_token", "r2_access_key", "r2_secret_key"],
       worker: ["database_url", "r2_access_key", "r2_secret_key"],
       backup: ["database_url", "r2_access_key", "r2_secret_key", "backup_encryption_key"],
+      backupAlert: ["backup_alert_webhook_url"],
       edge: ["caddy_auth", "caddy_proxy"],
       postgres: ["postgres_password"],
     })) {

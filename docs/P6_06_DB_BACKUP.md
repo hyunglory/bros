@@ -7,11 +7,11 @@
 - 보존은 UTC 기준 최근 7 daily, 4 ISO-weekly, 3 monthly generation의 합집합이다. 각 generation의 `.dump.enc`와 `.manifest.json`은 항상 쌍으로 보존·삭제한다. 26시간을 넘긴 불완전 pair는 정리한다.
 - backup payload는 `pg_dump --format=custom --no-owner --no-privileges` 출력만 허용한다. host rootfs, production secret generation, Browser profile/cookie/session, Caddy state는 포함하지 않는다.
 - payload는 업로드 전에 32-byte key를 사용한 AES-256-GCM으로 암호화한다. 인증된 header에는 format version, backup ID, 생성 시각, 비밀이 아닌 key ID만 둔다. 암호화 객체의 SHA-256을 업로드 후 다시 읽어 검증한 다음 manifest를 게시한다.
-- 목표는 초기 `RPO 24h`, `RTO 4h`다. 마지막 성공이 26시간을 초과하거나 마지막 실행이 실패하면 healthcheck가 실패한다. P6-03 알림 수신기가 이 상태를 실제 notification으로 연결한다.
+- 목표는 초기 `RPO 24h`, `RTO 4h`다. 마지막 성공이 26시간을 초과하거나 마지막 실행이 실패하면 healthcheck가 실패한다. P6-03 backup alert receiver가 이 상태를 전달하며, live external receiver 검증은 별도 운영 증거가 필요하다.
 
 ## Secret 준비와 배포
 
-`scripts/provision-production-secrets.mjs`에 stdin으로 전달하는 secret-manager bundle에는 `backupEncryptionKey` 64자리 hex 문자열을 포함한다. 생성 파일은 `backup_encryption_key`이며 UID 1000, mode `0400`이다. 키를 잃으면 기존 backup을 복호화할 수 없으므로 DB와 다른 보안 저장소에 escrow한다. 키 교체 시 이전 generation의 보존 기간이 끝날 때까지 이전 키 generation을 유지한다.
+`scripts/provision-production-secrets.mjs`에 stdin으로 전달하는 secret-manager bundle에는 `backupEncryptionKey` 64자리 hex 문자열과 HTTPS `backupAlertWebhookUrl`을 포함한다. 생성 파일은 각각 `backup_encryption_key`, `backup_alert_webhook_url`이며 UID 1000, mode `0400`이다. 키를 잃으면 기존 backup을 복호화할 수 없으므로 DB와 다른 보안 저장소에 escrow한다. 키 교체 시 이전 generation의 보존 기간이 끝날 때까지 이전 키 generation을 유지한다.
 
 production/public-staging Compose의 `backup` 서비스만 다음 secret을 읽는다.
 
@@ -19,10 +19,10 @@ production/public-staging Compose의 `backup` 서비스만 다음 secret을 읽�
 - `r2_access_key`, `r2_secret_key`
 - `backup_encryption_key`
 
-Browser profile volume과 proxy/admin secret은 backup 서비스에 마운트하지 않는다. 배포 후에는 다음으로 최초 실행과 상태를 확인한다.
+`backup-alert`는 webhook file, backup status read-only volume, 자체 alert state와 egress만 받으며 DB/R2/key/profile/proxy/admin secret은 받지 않는다. Browser profile volume과 proxy/admin secret은 backup 서비스에도 마운트하지 않는다. 배포 후에는 다음으로 최초 실행과 상태를 확인한다.
 
 ```sh
-docker compose -f compose.production.yml up -d backup
+docker compose -f compose.production.yml up -d backup backup-alert
 docker compose -f compose.production.yml exec backup node scripts/check-database-backup-health.mjs
 ```
 
@@ -33,6 +33,10 @@ docker compose -f compose.production.yml run --rm backup node scripts/database-b
 ```
 
 성공 로그는 `DATABASE_BACKUP_COMPLETED`, 실패 로그는 `DATABASE_BACKUP_FAILED`라는 안정된 code만 사용한다. DB URL, 암호화 키, R2 credential은 환경변수 값·명령행·로그에 넣지 않는다.
+
+## P6-03 Backup alert receiver
+
+`backup-alert`는 status의 `FAILURE`, missing/invalid status, 26시간 stale을 하나의 durable incident로 저장해 HTTPS receiver에 POST한다. 성공한 failure delivery는 중복 억제하고, delivery failure는 같은 incident ID로 재시도한다. 전달된 incident가 healthy로 회복되면 recovery를 한 번 전달한다. 요청은 redirect를 따르지 않고 timeout을 적용하며 status summary와 stable reason만 보낸다. 상세 계약과 external endpoint 검증 한계는 [P6-03 backup alert](P6_03_BACKUP_ALERTS.md)을 따른다.
 
 ## 복구 훈련
 
@@ -65,4 +69,4 @@ docker compose -f compose.production.yml run --rm \
 pnpm run verify:db-backup
 ```
 
-이 검증은 PostgreSQL migration/seed, custom dump, AES-256-GCM object, manifest pair, 빈 DB restore와 row 대조, wrong key 거부, wrong DB credential 실패 상태, 26시간 stale health 실패, 임시 Docker 자원 정리를 확인한다. Local ObjectStorage volume은 off-server adapter 계약의 disposable 대역이며 실제 private R2/운영 host scheduler 증거를 대신하지 않는다.
+이 검증은 PostgreSQL migration/seed, custom dump, AES-256-GCM object, manifest pair, 빈 DB restore와 row 대조, wrong key 거부, wrong DB credential 실패 상태, 26시간 stale health 실패, 내부 disposable HTTP receiver의 failure 1회 전달·중복 억제·recovery 1회 전달, 임시 Docker 자원 정리를 확인한다. Local ObjectStorage volume과 internal receiver는 disposable 계약 대역이며 실제 private R2/운영 host scheduler/live external receiver 증거를 대신하지 않는다.

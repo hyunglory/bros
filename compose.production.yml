@@ -216,11 +216,44 @@ services:
           cpus: "1.0"
           memory: 2G
 
+  backup-alert:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+      target: backup
+    restart: unless-stopped
+    command: ["node", "scripts/run-backup-alert-dispatcher.mjs"]
+    environment:
+      APP_ENV: production
+      BACKUP_ALERT_WEBHOOK_URL_FILE: /run/secrets/backup_alert_webhook_url
+      BACKUP_ALERT_STATE_PATH: /var/lib/bros-backup-alert/state.json
+      BACKUP_STATUS_PATH: /var/lib/bros-backup/status.json
+    secrets: [backup_alert_webhook_url]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,mode=1777"]
+    volumes:
+      - backup_status:/var/lib/bros-backup:ro
+      - backup_alert_state:/var/lib/bros-backup-alert
+    depends_on:
+      backup:
+        condition: service_started
+    init: true
+    networks:
+      - egress
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
   backup_status:
+  backup_alert_state:
 
 networks:
   backend:
@@ -239,6 +272,8 @@ secrets:
     file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/r2_secret_key
   backup_encryption_key:
     file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/backup_encryption_key
+  backup_alert_webhook_url:
+    file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/backup_alert_webhook_url
   caddy_auth:
     file: ${BROS_SECRETS_DIR:?Set external private BROS_SECRETS_DIR}/caddy_auth
   caddy_proxy:

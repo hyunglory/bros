@@ -61,7 +61,7 @@ export function assertProductionSecretEnvironment(environment: EnvironmentSource
       value &&
       !key.endsWith("_FILE") &&
       (/^BROS_SECRET_/.test(key) ||
-        /^(DATABASE_URL|API_PROXY_AUTH_TOKEN|BROS_PROXY_AUTH_TOKEN|POSTGRES_PASSWORD|BROS_ADMIN_PASSWORD_HASH|BROS_STAGING_ADMIN_PASSWORD)$/.test(
+        /^(DATABASE_URL|API_PROXY_AUTH_TOKEN|BROS_PROXY_AUTH_TOKEN|POSTGRES_PASSWORD|BACKUP_ENCRYPTION_KEY|BACKUP_ALERT_WEBHOOK_URL|BROS_ADMIN_PASSWORD_HASH|BROS_STAGING_ADMIN_PASSWORD)$/.test(
           key,
         ))
     ) {

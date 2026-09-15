@@ -34,6 +34,8 @@ test("production rejects plaintext secrets and ambiguous file/env configuration"
   const { path } = await fixture(t);
   for (const key of [
     "DATABASE_URL",
+    "BACKUP_ENCRYPTION_KEY",
+    "BACKUP_ALERT_WEBHOOK_URL",
     "API_PROXY_AUTH_TOKEN",
     "BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID",
     "BROS_SECRET_PROVIDER_IMAGE_API_KEY",

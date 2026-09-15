@@ -30,6 +30,21 @@ try {
     value.length > 0 &&
     value.length <= 4096 &&
     !/[\r\n\0]/.test(value);
+  const httpsWebhook = (value) => {
+    if (!plain(value)) return false;
+    try {
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" &&
+        Boolean(url.hostname) &&
+        !url.username &&
+        !url.password &&
+        !url.hash
+      );
+    } catch {
+      return false;
+    }
+  };
   if (
     !plain(bundle.database?.password) ||
     !/^[a-z][a-z0-9_]{0,30}$/.test(bundle.database?.user ?? "") ||
@@ -37,6 +52,7 @@ try {
     !plain(bundle.r2?.accessKeyId) ||
     !plain(bundle.r2?.secretAccessKey) ||
     !/^[0-9a-f]{64}$/i.test(bundle.backupEncryptionKey ?? "") ||
+    !httpsWebhook(bundle.backupAlertWebhookUrl) ||
     !/^[A-Za-z0-9_-]{32,256}$/.test(bundle.proxyToken ?? "") ||
     !/^[a-zA-Z0-9_-]{1,64}$/.test(bundle.admin?.username ?? "") ||
     !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(bundle.admin?.passwordHash ?? "")
@@ -53,6 +69,7 @@ try {
     ["r2_access_key", [bundle.r2.accessKeyId, 1000]],
     ["r2_secret_key", [bundle.r2.secretAccessKey, 1000]],
     ["backup_encryption_key", [bundle.backupEncryptionKey, 1000]],
+    ["backup_alert_webhook_url", [bundle.backupAlertWebhookUrl, 1000]],
     ["caddy_auth", [`${bundle.admin.username} ${bundle.admin.passwordHash}\n`, 1000]],
     ["caddy_proxy", [`header_up X-BROS-Proxy-Token "${bundle.proxyToken}"\n`, 1000]],
   ]);

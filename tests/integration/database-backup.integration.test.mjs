@@ -29,6 +29,22 @@ test("P6-06 backup image contains PostgreSQL tools and runs as UID 1000", async 
   assert.match(backup, /run-database-backup-scheduler\.mjs/);
 });
 
+test("P6-03 backup alert receiver receives only the status volume and webhook file secret", async () => {
+  for (const path of ["compose.production.yml", "compose.public-staging.yml"]) {
+    const compose = await read(path);
+    const alert =
+      compose.match(/\n {2}backup-alert:[\s\S]*?(?:\n {2}tunnel:|\nvolumes:)/)?.[0] ?? "";
+    assert.match(alert, /target: backup/);
+    assert.match(alert, /run-backup-alert-dispatcher\.mjs/);
+    assert.match(alert, /BACKUP_ALERT_WEBHOOK_URL_FILE: \/run\/secrets\/backup_alert_webhook_url/);
+    assert.match(alert, /secrets: \[backup_alert_webhook_url\]/);
+    assert.match(alert, /backup_status:\/var\/lib\/bros-backup:ro/);
+    assert.match(alert, /backup_alert_state:\/var\/lib\/bros-backup-alert/);
+    assert.match(alert, /- egress/);
+    assert.doesNotMatch(alert, /database_url|r2_access_key|r2_secret_key|profiles|ports:/);
+  }
+});
+
 test("P6-06 runtime keeps credentials out of pg_dump argv and enforces encrypted restore pairing", async () => {
   const runtime = await read("scripts/database-backup-runtime.mjs");
   const restore = await read("scripts/database-restore-drill.mjs");

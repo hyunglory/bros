@@ -465,3 +465,11 @@
 - backup key provisioning 추가 후 `node scripts/verify-production-hardening.mjs`도 다시 PASS했다: P602_PROVISION/FILE_MIGRATION/두 generation/API·Worker·Caddy metadata/Linux permission/profile/unit/backup exclusion/regression/HARDENING/CLEANUP 전부 성공했다.
 - `pnpm lint`, `pnpm typecheck`, Admin 13개와 Node unit 119개(117 PASS, Linux-only 2 skip), P6-06/P6-02/P6-10 대상 integration 10개 PASS. 최종 암호화·scheduler 보강 후 backup package unit 5개와 package build/lint도 재실행해 PASS했다. production/public-staging Compose config가 유효함을 확인했다.
 - 실제 private R2의 P6-06 backup prefix put/list/delete/restore, 운영 host에서 24시간 scheduler 관찰, P6-03 notification receiver, 전체 integration suite와 remote CI는 이번 작업에서 NOT_RUN이다. 따라서 상태는 `IMPLEMENTED_NOT_VALIDATED`다.
+
+## 2026-09-15 — P6-03 Backup Failure Alert Receiver 부분 구현
+
+- 결정: DEC-20260915-007. `backup-alert` sidecar는 P6-06의 `status.json`을 read-only로 읽고 `FAILURE`, missing/invalid status, 26시간 stale을 durable incident로 전환한다. DB/R2/key/profile/proxy/admin secret 없이 webhook file, private alert state, egress만 받는다.
+- successful failure notification 뒤에는 persistent `incidentId`로 중복을 억제하고, delivery failure는 같은 incident로 재시도한다. 전달된 incident가 healthy로 돌아오면 recovery를 한 번 보낸다. 전달 전 recovery면 recovery noise를 만들지 않고 state만 지운다. URL/response body/credential/dump는 payload·log에 포함하지 않는다.
+- `node scripts/verify-database-backup.mjs` Docker end-to-end PASS: `P606_BACKUP_ENCRYPT_RESTORE_PASS rto_ms=1129`, wrong-key/wrong-credential/26h stale detection PASS, `P603_BACKUP_ALERT_DELIVERY_DEDUP_RECOVERY_PASS`, cleanup PASS. 내부 disposable Node HTTP receiver가 failure와 recovery 두 POST를 실제 수신했고 duplicate는 수신하지 않았다.
+- `node scripts/verify-production-hardening.mjs`도 webhook secret provisioning 추가 후 P602_PROVISION, FILE_MIGRATION, generation/API·Worker·Caddy, permission/profile/unit, exclusion/regression, HARDENING/CLEANUP PASS로 회귀가 없었다.
+- 이는 P6-03 전체 Dashboard 완료가 아니다. correlation logs, queue lag/worker heartbeat/provider metrics, dashboard UI와 실제 운영 HTTPS receiver/account routing/on-call delivery, private R2 live backup은 NOT_RUN이다. 따라서 P6-03 전체 상태는 `IN_PROGRESS`다.

@@ -2375,3 +2375,78 @@
 - 금지 변경: 평문 DB dump/secret 환경변수, public bucket, Browser profile/cookie backup, 원본 DB 자동 restore, exact prefix 밖 object 삭제, 검증 artifact/token 잔존, 기존 P6-05 hold 우회, 승인 없는 영구 인프라 변경.
 - 완료 조건: 실제 R2 complete pair 생성·hash/size·암호화 평문 부재·restore data 일치·정확한 retention 삭제·wrong credential/26h notification을 증명하고 credential/fixture를 정리하거나, P6-03 수신기에서 같은 failure 신호의 전달·재시도·중복 억제를 증명한다.
 - 재검토가 필요한 조건: RPO/RTO, schedule timezone, retention 수량, DB 규모/HA topology, R2 account/bucket, KMS/secret manager, backup DB role, key rotation/escrow 정책이 변경될 때.
+
+## DEC-20260915-007 — P6-03 Backup Failure Alert Receiver
+
+- 일자: 2026-09-15
+- 종료 단계/분야: P6-06 DB backup health의 외부 notification receiver 연결 부분 구현·검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-03, P6-06, P6-02, P1-13, P6-10
+- 검토 범위와 근거: AGENTS.md, 개발 운영 구성 지침, P6-03의 초기 backup 26시간/실패 alert 기준, DEC-20260915-005 `_FILE` secret 최소 권한 경계, DEC-20260915-006 backup status/health 계약, production/public-staging Compose와 disposable Docker receiver 검증
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260915-006에서 P6-03 소유로 남긴 backup notification receiver를 구현한다. P6-03 전체 observability/Dashboard 완료 상태를 대체하지 않는다.
+
+### 확정 결정
+
+- `backup-alert` sidecar는 backup status volume을 read-only로 읽고 `FAILURE`, status missing/invalid, 마지막 성공 26시간 초과를 하나의 durable incident로 전환한다. default poll은 60초이며 30초~15분으로만 조정한다.
+- receiver URL은 secret-manager bundle의 `backupAlertWebhookUrl`에서 UID 1000/mode 0400 `backup_alert_webhook_url` 파일로 주입한다. production은 HTTPS, hostname, userinfo 없음, fragment 없음만 허용하며 평문 `BACKUP_ALERT_WEBHOOK_URL`은 거부한다. disposable test network만 HTTP를 허용한다.
+- service에는 webhook file, read-only backup status, private alert state, egress만 제공한다. DB/R2 credential/backup encryption key/Browser profile/proxy/admin secret/host port를 제공하지 않는다. rootfs read-only, capability drop, no-new-privileges와 tmpfs를 적용한다.
+- state는 failure 전 atomic rename으로 기록한다. 성공한 failure event는 `delivered`를 기록해 반복을 억제하고 delivery failure는 동일 incident ID로 재시도한다. delivery 된 incident가 healthy가 되면 recovery를 한 번 전달한다. failure가 전달되기 전에 해소되면 recovery event 없이 state만 정리한다.
+- outbound POST는 redirect를 거부하고 기본 5초 timeout을 사용한다. payload에는 stable event/incident/reason과 제한된 `attemptedAt`/`lastSuccessAt`/`state`만 허용한다. URL, response body, DB URL, dump, R2 credential, encryption key는 payload와 log에 넣지 않는다.
+- P6-03의 correlation log, queue lag/worker heartbeat, provider metric, Dashboard UI 및 on-call routing은 후속 범위다. 이 부분 구현을 P6-03 전체 완료로 표시하지 않는다.
+
+### 기각한 선택지와 이유
+
+- ephemeral memory-only dedupe: restart 후 같은 outage를 반복 알릴 수 있어 private persistent state를 사용한다.
+- receiver URL을 Compose environment/argv에 직접 입력: metadata/process inspection에 노출될 수 있어 `_FILE` secret만 사용한다.
+- raw `status.json`, fetch error/response body를 전달·로그: secret 또는 불필요한 운영 정보를 유출할 수 있어 allowlisted summary와 stable code만 사용한다.
+- retry 없는 best-effort webhook: 일시 network failure가 영구 누락이 되므로 failure/recovery 모두 durable retry를 사용한다.
+- 이 작업으로 P6-03 전체 Dashboard 완료 선언: queue/worker/provider/dashboard acceptance가 남아 있어 `IN_PROGRESS`를 유지한다.
+
+### 변경 파일
+
+- `compose.production.yml`
+- `compose.public-staging.yml`
+- `docs/DECISIONS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/P6_02_HARDENING.md`
+- `docs/P6_03_BACKUP_ALERTS.md`
+- `docs/P6_06_DB_BACKUP.md`
+- `docs/RUNBOOK.md`
+- `docs/TEST_REPORT.md`
+- `ops/Dockerfile`
+- `package.json`
+- `packages/backup/test/backup-alert.test.mjs`
+- `packages/core/src/security/secret-files.ts`
+- `packages/core/test/secret-files.test.mjs`
+- `scripts/backup-alert-runtime.mjs`
+- `scripts/provision-production-secrets.mjs`
+- `scripts/run-backup-alert-dispatcher.mjs`
+- `scripts/run-backup-alert-once.mjs`
+- `scripts/verify-database-backup.mjs`
+- `scripts/verify-production-hardening.mjs`
+- `tests/integration/database-backup.integration.test.mjs`
+- `tests/ops/backup-alert-receiver.mjs`
+- `tests/ops/database-backup-fixture.mjs`
+- `tests/ops/production-hardening-fixture.mjs`
+
+### 검증 증거
+
+- `pnpm --filter @bros/backup run build`, `node --test packages/backup/test/backup.test.mjs packages/backup/test/backup-alert.test.mjs packages/core/test/secret-files.test.mjs tests/integration/database-backup.integration.test.mjs` PASS: 17 PASS, Linux-only 1 skip. backup alert unit은 failure 1회 전달, duplicate suppression, 동일 incident retry, recovery와 production URL fence를 확인했다.
+- `pnpm lint`로 workspace JavaScript/TypeScript를 확인했고 PASS했다. `node --test packages/backup/test/backup-alert.test.mjs`는 disposable loopback HTTP server에 실제 POST하고 safe payload만 전달함을 확인했다.
+- `node scripts/verify-database-backup.mjs` Docker end-to-end PASS: `P606_BACKUP_ENCRYPT_RESTORE_PASS rto_ms=1129`, wrong encryption key/DB credential/26h stale detection PASS, `P603_BACKUP_ALERT_DELIVERY_DEDUP_RECOVERY_PASS`, cleanup PASS. 내부 network의 disposable receiver는 `BACKUP_UNHEALTHY`, `BACKUP_RECOVERED` 두 event만 받았다.
+- `node scripts/verify-production-hardening.mjs` PASS: webhook secret provisioning을 포함한 P602_PROVISION/FILE_MIGRATION/generation/API·Worker·Caddy/permission/profile/unit/exclusion/regression/HARDENING/CLEANUP을 확인했다.
+
+### 미해결 사항 및 Blocker
+
+- P6-03 전체는 `IN_PROGRESS`다. correlation ID 구조화 로그, queue lag 10분, worker heartbeat 2분, provider metrics, Dashboard UI와 운영 alert routing이 남아 있다.
+- 실제 operator-owned HTTPS receiver/account, 인증/rate-limit/retention/on-call routing, production host egress는 검증하지 않았다. disposable internal HTTP receiver는 network 전달 계약만 증명한다.
+- 실제 private R2 P6-06 backup pair/retention/restore, 운영 host 24시간 scheduler, required remote CI, P6-10 native TLS/DNS/firewall도 NOT_RUN이다.
+- 이 worktree의 DEC-20260915-006은 다른 branch에서 같은 ID가 다른 작업에 사용될 수 있다. 병합 전 `supersedes`와 결정 본문을 확인하고 ID collision을 해소해야 한다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 운영자가 소유한 HTTPS receiver로 P6-06 live R2 backup failure/26시간 stale/healthy recovery를 검증하거나, P6-03의 queue/worker/provider observability와 Dashboard를 구현한다.
+- 금지 변경: webhook/DB/R2/key를 평문 환경변수·argv·log·payload에 넣기, receiver public unauthenticated exposure, profile/cookie backup, status volume write mount, P6-03 전체 완료 오표기, unrelated worktree 변경, 승인 없는 외부 alert 계정/route 생성.
+- 완료 조건: 지정 receiver에 failure·retry·duplicate suppression·recovery가 안전한 payload로 전달된 실제 증거를 남기고 test secret/fixture를 정리하거나, P6-03 전체 acceptance를 별도 검증한다.
+- 재검토가 필요한 조건: alert receiver authentication method, webhook signing/KMS, delivery SLO/escalation policy, retention/audit law, RPO/RTO/26시간 threshold, queue/worker metric ownership이 변경될 때.

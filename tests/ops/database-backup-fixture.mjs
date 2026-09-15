@@ -39,6 +39,7 @@ if (mode === "prepare") {
     ["backup", 1000],
     ["objects", 1000],
     ["status", 1000],
+    ["alert-state", 1000],
   ]) {
     await mkdir(`/fixture/${name}`, { mode: 0o700 });
     await chown(`/fixture/${name}`, uid, uid);
@@ -49,6 +50,11 @@ if (mode === "prepare") {
   await privateFile("/fixture/postgres/postgres_password", request.databasePassword, 999);
   await privateFile("/fixture/backup/database_url", url.toString(), 1000);
   await privateFile("/fixture/backup/backup_encryption_key", request.encryptionKey, 1000);
+  await privateFile(
+    "/fixture/backup/backup_alert_webhook_url",
+    "http://alert-receiver:8787/alerts",
+    1000,
+  );
   await privateFile(
     "/fixture/backup/wrong_backup_encryption_key",
     request.wrongEncryptionKey,
@@ -117,6 +123,8 @@ if (mode === "prepare") {
     })}\n`,
     { mode: 0o600 },
   );
+} else if (mode === "set-status") {
+  await writeFile("/status/status.json", `${JSON.stringify(request.status)}\n`, { mode: 0o600 });
 } else {
   throw new Error("Unknown fixture mode");
 }

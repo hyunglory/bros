@@ -49,7 +49,9 @@ FROM ${POSTGRES_IMAGE} AS backup
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /srv/bros /srv/bros
 WORKDIR /srv/bros
-RUN mkdir -p /var/lib/bros-backup && chown 1000:1000 /var/lib/bros-backup && chmod 700 /var/lib/bros-backup
+RUN mkdir -p /var/lib/bros-backup /var/lib/bros-backup-alert \
+  && chown 1000:1000 /var/lib/bros-backup /var/lib/bros-backup-alert \
+  && chmod 700 /var/lib/bros-backup /var/lib/bros-backup-alert
 USER 1000:1000
 ENTRYPOINT []
 CMD ["node", "scripts/run-database-backup-scheduler.mjs"]
