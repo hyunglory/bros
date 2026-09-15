@@ -482,3 +482,10 @@
 - 15개 fixture generation으로 7 daily/4 ISO-weekly/3 monthly union retention의 complete pair 삭제를 확인했고, verifier가 생성한 key와 status만 정리했다. R2 adapter는 R2의 Streaming SigV4 비지원에 맞춰 bounded 5 MiB multipart stream upload를 사용한다.
 - wrong R2 credential은 `STORAGE_AUTH_FAILED`로 거부됐다. 검증 후 bucket은 0 B 및 Public Access Disabled였고, `bros-p606-live-backup-24h` token이 Cloudflare 목록에 더 이상 없음을 확인했다.
 - 운영 host 24시간 scheduler, operator-owned external HTTPS alert receiver, remote CI 및 대용량 DB RTO는 NOT_RUN이므로 P6-06 상태는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.
+
+## 2026-09-15 — P1-14 Fresh Linux CI 재현 및 P6 공통 회귀
+
+- 원격: GitHub Actions CI [run 34947247087](https://github.com/hyunglory/bros/actions/runs/34947247087), commit `f6f877017ee9b25a1b48838f60326b460db43066`, `ubuntu-latest`, PostgreSQL 18.6 서비스, Node 24/pnpm 11.19.0.
+- 발견·수정: fresh checkout의 unit 경로가 Worker dist를 전제해 실패하므로 `test:unit` 시작 시 workspace build를 수행하도록 고정했다. Browser integration은 runner에 Chromium이 없었으므로 lockfile 설치 뒤 `playwright install --with-deps chromium`을 CI 단계로 추가했다. Caddy 보안 테스트는 평문 proxy token header 대신 `/run/secrets/caddy_proxy` import 계약을 검사하도록 맞췄다.
+- 결과: lockfile install, Playwright Chromium 설치, lint, typecheck, unit 및 integration, format check, build가 모두 PASS했다. 이 run은 P5 Browser·durable 및 P6 backup/retention/security 경로를 포함한 현재 branch의 자동 회귀를 Linux에서 재현한다.
+- 범위 한계: GitHub-managed ephemeral runner는 persistent production-like host가 아니다. 실제 private R2 credential로 실행한 scheduler의 재시작/24시간 경계, operator-owned external HTTPS alert receiver delivery, 대용량 DB RTO는 이 결과에 포함하지 않는다.

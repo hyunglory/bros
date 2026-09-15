@@ -2506,3 +2506,55 @@
 - 금지 변경: 폐기한 token 재사용, 평문 credential/DB dump/key의 환경변수·argv·로그 기록, public bucket 전환, exact verifier key 밖 cleanup, 원본 DB restore, P6-06을 운영 검증 PASS로 오표기.
 - 완료 조건: 새 short-lived least-privilege credential으로 scheduler/alert/CI의 실제 증거를 남기고 credential과 disposable artifact를 정리한다.
 - 재검토가 필요한 조건: RPO/RTO, schedule timezone, retention count, bucket/account, KMS/secret manager, DB 규모/HA topology, alert authentication/on-call policy가 바뀔 때.
+
+## DEC-20260915-009 — P1-14 Fresh Linux CI와 Browser Runtime 재현성
+
+- 일자: 2026-09-15
+- 종료 단계/분야: P1-14 원격 fresh Linux CI 재현성 보강 및 P5/P6 공통 자동 회귀 검증
+- 작성 모델/추론 수준: GPT-5 Codex / high
+- 관련 WBS Task: P1-14, P5-06, P5-09, P5-10, P6-01, P6-02, P6-04, P6-05, P6-06, P6-10
+- 검토 범위와 근거: AGENTS.md, `package.json`, `.github/workflows/ci.yml`, `tests/integration/api-security.integration.test.mjs`, `docs/TEST_REPORT.md`, DEC-20260915-002/005~008, GitHub Actions run 34947247087의 step별 성공 결과
+- 상태: ACCEPTED
+- supersedes: 없음. 기존 P6 운영 host·external receiver·대용량 RTO의 미검증 결론은 대체하지 않으며, 이전 기록의 remote CI NOT_RUN 상태만 현재 branch CI 증거로 보완한다.
+
+### 확정 결정
+
+- fresh checkout의 `test:unit`은 모든 workspace app build 뒤에 실행한다. 이전 checkout의 `apps/worker/dist`를 전제하지 않는다.
+- CI는 `ubuntu-latest`에서 lockfile 설치 뒤 Browser workspace의 Playwright Chromium과 Linux dependency를 설치하고, lint/typecheck/unit+integration/format/build를 모두 실행한다.
+- Caddy security regression은 proxy credential 평문 header가 아니라 `/run/secrets/caddy_proxy`의 file-secret import와 upstream 인증 경계를 검증한다.
+- GitHub Actions run 34947247087은 commit `f6f877017ee9b25a1b48838f60326b460db43066`에서 전 단계 PASS했다. 이는 P5/P6 자동 회귀의 원격 Linux 증거이나 persistent production host 운영 검증은 아니다.
+
+### 기각한 선택지와 이유
+
+- checkout에 남은 Worker dist 또는 cache에 의존: clean runner에서 재현되지 않아 기각한다.
+- Browser integration을 Chromium 부재로 건너뛰기: 핵심 P5 Browser 경로의 Linux 회귀가 사라지므로 기각한다.
+- Caddy test를 literal proxy token header로 되돌리기: P6-02 file-secret 경계와 충돌하므로 기각한다.
+- 기존 formatting drift를 허용해 CI format 단계를 계속 실패시키기: required quality gate가 유효하지 않으므로 기각한다.
+
+### 변경 파일
+
+- `.github/workflows/ci.yml`
+- `package.json`
+- `tests/integration/api-security.integration.test.mjs`
+- `packages/storage/src/r2.ts`
+- `scripts/verify-database-backup-r2-staging.mjs`
+- `docs/DECISIONS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/TEST_REPORT.md`
+
+### 검증 증거
+
+- 실행 명령 또는 수동 확인: 로컬 `pnpm lint`, `pnpm format:check`, `pnpm --filter @bros/admin run test`, `pnpm --filter @bros/storage run build`, `pnpm --filter @bros/backup run build`, storage/backup Node test 17개, `git diff --check`; 원격 GitHub Actions run 34947247087.
+- 결과: PASS — run 34947247087에서 lockfile install, Playwright Chromium 설치, lint, typecheck, unit 및 integration, format check, build가 2026-09-15 08:29:40Z~08:32:50Z에 모두 성공했다.
+
+### 미해결 사항 및 Blocker
+
+- P6-06은 `IMPLEMENTED_NOT_VALIDATED`를 유지한다. 연결 가능한 persistent Linux production-like host가 현재 없으므로 scheduler 재시작·24시간/26시간 경계와 실제 private R2 credential의 host delivery를 관찰하지 못했다.
+- P6-03의 operator-owned external HTTPS receiver/account 인증·rate limit·on-call routing과 P6-10 custom-domain TLS/DNS/firewall, 대용량 DB RTO/throughput은 원격 CI로 증명되지 않는다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 제공 또는 승인된 Linux staging host에서 least-privilege short-lived R2 credential과 authenticated HTTPS receiver를 secret file로 전달해 backup success/failure/stale/recovery를 검증하고 24시간 scheduler 관찰을 시작한다.
+- 금지 변경: 폐기한 token 재사용, 평문 credential/dump/key를 argv·환경변수·로그·Git에 기록, public R2 전환, 원본 DB restore, receiver 무인증 공개, 승인 없는 영구 cloud/route 생성.
+- 완료 조건: host 재시작 뒤 scheduler 실행 및 24시간 deadline, failure·retry·dedupe·recovery의 외부 HTTPS delivery, credential/disposable artifact cleanup, 대용량 DB RTO 또는 그 미검증 이유를 실제 증거로 기록한다.
+- 재검토가 필요한 조건: host 접근 방식·Linux 배포 topology, RPO/RTO, schedule timezone, R2 account/bucket/secret manager, alert auth/on-call policy, DB 규모/HA topology가 변경될 때.
