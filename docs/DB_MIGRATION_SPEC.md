@@ -1,7 +1,7 @@
 # P1-05 DB Migration 컬럼 명세
 
 - 기준: `doc/brand_resell_os_design_v0.1.md` 11·12장, `doc/BROS_구현_보완_명세_v0.2.md` 2장 및 3.2장.
-- 범위: `app` schema의 18개 업무 테이블, 256개 컬럼. 이 문서는 migration 작성 전 작성한 metadata 대조 기준이다.
+- 범위: `app` schema의 18개 업무 테이블, 현재 259개 컬럼(001 baseline 256개 + P3-12 migration 003의 3개). 현재 migration metadata 대조 기준이다.
 - Kysely 이력은 `bros_migrations` schema로 분리한다. `pg_trgm`은 public schema에 설치하며 down에서 공유 extension을 삭제하지 않는다.
 - `NN`은 NOT NULL, `NULL`은 SQL NULL 허용, `—`는 기본값 없음이다. JSON raw의 SQL NULL은 금지하고 JSON null·배열·스칼라는 허용한다.
 - UUID는 NOT NULL / UNIQUE / uuidv7() 기본값이며 API 계약에서 버전 7을 검증한다. BIGINT·NUMERIC은 pg 기본 string 반환을 유지한다.
@@ -265,6 +265,9 @@
 | source_product_id | bigint | NN | — | REFERENCES app.source_product(id) ON DELETE RESTRICT |
 | product_id | bigint | NULL | — | REFERENCES app.product_master(id) ON DELETE RESTRICT |
 | resolver_version | text | NN | — | resolver_version ~ '[^[:space:]]' |
+| admission_key | varchar(73) | NULL | — | UNIQUE; migration 003 요청 UUID:source UUID |
+| queue_json | jsonb | NN | '{}'::jsonb | jsonb_typeof(queue_json) = 'object'; migration 003 |
+| result_json | jsonb | NN | '{}'::jsonb | jsonb_typeof(result_json) = 'object'; migration 003. P3-12 v2 executionCapture도 이 객체에 후보/성공 결과와 원자 저장; 신규 migration 없음 |
 | status | varchar(64) | NN | 'QUEUED' | status IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED') |
 | input_json | jsonb | NN | '{}'::jsonb | jsonb_typeof(input_json) = 'object' |
 | error_code | varchar(64) | NULL | — | — |
@@ -447,3 +450,12 @@
 - DB CHECK는 유효한 행의 형태를 검사한다. 상태 전이 및 version CAS, Source SKU와 MASTER 재매핑 잠금, 사용한 recipe 버전 불변성, thumbnail review append-only 업무 경로는 해당 P2/P3/P4/P5 service 작업에서 트랜잭션으로 구현·검증한다.
 - raw secret 제거, URI 안전성 및 사용자 입력 validation은 ingest/API 경계의 후속 작업이다. DB schema 검증을 해당 보안 경계 완료로 기록하지 않는다.
 - 플랫폼 seed: MUSINSA/SOURCE, OLIVEYOUNG/SOURCE, COUPANG/CHANNEL, NAVER/CHANNEL. 초기 name은 code와 같고 실제 운영 명칭은 후속 관리에서 변경한다.
+
+## Provider quota infrastructure (migration 004)
+
+- DEC-20260915-029: `004-provider-quota`는 별도 `bros_provider` schema의 account/daily_budget/reservation을 추가한다. 위 `app` 18개 업무 테이블/259개 컬럼 계약은 유지한다.
+- account: SHA-256 ID PK, `(provider_key, account_key)` UNIQUE, 고정 예산/가격/간격/cooldown, active_reservation_id FK, next_allowed_at. 비밀 키는 저장하지 않는다.
+- daily_budget: `(account_id, utc_day)` PK, account FK, bigint reserved_microusd. DB UTC 날짜별 예약 누계이며 최대 safe integer 범위 CHECK를 적용한다.
+- reservation: UUID PK, account FK, UTC 예약일/비용, provider_id/owner_id, ACTIVE/RELEASED/RECOVERED 및 시각/복구 actor/reason. 상태와 종료·감사 필드 조합 CHECK, 계정/날짜 index를 적용한다.
+- 서비스가 계정 행 FOR UPDATE와 짧은 transaction으로 예산·ACTIVE·호출 간격을 관리한다. HTTP 중 DB transaction을 유지하지 않으며 lease 자동 만료/환불은 없다. [정책과 복구](PROVIDER_QUOTA.md)를 따른다.
+- down/up은 일회용 PostgreSQL fixture에서 검증한다. 운영 ledger를 지우는 down/reset은 제공하지 않으며 실제 BROS DB 004 적용은 NOT_RUN이다.

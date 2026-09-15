@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/health": apiTarget,
         "/ready": apiTarget,
-        "/api": apiTarget,
+        // Keep the browser Host so the API can compare it with Origin.
+        "/api": { target: apiTarget, changeOrigin: false },
       },
     },
     preview: {

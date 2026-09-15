@@ -1,0 +1,750 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-15T09:51:17.007Z",
+  "evaluationMode": "COLLECTED_EVIDENCE_REPLAY",
+  "datasetVersion": "synthetic-golden/v1",
+  "sourceKind": "SYNTHETIC",
+  "sourceDescription": "Hand-authored regression only; no actual labels or calibration evidence.",
+  "datasetDigest": "829477c39da19c07c393518697eab8850ecf4fb8e47f51163b2acf9090088505",
+  "holdoutDigest": "fd7afbf12c21aea1d79fa6ca78ab590d570ab5fafd55eae93b6bd1d2a16672ad",
+  "algorithmDigest": "fcb992c94d04614cf07dd42a9b648adc88f3baedf9aab363e29feec22dd05649",
+  "scope": {
+    "brands": [
+      "fixture-brand"
+    ],
+    "categories": [
+      "fixture-category"
+    ]
+  },
+  "captureVersions": [
+    "[\"synthetic/v1\",\"fixture/v1\",\"offline/v1\"]"
+  ],
+  "calibrationStatus": "SYNTHETIC_ONLY",
+  "gates": {
+    "realLabels": false,
+    "distinctProducts": false,
+    "tuningSplit": true,
+    "holdoutAutoCandidates": false,
+    "holdoutAutoProducts": false,
+    "brandCoverage": false,
+    "categoryCoverage": false,
+    "challengeCoverage": true,
+    "zeroWrongAuto": true,
+    "zeroUnsafeAuto": true
+  },
+  "automaticPromotionEnabled": false,
+  "activationDecision": "REQUIRES_OPERATION_OWNER_AND_END_TO_END_VALIDATION",
+  "thresholds": {
+    "autoAcceptMinimum": 95,
+    "candidateMinimum": 80,
+    "reviewMinimum": 60,
+    "strongEvidenceRequired": true,
+    "hardConflictOverride": false
+  },
+  "tuning": {
+    "caseCount": 1,
+    "masterCount": 1,
+    "candidateCount": 1,
+    "autoCandidateCount": 1,
+    "autoMasterCount": 1,
+    "wrongAutoCount": 0,
+    "unsafeAutoCount": 0,
+    "precision": 1,
+    "coverage": 1,
+    "knownIdentifierCaseCount": 1,
+    "missingCorrectCandidateCount": 0,
+    "falseReviewCount": 0,
+    "falseReviewDenominator": 1,
+    "falseReviewRate": 0,
+    "providerFailureCases": 0,
+    "truncatedCases": 0,
+    "elapsedMs": 0.1734000000000151,
+    "p95ReplayMs": 0.1734000000000151,
+    "costKnownCount": 1,
+    "recordedCostUsd": 0,
+    "meanRecordedCostUsd": 0,
+    "scoreBins": [
+      {
+        "min": 0,
+        "max": 59,
+        "count": 0,
+        "correct": 0
+      },
+      {
+        "min": 60,
+        "max": 79,
+        "count": 0,
+        "correct": 0
+      },
+      {
+        "min": 80,
+        "max": 94,
+        "count": 0,
+        "correct": 0
+      },
+      {
+        "min": 95,
+        "max": 100,
+        "count": 1,
+        "correct": 1
+      }
+    ]
+  },
+  "holdout": {
+    "caseCount": 10,
+    "masterCount": 10,
+    "candidateCount": 10,
+    "autoCandidateCount": 1,
+    "autoMasterCount": 1,
+    "wrongAutoCount": 0,
+    "unsafeAutoCount": 0,
+    "precision": 1,
+    "coverage": 0.1,
+    "knownIdentifierCaseCount": 8,
+    "missingCorrectCandidateCount": 0,
+    "falseReviewCount": 3,
+    "falseReviewDenominator": 4,
+    "falseReviewRate": 0.75,
+    "providerFailureCases": 1,
+    "truncatedCases": 1,
+    "elapsedMs": 7.575700000000211,
+    "p95ReplayMs": 3.513400000000047,
+    "costKnownCount": 9,
+    "recordedCostUsd": 0,
+    "meanRecordedCostUsd": 0,
+    "scoreBins": [
+      {
+        "min": 0,
+        "max": 59,
+        "count": 2,
+        "correct": 2
+      },
+      {
+        "min": 60,
+        "max": 79,
+        "count": 0,
+        "correct": 0
+      },
+      {
+        "min": 80,
+        "max": 94,
+        "count": 0,
+        "correct": 0
+      },
+      {
+        "min": 95,
+        "max": 100,
+        "count": 8,
+        "correct": 6
+      }
+    ]
+  },
+  "byBrand": [
+    {
+      "key": "fixture-brand",
+      "caseCount": 10,
+      "masterCount": 10,
+      "candidateCount": 10,
+      "autoCandidateCount": 1,
+      "autoMasterCount": 1,
+      "wrongAutoCount": 0,
+      "unsafeAutoCount": 0,
+      "precision": 1,
+      "coverage": 0.1,
+      "knownIdentifierCaseCount": 8,
+      "missingCorrectCandidateCount": 0,
+      "falseReviewCount": 3,
+      "falseReviewDenominator": 4,
+      "falseReviewRate": 0.75,
+      "providerFailureCases": 1,
+      "truncatedCases": 1,
+      "elapsedMs": 7.575700000000211,
+      "p95ReplayMs": 3.513400000000047,
+      "costKnownCount": 9,
+      "recordedCostUsd": 0,
+      "meanRecordedCostUsd": 0,
+      "scoreBins": [
+        {
+          "min": 0,
+          "max": 59,
+          "count": 2,
+          "correct": 2
+        },
+        {
+          "min": 60,
+          "max": 79,
+          "count": 0,
+          "correct": 0
+        },
+        {
+          "min": 80,
+          "max": 94,
+          "count": 0,
+          "correct": 0
+        },
+        {
+          "min": 95,
+          "max": 100,
+          "count": 8,
+          "correct": 6
+        }
+      ]
+    }
+  ],
+  "byCategory": [
+    {
+      "key": "fixture-category",
+      "caseCount": 10,
+      "masterCount": 10,
+      "candidateCount": 10,
+      "autoCandidateCount": 1,
+      "autoMasterCount": 1,
+      "wrongAutoCount": 0,
+      "unsafeAutoCount": 0,
+      "precision": 1,
+      "coverage": 0.1,
+      "knownIdentifierCaseCount": 8,
+      "missingCorrectCandidateCount": 0,
+      "falseReviewCount": 3,
+      "falseReviewDenominator": 4,
+      "falseReviewRate": 0.75,
+      "providerFailureCases": 1,
+      "truncatedCases": 1,
+      "elapsedMs": 7.575700000000211,
+      "p95ReplayMs": 3.513400000000047,
+      "costKnownCount": 9,
+      "recordedCostUsd": 0,
+      "meanRecordedCostUsd": 0,
+      "scoreBins": [
+        {
+          "min": 0,
+          "max": 59,
+          "count": 2,
+          "correct": 2
+        },
+        {
+          "min": 60,
+          "max": 79,
+          "count": 0,
+          "correct": 0
+        },
+        {
+          "min": 80,
+          "max": 94,
+          "count": 0,
+          "correct": 0
+        },
+        {
+          "min": 95,
+          "max": 100,
+          "count": 8,
+          "correct": 6
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "rows": [
+    {
+      "caseId": "strong",
+      "masterKey": "master-strong",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "NORMAL"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AB123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": false,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "AUTO_ACCEPTED",
+          "autoAcceptEligible": true,
+          "correct": true,
+          "conflicts": [],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 3.513400000000047,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "weak",
+      "masterKey": "master-weak",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "NORMAL"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"WEAK123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": false,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "WEAK123",
+          "confidenceScore": "45.00",
+          "recommendedDecision": "NOT_FOUND",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [],
+          "strongEvidence": false,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "NOT_FOUND",
+      "elapsedMs": 0.3977999999999611,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "none",
+      "masterKey": "master-none",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "NO_IDENTIFIER"
+      ],
+      "truthCount": 0,
+      "truth": {
+        "identifiers": [],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [],
+      "outcome": "NOT_FOUND",
+      "elapsedMs": 0.09100000000000819,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "similar",
+      "masterKey": "master-similar",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "SIMILAR_MODEL"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AB123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": false,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [
+            "CONFLICT_MODEL"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        },
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB124",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": false,
+          "conflicts": [
+            "CONFLICT_MODEL"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 1.2900000000000773,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "gtin",
+      "masterKey": "master-gtin",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "GTIN_CONFLICT"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"GTIN\",\"8801234567890\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [
+        {
+          "identifierType": "GTIN",
+          "candidateNorm": "8801234567890",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [
+            "CONFLICT_GTIN"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        },
+        {
+          "identifierType": "GTIN",
+          "candidateNorm": "8801234567891",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": false,
+          "conflicts": [
+            "CONFLICT_GTIN"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 0.8749000000000251,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "color",
+      "masterKey": "master-color",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "COLOR_CONFLICT"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AB123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [
+            "CONFLICT_COLOR"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 0.4227000000000771,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "volume",
+      "masterKey": "master-volume",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "VOLUME_CONFLICT"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AB123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [
+            "CONFLICT_VOLUME"
+          ],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 0.29710000000000036,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "ai",
+      "masterKey": "master-ai",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "AI_ONLY"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AI123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AI123",
+          "confidenceScore": "45.00",
+          "recommendedDecision": "NOT_FOUND",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [],
+          "strongEvidence": false,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "NOT_FOUND",
+      "elapsedMs": 0.287900000000036,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "truncated",
+      "masterKey": "master-truncated",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "NORMAL"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"AB123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": false,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "AB123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "REVIEW_REQUIRED",
+          "autoAcceptEligible": false,
+          "correct": true,
+          "conflicts": [],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 0.25869999999997617,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": true,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "failure",
+      "masterKey": "master-failure",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "tags": [
+        "NO_IDENTIFIER"
+      ],
+      "truthCount": 0,
+      "truth": {
+        "identifiers": [],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": true,
+      "candidates": [],
+      "outcome": "REVIEW_REQUIRED",
+      "elapsedMs": 0.14220000000000255,
+      "costUsd": null,
+      "providerFailureCount": 1,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    },
+    {
+      "caseId": "tuning",
+      "masterKey": "master-tuning",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "TUNING",
+      "tags": [
+        "NORMAL"
+      ],
+      "truthCount": 1,
+      "truth": {
+        "identifiers": [
+          "[\"MODEL_NO\",\"TUNE123\"]"
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored"
+      },
+      "captureReference": "synthetic://collector/fixture",
+      "autoAcceptForbidden": false,
+      "candidates": [
+        {
+          "identifierType": "MODEL_NO",
+          "candidateNorm": "TUNE123",
+          "confidenceScore": "100.00",
+          "recommendedDecision": "AUTO_ACCEPTED",
+          "autoAcceptEligible": true,
+          "correct": true,
+          "conflicts": [],
+          "strongEvidence": true,
+          "unsafeAuto": false
+        }
+      ],
+      "outcome": "CANDIDATES",
+      "elapsedMs": 0.1734000000000151,
+      "costUsd": 0,
+      "providerFailureCount": 0,
+      "truncated": false,
+      "versions": {
+        "normalizer": "identifier-normalizer/v1",
+        "scorer": "identifier-scorer/v1",
+        "detector": "hard-conflict-detector/v1",
+        "engine": "decision-engine/v1"
+      }
+    }
+  ]
+}

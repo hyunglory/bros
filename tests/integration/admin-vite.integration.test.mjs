@@ -2,11 +2,23 @@ import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { once } from "node:events";
 import { resolve } from "node:path";
+import { URL } from "node:url";
 import test from "node:test";
 import { createServer as createViteServer } from "../../apps/admin/node_modules/vite/dist/node/index.js";
 
-test("Admin Vite dev server serves the SPA and proxies /health", async (context) => {
+test("Admin Vite serves the SPA, proxies health and preserves review request origin", async (context) => {
   const healthServer = createHttpServer((request, response) => {
+    if (request.url === "/api/v1/identifier/reviews") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          host: request.headers.host,
+          origin: request.headers.origin,
+          operation: request.headers["x-bros-operation"],
+        }),
+      );
+      return;
+    }
     if (request.url === "/health") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ status: "ok" }));
@@ -58,4 +70,18 @@ test("Admin Vite dev server serves the SPA and proxies /health", async (context)
   const health = await fetch(`${origin}/health`);
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { status: "ok" });
+  const review = await fetch(`${origin}/api/v1/identifier/reviews`, {
+    method: "POST",
+    headers: {
+      origin,
+      "content-type": "application/json",
+      "x-bros-operation": "identifier-review",
+    },
+    body: "{}",
+  });
+  assert.deepEqual(await review.json(), {
+    host: new URL(origin).host,
+    origin,
+    operation: "identifier-review",
+  });
 });

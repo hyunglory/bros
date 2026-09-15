@@ -22,3 +22,6 @@ playwright-report/
 
 /data/
 /storage/
+
+# Collected source workbooks and human review material stay local.
+/examples/

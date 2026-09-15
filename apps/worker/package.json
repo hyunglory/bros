@@ -9,11 +9,13 @@
   },
   "dependencies": {
     "@bros/browser": "workspace:*",
+    "@bros/contracts": "workspace:*",
     "@bros/core": "workspace:*",
     "@bros/db": "workspace:*",
     "@bros/image": "workspace:*",
     "@bros/importer": "workspace:*",
     "@bros/queue": "workspace:*",
+    "@bros/resolver": "workspace:*",
     "@bros/storage": "workspace:*",
     "kysely": "0.29.5"
   }

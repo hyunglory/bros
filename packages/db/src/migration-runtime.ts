@@ -3,6 +3,9 @@ import { Migrator } from "kysely/migration";
 import pg from "pg";
 
 import * as baseline from "./migrations/001-baseline.js";
+import * as identifierCompat from "./migrations/002-identifier-compat-index.js";
+import * as resolverOrchestration from "./migrations/003-resolver-orchestration.js";
+import * as providerQuota from "./migrations/004-provider-quota.js";
 
 // Migration-only connection. Runtime repositories and pooling belong to P1-06.
 export function createMigrationDatabase(connectionString: string): Kysely<unknown> {
@@ -24,7 +27,14 @@ export function createMigrator(db: Kysely<unknown>): Migrator {
   return new Migrator({
     db,
     migrationTableSchema: "bros_migrations",
-    provider: { getMigrations: async () => ({ "001-baseline": baseline }) },
+    provider: {
+      getMigrations: async () => ({
+        "001-baseline": baseline,
+        "002-identifier-compat-index": identifierCompat,
+        "003-resolver-orchestration": resolverOrchestration,
+        "004-provider-quota": providerQuota,
+      }),
+    },
   });
 }
 

@@ -15,9 +15,14 @@ import { createApiDataAccess } from "./database.js";
 import { registerBrandReviewRoutes } from "./brand-review.js";
 import { registerImportManagementRoutes } from "./import-management.js";
 import { registerProductManagementRoutes } from "./product-management.js";
+import {
+  registerIdentifierReviewRoutes,
+  type IdentifierReviewAuthorizer,
+} from "./identifier-review.js";
 
 export interface ApiAppOptions {
   queue?: QueuePort;
+  identifierReviewAuthorize?: IdentifierReviewAuthorizer;
 }
 
 export function createApiApp(
@@ -27,7 +32,10 @@ export function createApiApp(
 ) {
   const data = createApiDataAccess(config.database);
   const businessEnabled = config.api.localUnauthenticated;
-  const queue = businessEnabled ? (options.queue ?? createPgBossQueue(config.database)) : undefined;
+  const queue =
+    businessEnabled || options.identifierReviewAuthorize
+      ? (options.queue ?? createPgBossQueue(config.database))
+      : undefined;
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -65,7 +73,7 @@ export function createApiApp(
           timer = setTimeout(() => resolve(false), config.api.readinessTimeoutMs);
         }),
       ]);
-      return databaseReady && (!businessEnabled || queueReady);
+      return databaseReady && (!queue || queueReady);
     } finally {
       clearTimeout(timer);
     }
@@ -152,6 +160,12 @@ export function createApiApp(
     maxQueuedBatches: config.importer.maxQueuedBatches,
   });
   registerProductManagementRoutes(app, data.database, { enabled: businessEnabled });
+  registerIdentifierReviewRoutes(app, data.database, {
+    localEnabled: businessEnabled,
+    config: config.resolver,
+    ...(options.identifierReviewAuthorize ? { authorize: options.identifierReviewAuthorize } : {}),
+    ...(queue ? { queue } : {}),
+  });
   app.addHook("preClose", async () => {
     closing = true;
   });

@@ -27,6 +27,10 @@ export interface QueueTransaction {
   executeSql(text: string, values: unknown[]): Promise<{ rows: object[] }>;
 }
 export interface QueuePort {
+  inspect?(
+    name: QueueName,
+    receipt: QueueReceipt,
+  ): Promise<"PENDING" | "COMPLETED" | "FAILED" | "MISSING">;
   start(): Promise<void>;
   publish(
     name: QueueName,

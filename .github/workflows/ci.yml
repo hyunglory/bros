@@ -57,6 +57,9 @@ jobs:
       - name: Install from lockfile
         run: pnpm install --frozen-lockfile
 
+      - name: Publication path check
+        run: pnpm publication:check
+
       - name: Lint
         run: pnpm lint
 

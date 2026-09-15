@@ -3,6 +3,26 @@ import test from "node:test";
 
 import { ConfigValidationError, loadConfig } from "../dist/config/index.js";
 
+test("P3-14 auto acceptance defaults OFF and cannot activate before approved calibration", () => {
+  for (const value of [undefined, "false"])
+    assert.equal(
+      loadConfig({
+        DATABASE_URL: "postgresql://localhost/bros",
+        RESOLVER_AUTO_ACCEPT_ENABLED: value,
+      }).resolver.autoAcceptEnabled,
+      false,
+    );
+  for (const value of ["true", "yes"])
+    assert.throws(
+      () =>
+        loadConfig({
+          DATABASE_URL: "postgresql://localhost/bros",
+          RESOLVER_AUTO_ACCEPT_ENABLED: value,
+        }),
+      ConfigValidationError,
+    );
+});
+
 test("loads development defaults from a valid environment", () => {
   const config = loadConfig({
     DATABASE_URL: "postgresql://bros:password@localhost:5432/bros",
@@ -29,6 +49,15 @@ test("loads development defaults from a valid environment", () => {
       shutdownTimeoutMs: 15000,
     },
     importer: { chunkSize: 100, concurrency: 2, maxQueuedBatches: 32 },
+    resolver: {
+      autoAcceptEnabled: false,
+      concurrency: 4,
+      chunkSize: 100,
+      maxQueuedRuns: 1000,
+      runTimeoutMs: 120000,
+      providerMinIntervalMs: 1000,
+      patternRegistryPath: "",
+    },
     storage: {
       driver: "local",
       localRoot: "./storage",
@@ -147,10 +176,33 @@ test("loads explicit production settings without development defaults", () => {
       shutdownTimeoutMs: 15000,
     },
     importer: { chunkSize: 100, concurrency: 2, maxQueuedBatches: 32 },
+    resolver: {
+      autoAcceptEnabled: false,
+      concurrency: 4,
+      chunkSize: 100,
+      maxQueuedRuns: 1000,
+      runTimeoutMs: 120000,
+      providerMinIntervalMs: 1000,
+      patternRegistryPath: "",
+    },
     storage: {
       driver: "r2",
     },
   });
+});
+
+test("resolver concurrency and bounded admission/deadlines are configurable", () => {
+  const env = { DATABASE_URL: "postgresql://unused@localhost/unused" };
+  assert.equal(loadConfig({ ...env, RESOLVER_CONCURRENCY: "7" }).resolver.concurrency, 7);
+  for (const [key, value] of [
+    ["RESOLVER_CONCURRENCY", "17"],
+    ["RESOLVER_CHUNK_SIZE", "0"],
+    ["RESOLVER_MAX_QUEUED_RUNS", "10001"],
+    ["RESOLVER_RUN_TIMEOUT_MS", "600001"],
+    ["RESOLVER_PROVIDER_MIN_INTERVAL_MS", "0"],
+  ]) {
+    assert.throws(() => loadConfig({ ...env, [key]: value }), ConfigValidationError);
+  }
 });
 
 test("does not include an invalid environment value in the error", () => {

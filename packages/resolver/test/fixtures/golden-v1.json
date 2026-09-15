@@ -1,0 +1,656 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "synthetic-golden/v1",
+  "sourceKind": "SYNTHETIC",
+  "sourceDescription": "Hand-authored regression only; no actual labels or calibration evidence.",
+  "scope": {
+    "brands": ["fixture-brand"],
+    "categories": ["fixture-category"]
+  },
+  "cases": [
+    {
+      "caseId": "strong",
+      "masterKey": "master-strong",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-strong"],
+      "imageHashes": [],
+      "tags": ["NORMAL"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AB-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": false
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "weak",
+      "masterKey": "master-weak",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-weak"],
+      "imageHashes": [],
+      "tags": ["NORMAL"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "WEAK-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": false
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "WEAK-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "SOURCE_FIELD",
+                  "source": "SOURCE_EXTRACTOR",
+                  "strength": "WEAK",
+                  "weight": 45,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "none",
+      "masterKey": "master-none",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-none"],
+      "imageHashes": [],
+      "tags": ["NO_IDENTIFIER"],
+      "truth": {
+        "identifiers": [],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "similar",
+      "masterKey": "master-similar",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-similar"],
+      "imageHashes": [],
+      "tags": ["SIMILAR_MODEL"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AB-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": false
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            },
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-124",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ac"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "gtin",
+      "masterKey": "master-gtin",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-gtin"],
+      "imageHashes": [],
+      "tags": ["GTIN_CONFLICT"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "GTIN",
+            "value": "8801234567890"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "GTIN",
+              "candidateValue": "8801234567890",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "GTIN",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            },
+            {
+              "identifierType": "GTIN",
+              "candidateValue": "8801234567891",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "GTIN",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ac"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "color",
+      "masterKey": "master-color",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-color"],
+      "imageHashes": [],
+      "tags": ["COLOR_CONFLICT"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AB-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {
+          "sourceFacts": {
+            "color": "red"
+          },
+          "candidateFacts": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateNorm": "AB123",
+              "facts": {
+                "color": "blue"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "volume",
+      "masterKey": "master-volume",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-volume"],
+      "imageHashes": [],
+      "tags": ["VOLUME_CONFLICT"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AB-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {
+          "sourceFacts": {
+            "volume": "100ml"
+          },
+          "candidateFacts": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateNorm": "AB123",
+              "facts": {
+                "volume": "200ml"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "ai",
+      "masterKey": "master-ai",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-ai"],
+      "imageHashes": [],
+      "tags": ["AI_ONLY"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AI-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "AI_ONLY",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AI-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "SOURCE_FIELD",
+                  "source": "SOURCE_EXTRACTOR",
+                  "strength": "WEAK",
+                  "weight": 45,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "truncated",
+      "masterKey": "master-truncated",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-truncated"],
+      "imageHashes": [],
+      "tags": ["NORMAL"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "AB-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": false
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "AB-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": true
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "failure",
+      "masterKey": "master-failure",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "HOLDOUT",
+      "skuKeys": ["sku-failure"],
+      "imageHashes": [],
+      "tags": ["NO_IDENTIFIER"],
+      "truth": {
+        "identifiers": [],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": true
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": null,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [],
+          "internalCatalogReferences": [],
+          "providerFailures": [
+            {
+              "providerId": "fixture",
+              "code": "TIMEOUT"
+            }
+          ],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    },
+    {
+      "caseId": "tuning",
+      "masterKey": "master-tuning",
+      "brand": "fixture-brand",
+      "category": "fixture-category",
+      "split": "TUNING",
+      "skuKeys": ["sku-tuning"],
+      "imageHashes": [],
+      "tags": ["NORMAL"],
+      "truth": {
+        "identifiers": [
+          {
+            "identifierType": "MODEL_NO",
+            "value": "TUNE-123"
+          }
+        ],
+        "verifiedBy": "synthetic-author",
+        "verifiedAt": "2026-09-15T00:00:00Z",
+        "evidenceReference": "synthetic://fixture/hand-authored",
+        "autoAcceptForbidden": false
+      },
+      "capture": {
+        "reference": "synthetic://collector/fixture",
+        "resolverVersion": "synthetic/v1",
+        "registryVersion": "fixture/v1",
+        "providerVersion": "offline/v1",
+        "costUsd": 0,
+        "evidenceOrigin": "NON_AI",
+        "collection": {
+          "candidates": [
+            {
+              "identifierType": "MODEL_NO",
+              "candidateValue": "TUNE-123",
+              "evidence": [
+                {
+                  "schemaVersion": 1,
+                  "identifierType": "MODEL_NO",
+                  "type": "VERIFIED_INTERNAL_IDENTIFIER",
+                  "source": "INTERNAL_CATALOG",
+                  "strength": "VERIFIED",
+                  "weight": 100,
+                  "provenance": {
+                    "capturedAt": "2026-09-15T00:00:00Z",
+                    "locator": "/synthetic/label",
+                    "productPublicId": "01890f47-0c4d-7abc-8def-1234567890ab"
+                  }
+                }
+              ]
+            }
+          ],
+          "internalCatalogReferences": [],
+          "providerFailures": [],
+          "truncated": false
+        },
+        "conflictContext": {}
+      }
+    }
+  ]
+}

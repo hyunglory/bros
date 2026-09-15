@@ -1,7 +1,11 @@
-import { createHash } from "node:crypto";
+import { compatibleIdentityLockKeys } from "@bros/contracts/server";
 import { isDeepStrictEqual } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
-import { validateSourceProductInput, validateSourceImportContext } from "@bros/contracts";
+import {
+  compatibleIdentifierNorm,
+  validateSourceProductInput,
+  validateSourceImportContext,
+} from "@bros/contracts";
 import type { DatabaseClient, DbTransaction, JsonObject, JsonValue } from "@bros/db";
 import { sql } from "kysely";
 
@@ -10,7 +14,6 @@ import { extractEmbeddedIdentifiers } from "./embedded-identifier-extractor.js";
 import { createProductMatcher, type MasterMatchResult } from "./master-matcher.js";
 
 const stage = "P2-09/v1";
-const lockNamespace = "bros/master-identity/v1";
 const gtinTypes = new Set(["GTIN", "EAN", "UPC"]);
 
 function ambiguousIdentity(identifiers: readonly { type: string; normalizedValue: string }[]) {
@@ -19,7 +22,9 @@ function ambiguousIdentity(identifiers: readonly { type: string; normalizedValue
     if (id.type === "BRAND_CODE") continue;
     const family = gtinTypes.has(id.type) ? "GTIN" : id.type;
     const values = families.get(family) ?? new Set<string>();
-    values.add(id.normalizedValue);
+    values.add(
+      compatibleIdentifierNorm(id.type as "MODEL_NO", id.normalizedValue) ?? id.normalizedValue,
+    );
     families.set(family, values);
   }
   return [...families.values()].some((values) => values.size > 1);
@@ -54,20 +59,7 @@ function record(value: JsonValue | undefined): value is JsonObject {
 export function masterIdentityLockKeys(
   identifiers: readonly { type: string; normalizedValue: string }[],
 ): string[] {
-  return [
-    ...new Set(
-      identifiers
-        .filter((id) => id.type !== "BRAND_CODE")
-        .map((id) => {
-          const family = gtinTypes.has(id.type) ? "GTIN" : id.type;
-          return createHash("sha256")
-            .update(JSON.stringify([lockNamespace, family, id.normalizedValue]))
-            .digest()
-            .readBigInt64BE()
-            .toString();
-        }),
-    ),
-  ].sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0));
+  return compatibleIdentityLockKeys(identifiers);
 }
 
 async function processItem(tx: DbTransaction, itemPublicId: string, lockTimeoutMs: number) {

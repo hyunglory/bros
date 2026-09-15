@@ -1,5 +1,9 @@
-import type { SourceIdentifierType, SourceOptionInput } from "@bros/contracts";
-import type { DatabaseClient, JsonObject } from "@bros/db";
+import {
+  compatibleIdentifierNorm,
+  type SourceIdentifierType,
+  type SourceOptionInput,
+} from "@bros/contracts";
+import { compatibleStoredIdentifierNorm, type DatabaseClient, type JsonObject } from "@bros/db";
 import { sql } from "kysely";
 
 import type { BrandNormalizationResult } from "./brand-normalizer.js";
@@ -86,7 +90,7 @@ export interface MasterMatchResult {
   selectedMasterPublicId?: string;
 }
 
-function normalizeComparableText(value: string): string {
+export function normalizeComparableText(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
 }
 
@@ -96,6 +100,10 @@ function identifierFamily(type: SourceIdentifierType): "GTIN" | "MODEL" | Source
   return type;
 }
 
+function comparable(type: SourceIdentifierType, norm: string): string {
+  return compatibleIdentifierNorm(type, norm) ?? norm;
+}
+
 function identifiersInFamily(
   identifiers: readonly { normalizedValue: string; type: SourceIdentifierType }[],
   family: "GTIN" | "MODEL",
@@ -103,7 +111,7 @@ function identifiersInFamily(
   return new Set(
     identifiers
       .filter((identifier) => identifierFamily(identifier.type) === family)
-      .map((identifier) => identifier.normalizedValue),
+      .map((identifier) => comparable(identifier.type, identifier.normalizedValue)),
   );
 }
 
@@ -115,12 +123,12 @@ function hasTypedModelConflict(
     const sourceValues = new Set(
       sourceIdentifiers
         .filter((identifier) => identifier.type === type)
-        .map((identifier) => identifier.normalizedValue),
+        .map((identifier) => comparable(identifier.type, identifier.normalizedValue)),
     );
     const masterValues = new Set(
       masterIdentifiers
         .filter((identifier) => identifier.type === type)
-        .map((identifier) => identifier.normalizedValue),
+        .map((identifier) => comparable(identifier.type, identifier.normalizedValue)),
     );
     return hasDisjointPopulatedSets(sourceValues, masterValues);
   });
@@ -139,7 +147,8 @@ function matchingMasterIdentifiers(
   const family = identifierFamily(source.type);
   return masterIdentifiers.filter(
     (identifier) =>
-      identifier.normalizedValue === source.normalizedValue &&
+      comparable(identifier.type, identifier.normalizedValue) ===
+        comparable(source.type, source.normalizedValue) &&
       (family === "GTIN"
         ? identifierFamily(identifier.type) === "GTIN"
         : identifier.type === source.type),
@@ -309,7 +318,11 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
         (identifier) => identifier.type !== "BRAND_CODE",
       );
       const identifierNorms = [
-        ...new Set(usableIdentifiers.map((identifier) => identifier.normalizedValue)),
+        ...new Set(
+          usableIdentifiers.map((identifier) =>
+            comparable(identifier.type, identifier.normalizedValue),
+          ),
+        ),
       ];
       const productIds = new Set<string>();
 
@@ -317,7 +330,7 @@ export function createProductMatcher(database: Pick<DatabaseClient, "db">) {
         const rows = await database.db
           .selectFrom("app.product_identifier")
           .select("product_id as productId")
-          .where("identifier_norm", "in", identifierNorms)
+          .where(compatibleStoredIdentifierNorm("app.product_identifier"), "in", identifierNorms)
           .execute();
         rows.forEach((row) => productIds.add(row.productId));
       }

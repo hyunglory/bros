@@ -47,7 +47,7 @@ test(
       "utf8",
     );
     const expected = documentedColumns(spec);
-    assert.equal(expected.length, 256);
+    assert.equal(expected.length, 259);
     const version = await client.query("SHOW server_version_num");
     assert.equal(Math.floor(Number(version.rows[0].server_version_num) / 10_000), 18);
     const tableNames = [...new Set(expected.map((column) => column.table))].sort();
@@ -70,11 +70,11 @@ test(
     await t.test("repeat and concurrent migration requests are no-ops", async () => {
       await Promise.all([migrateToLatest(db), migrateToLatest(db)]);
       const history = await client.query("SELECT count(*) FROM bros_migrations.kysely_migration");
-      assert.equal(history.rows[0].count, "1");
+      assert.equal(history.rows[0].count, "4");
     });
 
     await t.test(
-      "all 256 columns have the documented type, NULL, identity, and default",
+      "all 259 columns have the documented type, NULL, identity, and default",
       async () => {
         const result = await client.query(`
       SELECT c.relname AS table_name, a.attname AS name,
@@ -187,8 +187,14 @@ test(
     });
 
     await t.test("down then forward succeeds on this disposable database", async () => {
+      const quotaResult = await createMigrator(db).migrateDown();
+      assert.equal(quotaResult.error, undefined);
       const result = await createMigrator(db).migrateDown();
       assert.equal(result.error, undefined);
+      const compatResult = await createMigrator(db).migrateDown();
+      assert.equal(compatResult.error, undefined);
+      const baselineResult = await createMigrator(db).migrateDown();
+      assert.equal(baselineResult.error, undefined);
       const rows = await client.query("SELECT tablename FROM pg_tables WHERE schemaname = 'app'");
       assert.equal(rows.rowCount, 0);
       await migrateToLatest(db);

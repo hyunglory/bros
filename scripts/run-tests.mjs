@@ -53,10 +53,17 @@ console.log(
     .join(", ")}`,
 );
 
-const result = spawnSync(process.execPath, ["--env-file-if-exists=.env", "--test", ...testFiles], {
-  cwd: repositoryRoot,
-  stdio: "inherit",
-});
+// PostgreSQL integration files share one server. Preserve concurrency inside each
+// test while avoiding unrelated suites competing for short lock/timeout budgets.
+const concurrency = testKind === "integration" ? ["--test-concurrency=1"] : [];
+const result = spawnSync(
+  process.execPath,
+  ["--env-file-if-exists=.env", "--test", ...concurrency, ...testFiles],
+  {
+    cwd: repositoryRoot,
+    stdio: "inherit",
+  },
+);
 
 if (result.error) {
   throw result.error;

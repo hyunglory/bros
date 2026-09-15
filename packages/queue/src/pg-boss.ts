@@ -111,6 +111,21 @@ export function createPgBossQueue(
     return result;
   }
   return {
+    inspect(name, receipt) {
+      return perform(async () => {
+        validate(name);
+        if (receipt.provider !== "pg-boss") throw new Error("Queue provider mismatch");
+        try {
+          const job = await boss.getJobById(name, receipt.providerId);
+          if (!job) return "MISSING";
+          if (job.state === "completed") return "COMPLETED";
+          if (job.state === "failed" || job.state === "cancelled") return "FAILED";
+          return "PENDING";
+        } catch {
+          throw new Error("Queue inspection failed");
+        }
+      });
+    },
     start() {
       if (state === "running" || state === "starting") return starting ?? Promise.resolve();
       if (state !== "idle")

@@ -1,0 +1,29 @@
+{
+  "name": "@bros/resolver",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bros/contracts": "workspace:*",
+    "@bros/core": "workspace:*",
+    "@bros/db": "workspace:*",
+    "@bros/importer": "workspace:*",
+    "@bros/queue": "workspace:*",
+    "kysely": "0.29.5"
+  }
+}

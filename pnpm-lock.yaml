@@ -87,6 +87,9 @@ importers:
       '@bros/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@bros/resolver':
+        specifier: workspace:*
+        version: link:../../packages/resolver
       fastify:
         specifier: 5.12.4
         version: 5.12.4
@@ -99,6 +102,9 @@ importers:
       '@bros/browser':
         specifier: workspace:*
         version: link:../../packages/browser
+      '@bros/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@bros/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -114,6 +120,9 @@ importers:
       '@bros/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@bros/resolver':
+        specifier: workspace:*
+        version: link:../../packages/resolver
       '@bros/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -193,6 +202,27 @@ importers:
       pg-boss:
         specifier: 12.31.0
         version: 12.31.0
+
+  packages/resolver:
+    dependencies:
+      '@bros/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@bros/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bros/db':
+        specifier: workspace:*
+        version: link:../db
+      '@bros/importer':
+        specifier: workspace:*
+        version: link:../importer
+      '@bros/queue':
+        specifier: workspace:*
+        version: link:../queue
+      kysely:
+        specifier: 0.29.5
+        version: 0.29.5
 
   packages/storage:
     dependencies:

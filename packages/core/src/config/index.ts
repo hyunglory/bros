@@ -39,6 +39,15 @@ export interface AppConfig {
     shutdownTimeoutMs: number;
   };
   importer: { chunkSize: number; concurrency: number; maxQueuedBatches: number };
+  resolver: {
+    autoAcceptEnabled: false;
+    concurrency: number;
+    chunkSize: number;
+    maxQueuedRuns: number;
+    runTimeoutMs: number;
+    providerMinIntervalMs: number;
+    patternRegistryPath: string;
+  };
   storage: StorageConfig;
 }
 
@@ -259,6 +268,40 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
       maximum: 1000,
     }),
   };
+  const autoAcceptRequested = readBoolean(environment, "RESOLVER_AUTO_ACCEPT_ENABLED", issues);
+  if (autoAcceptRequested)
+    issues.push(
+      "RESOLVER_AUTO_ACCEPT_ENABLED requires approved calibration and activation implementation",
+    );
+  const resolver = {
+    autoAcceptEnabled: false as const,
+    concurrency: readInteger(environment, "RESOLVER_CONCURRENCY", issues, {
+      defaultValue: 4,
+      minimum: 1,
+      maximum: 16,
+    }),
+    chunkSize: readInteger(environment, "RESOLVER_CHUNK_SIZE", issues, {
+      defaultValue: 100,
+      minimum: 1,
+      maximum: 1000,
+    }),
+    maxQueuedRuns: readInteger(environment, "RESOLVER_MAX_QUEUED_RUNS", issues, {
+      defaultValue: 1000,
+      minimum: 1,
+      maximum: 10000,
+    }),
+    runTimeoutMs: readInteger(environment, "RESOLVER_RUN_TIMEOUT_MS", issues, {
+      defaultValue: 120000,
+      minimum: 100,
+      maximum: 600000,
+    }),
+    providerMinIntervalMs: readInteger(environment, "RESOLVER_PROVIDER_MIN_INTERVAL_MS", issues, {
+      defaultValue: 1000,
+      minimum: 1,
+      maximum: 60000,
+    }),
+    patternRegistryPath: readText(environment, "RESOLVER_PATTERN_REGISTRY_PATH", issues),
+  };
   if (issues.length > 0) {
     throw new ConfigValidationError(issues);
   }
@@ -278,6 +321,7 @@ export function loadConfig(environment: EnvironmentSource): AppConfig {
       shutdownTimeoutMs: workerShutdownTimeoutMs,
     },
     importer,
+    resolver,
     storage:
       storageDriver === "local"
         ? { driver: storageDriver, localRoot: storageLocalRoot ?? "" }

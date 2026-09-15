@@ -225,6 +225,9 @@ export interface IdentifierResolveRunTable {
   resolver_version: string;
   status: Generated<"QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED">;
   input_json: JsonColumn<JsonObject>;
+  admission_key: string | null;
+  queue_json: JsonColumn<JsonObject>;
+  result_json: JsonColumn<JsonObject>;
   error_code: string | null;
   error_message: string | null;
   started_at: NullableTimestamp;

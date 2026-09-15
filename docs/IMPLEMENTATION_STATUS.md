@@ -1,6 +1,8 @@
 # BROS 구현 현황
 
-기준일: 2026-09-14
+기준일: 2026-09-16
+
+진행 방침(DEC-20260915-027/028/029, DEC-20260916-001): P3-14 실제 정답 검수/calibration은 사용자 요청으로 보류한다. 실제 정답·capture 확보 또는 재개 요청 시 이어가며 자동승격 OFF를 유지한다. P3-12 capture와 BLK-005 공유 quota 보완 후 [Phase 3 변경 묶음·원격 CI 준비](PHASE3_RELEASE_PREP.md)를 작성했다. 다음 단계는 검토한 변경의 commit/push와 새 SHA 원격 CI 검증이다. 현재 준비와 기존 head CI 성공은 Phase 3 원격 PASS가 아니다. BLK-005 운영 입력/연결은 OPEN, Phase 3 Gate 전체는 BLOCKED다.
 
 | Task | 상태 | 근거 | 다음 조치 |
 |---|---|---|---|
@@ -36,5 +38,19 @@
 | P2-15 MASTER 상품관리 API/UI | PASS | DEC-20260914-014/017, 공개 관계 trace·CAS edit·audit, Linux CI PASS | Phase 2 Gate PASS |
 | P2-16 Brand Alias / Unresolved Brand Review | PASS | DEC-20260914-015/017, alias review·경합·Queue 원자 접수·재처리, Linux CI PASS | Phase 2 Gate PASS |
 | Phase 2 Gate | PASS | DEC-20260914-016/017, PHASE2_GATE.md 및 CI run 34849017954 | 실제 20행 재import와 모든 WBS 조건 증거, current SHA Linux required check PASS |
+| P3-01 Resolve Input / Run Model | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-001/002, versioned snapshot·run lifecycle·후보 원자 저장·재import/경합/rollback, 로컬 pnpm check PASS | 원격 CI NOT_RUN; P3-02 Brand Pattern Registry 착수 가능, Phase 3 Gate에서 current revision CI 증거 확보 |
+| P3-02 Brand Pattern Registry | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-003, immutable versioned registry·brand/source/type mapping·safe regex·positive/negative fixture, 로컬 pnpm check PASS | 원격 CI NOT_RUN; P3-03 Raw / URL / Text Extractors가 registry를 근거 metadata로 사용 |
+| P3-03 Raw / URL / Text Extractors | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-004, snapshot 기반 raw/URL/title/option 후보·bounded provenance·secret guard·truncation, 로컬 pnpm check PASS | 원격 CI NOT_RUN; P3-04 Internal Catalog Provider 또는 P3-06 Evidence Model/Collector 착수 가능 |
+| P3-04 Internal Catalog Provider | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-005, verified exact·brand/name/variant exact lookup·ambiguous/miss·read-only, 품질 명령과 순차 integration PASS | 원격 CI NOT_RUN; 병렬 pnpm check는 DB CPU 경합으로 기존 100ms timeout 4건 FAIL, 순차 23 files/127 PASS |
+| P3-05 External Candidate Provider Port + 첫 Provider | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-006/007/029, Brave adapter·장애/secret guard에 PostgreSQL 계정 예산·완료 후 전역 간격·429·실프로세스 복구 보완. 합성 검증은 TEST_REPORT 참조 | 공유 quota RESOLVED_LOCAL. BLK-005 live 계약/저장 권한/키/가격·한도·계정 매핑/Worker 연결 OPEN; 운영 004·원격 CI NOT_RUN |
+| P3-06 Evidence Model / Collector | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-008/009, versioned Evidence schema·P3-03/04/05 provenance collector·exact raw-value evidence merge·catalog/provider reference, 신규 unit 8 및 전체 순차 integration 133 PASS | P3-07 Candidate Normalizer / Deduplicator 착수 가능. run orchestration/DB write·score·decision 및 원격 CI NOT_RUN |
+| P3-07 Candidate Normalizer / Deduplicator | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-010/011, type-specific norm v1·same type/norm merge·all provenance/reference/failure preservation·invalid typed candidate 분리, 신규 unit 8 및 전체 순차 integration 133 PASS | P3-08 Candidate Scorer 착수 가능. resolver orchestration/DB write·원격 CI NOT_RUN |
+| P3-08 Candidate Scorer | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-012/013, scorer v1 fixed weight·type-level duplicate non-inflation·verified-only strong flag·deterministic score/rank, 신규 golden unit 5 및 전체 순차 integration 133 PASS | P3-09 Hard Conflict Detector 착수 가능. resolver orchestration/DB write·actual calibration·원격 CI NOT_RUN |
+| P3-09 Hard Conflict Detector | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-014/015, verified catalog target collision·explicit canonical fact conflict·six closed codes·deterministic code-only result, 신규 unit 6 및 전체 순차 integration 133 PASS | P3-10 Decision Engine 착수 가능. canonical fact projection·resolver orchestration/DB write·actual calibration·원격 CI NOT_RUN |
+| P3-10 Decision Engine | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-016/017, boundary recommendation·strong/conflict/truncation guard·incomplete empty result separation, 신규 unit 6 및 전체 순차 integration 133 PASS | P3-11 Identifier Promotion / Audit 착수 가능. autoaccept activation·resolver orchestration/DB write·holdout·원격 CI NOT_RUN |
+| P3-11 Identifier Promotion / Audit | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-018/019/020/021, 수동 승인·영속 replay·MASTER/SKU scope·legacy/P3 비교 lock·감사 보존·rollback, PostgreSQL 호환 전용 10/전체 순차 158 PASS, 전체 로컬 품질 PASS | BLK-006 RESOLVED_LOCAL. P3-12 orchestration/P3-13 API 후속, 자동 승격 OFF, current revision remote CI/holdout NOT_RUN |
+| P3-12 Resolver Batch Worker / Orchestration | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-022/028/029, 원자 접수·attempt fence·복구/capture 저장·export 및 공유 quota adapter 구현. 전용/전체 회귀는 TEST_REPORT 참조 | 공유 quota 운영 구성 연결 후속. 실제 DB 002/003/004·원격 CI·live/holdout NOT_RUN. pipeline v2/auto OFF |
+| P3-13 품번 검수 UI/API | IMPLEMENTED_NOT_VALIDATED | DEC-20260915-023, 공개 목록/상세·승인/거절/직접입력/재탐색·서버 actor/version·원자 감사, API 전용 8/전체 순차 integration 176·Node 148·Admin 35 PASS, 실제 브라우저 4개 저장 흐름 PASS | P3-14 Golden Dataset / Auto-Accept Calibration. 운영 인증/Caddy·실제 DB 002/003·원격 CI·holdout NOT_RUN; 자동승격 OFF |
+| P3-14 Resolver Golden Dataset / Auto-Accept Calibration | BLOCKED_EXTERNAL_INPUT | DEC-20260915-024/025, Evidence replay 평가·MASTER/SKU/image split·holdout/algorithm lock·보고서·OFF flag, 합성 11건 SYNTHETIC_ONLY, 기존 Node 157/Admin 35/순차 integration 176 PASS. 후속 실제 상품 200행 검수 intake 생성·원본 대조 PASS, 정답 0/capture 없음 | BLK-007: 실제 정답/근거·대표 범위·독립 holdout 필요. 실제 calibration/활성화/Phase 3 Gate NOT_RUN; 자동승격 OFF |
 
 상태 값은 `NOT_STARTED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED_NOT_VALIDATED`, `PASS`, `BLOCKED`, `BLOCKED_EXTERNAL_INPUT`을 사용한다.

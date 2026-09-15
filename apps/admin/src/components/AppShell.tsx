@@ -40,6 +40,12 @@ export function AppShell({ children }: PropsWithChildren) {
             </span>
             브랜드 검수
           </NavLink>
+          <NavLink className="nav-item" to="/identifier-reviews">
+            <span className="nav-icon" aria-hidden="true">
+              #
+            </span>
+            품번 검수
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">

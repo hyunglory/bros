@@ -13,6 +13,7 @@
     "@bros/db": "workspace:*",
     "@bros/importer": "workspace:*",
     "@bros/queue": "workspace:*",
+    "@bros/resolver": "workspace:*",
     "fastify": "5.12.4",
     "kysely": "0.29.5"
   }
