@@ -134,7 +134,8 @@ function storage(secretAccessKey = r2SecretAccessKey) {
 
 async function readBytes(objectStorage, key) {
   const chunks = [];
-  for await (const chunk of Readable.fromWeb(await objectStorage.getObject(key))) chunks.push(chunk);
+  for await (const chunk of Readable.fromWeb(await objectStorage.getObject(key)))
+    chunks.push(chunk);
   return Buffer.concat(chunks);
 }
 
@@ -165,7 +166,11 @@ async function putRetentionPairs(objectStorage) {
 try {
   const objectStorage = storage();
   const existing = await objectStorage.listObjects("database-backup");
-  assert.equal(existing.length, 0, "R2 database-backup prefix must be empty before live validation");
+  assert.equal(
+    existing.length,
+    0,
+    "R2 database-backup prefix must be empty before live validation",
+  );
 
   stage = "r2-write-probe";
   const probeKey = `database-backup/live-probe-${randomUUID()}`;
@@ -229,7 +234,10 @@ try {
   }
 
   stage = "migration";
-  oneShot("scripts/migrate.mjs", { APP_ENV: "production", DATABASE_URL_FILE: runtime.DATABASE_URL_FILE });
+  oneShot("scripts/migrate.mjs", {
+    APP_ENV: "production",
+    DATABASE_URL_FILE: runtime.DATABASE_URL_FILE,
+  });
   fixtureRun("seed", { sentinel }, ["--network", network, ...secretMount]);
 
   stage = "expired-r2-pair";
@@ -242,12 +250,18 @@ try {
   createdKeys.add(status.manifestKey);
 
   stage = "r2-encryption-and-retention";
-  const manifest = JSON.parse((await readBytes(objectStorage, status.manifestKey)).toString("utf8"));
+  const manifest = JSON.parse(
+    (await readBytes(objectStorage, status.manifestKey)).toString("utf8"),
+  );
   const encrypted = await readBytes(objectStorage, status.backupObjectKey);
   assert.equal(encrypted.subarray(0, 8).toString("ascii"), "BROSDB01");
   assert.equal(createHash("sha256").update(encrypted).digest("hex"), manifest.object.sha256);
   for (const value of [databasePassword, encryptionKey, sentinel])
-    assert.equal(encrypted.includes(Buffer.from(value)), false, "Encrypted object contains protected input");
+    assert.equal(
+      encrypted.includes(Buffer.from(value)),
+      false,
+      "Encrypted object contains protected input",
+    );
   const after = await objectStorage.listObjects("database-backup");
   const afterKeys = new Set(after.map((item) => item.objectKey));
   assert.ok(
@@ -293,10 +307,14 @@ try {
   const diagnostics = [error.message, error.cause?.stdout, error.cause?.stderr]
     .filter(Boolean)
     .join("\n");
-  const redacted = [databasePassword, encryptionKey, wrongEncryptionKey, sentinel, r2AccessKeyId, r2SecretAccessKey].reduce(
-    (value, secret) => value.replaceAll(secret, "[REDACTED]"),
-    diagnostics,
-  );
+  const redacted = [
+    databasePassword,
+    encryptionKey,
+    wrongEncryptionKey,
+    sentinel,
+    r2AccessKeyId,
+    r2SecretAccessKey,
+  ].reduce((value, secret) => value.replaceAll(secret, "[REDACTED]"), diagnostics);
   console.error(redacted.slice(-4096));
   process.exitCode = 1;
 } finally {

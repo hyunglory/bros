@@ -62,7 +62,10 @@ class R2ObjectStorageAdapter implements ObjectStorage {
       throw new StorageError("STORAGE_IO_ERROR", "Object content length is invalid");
     try {
       if (!(input.body instanceof Uint8Array))
-        return await this.#putStreamObject(key, input as PutObjectInput & { body: ReadableStream<Uint8Array> });
+        return await this.#putStreamObject(
+          key,
+          input as PutObjectInput & { body: ReadableStream<Uint8Array> },
+        );
       const tracked = trackBody(input.body);
       await this.#client.send(
         new PutObjectCommand({
@@ -258,7 +261,9 @@ class R2ObjectStorageAdapter implements ObjectStorage {
     } catch (error) {
       if (uploadId)
         await this.#client
-          .send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }))
+          .send(
+            new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }),
+          )
           .catch(() => undefined);
       throw asR2StorageError(error, "Unable to store object");
     }
