@@ -17,6 +17,12 @@ export interface StoredObject {
   size: number;
 }
 
+export interface ListedObject {
+  lastModified: Date;
+  objectKey: string;
+  size: number;
+}
+
 export interface ObjectStorage {
   readonly bucket: string;
   readonly provider: StorageProvider;
@@ -24,6 +30,7 @@ export interface ObjectStorage {
   getObject(key: string): Promise<ReadableStream<Uint8Array>>;
   deleteObject(key: string): Promise<void>;
   getSignedUrl(key: string, expiresInSeconds: number): Promise<string>;
+  listObjects(prefix: string): Promise<readonly ListedObject[]>;
 }
 
 export type StorageErrorCode =

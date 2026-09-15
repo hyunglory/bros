@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises";
+import { lstat, mkdir, open, opendir, realpath, rename, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { SecretProvider, StorageConfig } from "@bros/core";
 import { validateObjectKey } from "./object-key.js";
@@ -177,6 +177,42 @@ class LocalObjectStorageAdapter implements LocalObjectStorage {
     url.searchParams.set("expires", String(expiresAt));
     url.searchParams.set("signature", signature);
     return url.toString();
+  }
+
+  async listObjects(prefixInput: string) {
+    const prefix = validateObjectKey(prefixInput);
+    const root = await this.#getRoot();
+    const start = this.#targetPath(root, prefix);
+    const objects: { lastModified: Date; objectKey: string; size: number }[] = [];
+    const visit = async (path: string, key: string): Promise<void> => {
+      const details = await lstat(path);
+      if (details.isSymbolicLink())
+        throw new StorageError("STORAGE_IO_ERROR", "Object listing encountered unsafe entry");
+      if (details.isFile()) {
+        objects.push({
+          lastModified: details.mtime,
+          objectKey: validateObjectKey(key),
+          size: details.size,
+        });
+        return;
+      }
+      if (!details.isDirectory())
+        throw new StorageError("STORAGE_IO_ERROR", "Object listing encountered unsafe entry");
+      const directory = await opendir(path);
+      for await (const entry of directory) {
+        if (objects.length >= 10_000)
+          throw new StorageError("STORAGE_IO_ERROR", "Object listing exceeds safety limit");
+        await visit(join(path, entry.name), `${key}/${entry.name}`);
+      }
+    };
+    try {
+      await this.#assertSafeExistingParent(root, dirname(start));
+      await visit(start, prefix);
+      return objects.sort((left, right) => left.objectKey.localeCompare(right.objectKey));
+    } catch (error) {
+      if (isMissing(error)) return [];
+      throw asStorageError(error, "Unable to list objects");
+    }
   }
 
   async getObjectBySignedUrl(urlInput: string): Promise<ReadableStream<Uint8Array>> {

@@ -12,6 +12,7 @@
 | migration | database_url | UID 1000, 0400 |
 | API | database_url, proxy_token, r2_access_key, r2_secret_key | UID 1000, 개별 read-only mount |
 | Worker | database_url, r2_access_key, r2_secret_key | UID 1000, API proxy token 없음 |
+| DB backup | database_url, r2_access_key, r2_secret_key, backup_encryption_key | UID 1000, profile/proxy/admin secret 없음 |
 | Caddy | caddy_auth, caddy_proxy | UID 1000, DB/R2 secret 없음 |
 | staging identity probe | proxy_token | 테스트 경계 전용, 개별 read-only mount |
 
@@ -33,6 +34,7 @@ stdin JSON 계약(아래는 필드 설명이며 실제 secret 예시가 아니�
 
 - `database`: `user`, `name`(소문자 식별자), `password`
 - `r2`: `accessKeyId`, `secretAccessKey`
+- `backupEncryptionKey`: 32-byte backup key의 64자리 hex 표현
 - `proxyToken`: Caddy/API 공용 32~256자 영숫자·`_`·`-` 랜덤 값
 - `admin`: `username`, `passwordHash`(Caddy bcrypt)
 - 선택 `additionalSecrets`: 승인된 `provider.<key>.apiKey` 또는 `browser.profile.<key>.<field>` → 값
@@ -57,7 +59,7 @@ stdin JSON 계약(아래는 필드 설명이며 실제 secret 예시가 아니�
 
 백업 payload는 PostgreSQL logical dump 등 승인된 데이터만 allowlist로 구성한다. host/container rootfs, secret generation, 브라우저 profile/cookie/session, Caddy autosave, 임시 trace, 개인 키는 일반 업무 백업에 넣지 않는다. `ops/backup-excludes.txt`는 GNU tar packaging의 추가 제외 규칙이며, 임의 경로 전체를 백업해도 안전하다는 보장이 아니다. canonical secret/profile 경로는 각각 `/etc/bros/secrets`, `/var/lib/bros/profiles`로 분리한다. 백업 스크립트는 allowlist와 이 제외 규칙을 함께 적용해야 한다.
 
-프로필 복구는 백업에서 cookie를 복원하지 않고 재로그인한다. TLS 인증서·secret manager 자체의 재해복구는 별도 암호화/접근통제 정책으로 취급한다. P6-06 자동 백업·암호화·복구 훈련은 이번 구현에 포함되지 않는다. 이번 검증은 합성 archive에서 제외 파일이 실제 누락되는지 확인한다.
+프로필 복구는 백업에서 cookie를 복원하지 않고 재로그인한다. TLS 인증서·secret manager 자체의 재해복구는 별도 암호화/접근통제 정책으로 취급한다. P6-06 자동 백업·암호화·복구 훈련은 [P6-06 runbook](P6_06_DB_BACKUP.md)을 따른다. P6-02 자체 검증의 합성 archive는 제외 파일 누락만 증명한다.
 
 ## 교체 및 장애 절차
 

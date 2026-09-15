@@ -20,6 +20,9 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",
     "db:logs": "docker compose logs -f postgres",
     "db:migrate": "pnpm run build:packages && node --env-file-if-exists=.env scripts/migrate.mjs",
+    "db:backup": "pnpm run build:packages && node --env-file-if-exists=.env scripts/database-backup-once.mjs",
+    "db:backup:health": "pnpm run build:packages && node --env-file-if-exists=.env scripts/check-database-backup-health.mjs",
+    "db:restore:drill": "pnpm run build:packages && node --env-file-if-exists=.env scripts/database-restore-drill.mjs",
     "db:stop": "docker compose stop postgres",
     "db:up": "docker compose up -d postgres",
     "format": "prettier --write .",
@@ -29,6 +32,7 @@
     "test:integration": "pnpm build && node scripts/run-tests.mjs integration",
     "verify:r2-staging": "pnpm build && node scripts/verify-r2-staging.mjs",
     "verify:public-staging": "pnpm build && node scripts/verify-public-staging.mjs",
+    "verify:db-backup": "pnpm build && node scripts/verify-database-backup.mjs",
     "test:unit": "pnpm run build:packages && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
     "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
   },

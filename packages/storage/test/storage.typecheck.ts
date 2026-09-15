@@ -7,6 +7,7 @@ export async function writeWorkerArtifact(
 ): Promise<Uint8Array> {
   await storage.putObject({ body, key });
   const stream = await storage.getObject(key);
+  await storage.listObjects("automation");
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
 

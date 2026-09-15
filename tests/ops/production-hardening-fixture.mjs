@@ -25,6 +25,7 @@ if (mode === "prepare") {
     for (const [scope, names] of Object.entries({
       api: ["database_url", "proxy_token", "r2_access_key", "r2_secret_key"],
       worker: ["database_url", "r2_access_key", "r2_secret_key"],
+      backup: ["database_url", "r2_access_key", "r2_secret_key", "backup_encryption_key"],
       edge: ["caddy_auth", "caddy_proxy"],
       postgres: ["postgres_password"],
     })) {

@@ -100,6 +100,7 @@ try {
         proxyToken: randomUUID().replaceAll("-", ""),
         admin: { username: "operator", passwordHash: hash },
         r2: { accessKeyId: randomUUID(), secretAccessKey: randomUUID() },
+        backupEncryptionKey: randomUUID().replaceAll("-", "").repeat(2),
       },
     ]),
   );
@@ -212,6 +213,7 @@ try {
         bundle.r2.accessKeyId,
         bundle.r2.secretAccessKey,
         bundle.admin.passwordHash,
+        bundle.backupEncryptionKey,
       ]),
     ];
     for (const name of [api, worker, edge, postgres]) {
@@ -300,7 +302,8 @@ try {
       assert.ok(
         !history.includes(bundle.database.password) &&
           !history.includes(bundle.proxyToken) &&
-          !history.includes(bundle.r2.secretAccessKey),
+          !history.includes(bundle.r2.secretAccessKey) &&
+          !history.includes(bundle.backupEncryptionKey),
       );
   }
   console.log("P602_HARDENING_PASS");

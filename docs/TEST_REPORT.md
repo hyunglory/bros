@@ -455,3 +455,13 @@
 - 최초 Windows root 경로·R2 deep redaction·reporter 기대 오류를 수정했다. 최종 verifier는 P602_HARDENING_PASS/P602_CLEANUP_FINISHED로 종료했다.
 - 고유 fixture DB/container/anonymous volume/network/secret/profile volume 제거. 이미지/build cache는 유지. 실제 Cloudflare/운영 secret/profile에 대한 생성·회전·삭제 작업 없음.
 - 상태 IMPLEMENTED_NOT_VALIDATED: 실제 운영 Linux host ACL/secret manager, R2·Provider live rotation, P6-06 backup/restore와 required CI 후속.
+
+## 2026-09-15 — P6-06 DB Backup 자동화 / 암호화 / 복구 검증
+
+- 결정: DEC-20260915-006. production/public-staging에 UID 1000 전용 backup scheduler를 추가했다. DB/R2/backup key만 `_FILE` secret으로 받고 read-only rootfs, cap drop, no-new-privileges, tmpfs, internal DB+egress network, 별도 상태 volume을 사용한다. Browser profile/proxy/admin secret은 마운트하지 않는다.
+- scheduler는 매일 03:41 UTC 정시와 마지막 성공 후 24시간 deadline 중 이른 시각에 실행하고 실패 시 15분 후 재시도한다. 26시간 동안 성공이 없거나 마지막 시도가 FAILURE면 healthcheck가 실패한다. 7 daily/4 ISO-weekly/3 monthly 합집합을 pair 단위로 보존하고 26시간 초과 incomplete pair를 삭제한다.
+- `node scripts/verify-database-backup.mjs` 최종 PASS: disposable PostgreSQL 18.6 migration/합성 row → pg_dump custom/zstd → AES-256-GCM object+manifest → 별도 Local ObjectStorage volume → 빈 `bros_restore_` DB pg_restore → row/hash 일치. 최종 복구 소요는 984ms로 RTO 4h 이내였다.
+- 같은 Docker 검증에서 암호화 객체의 header/object SHA-256/size와 manifest pair를 확인하고 DB password, encryption key, 합성 sentinel의 평문 부재를 검사했다. wrong encryption key restore, wrong DB credential backup, 27시간 stale status는 모두 nonzero로 종료했다. 컨테이너/network/volume/검증 이미지는 최종 정리했다.
+- backup key provisioning 추가 후 `node scripts/verify-production-hardening.mjs`도 다시 PASS했다: P602_PROVISION/FILE_MIGRATION/두 generation/API·Worker·Caddy metadata/Linux permission/profile/unit/backup exclusion/regression/HARDENING/CLEANUP 전부 성공했다.
+- `pnpm lint`, `pnpm typecheck`, Admin 13개와 Node unit 119개(117 PASS, Linux-only 2 skip), P6-06/P6-02/P6-10 대상 integration 10개 PASS. 최종 암호화·scheduler 보강 후 backup package unit 5개와 package build/lint도 재실행해 PASS했다. production/public-staging Compose config가 유효함을 확인했다.
+- 실제 private R2의 P6-06 backup prefix put/list/delete/restore, 운영 host에서 24시간 scheduler 관찰, P6-03 notification receiver, 전체 integration suite와 remote CI는 이번 작업에서 NOT_RUN이다. 따라서 상태는 `IMPLEMENTED_NOT_VALIDATED`다.

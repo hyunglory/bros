@@ -2284,3 +2284,94 @@
 - 금지 변경: 평문 secret 환경변수 재도입, profile/cookie 일반 backup, secret·signed URL 로그/DB 저장, artifact synthetic opt-in의 API input 노출, bucket public-read/전체 삭제, 기존 hold 우회, unrelated worktree 변경, 승인 없는 영구 인프라 변경.
 - 완료 조건: 선택된 P6-06 WBS의 backup 성공/실패·암호화·보존/복구 경계와 RPO/RTO를 disposable 환경에서 증명하고, secret/profile 제외를 확인한다. 운영 반영/remote CI는 실제 실행 증거와 분리 기록한다.
 - 재검토가 필요한 조건: secret manager/KMS 방식, UID·user namespace, DB role 분리, 운영 backup 범위·복구 목표, 인증 브라우저 artifact 허용 정책이 변경될 때.
+
+## DEC-20260915-006 — P6-06 암호화 DB Backup 자동화와 Disposable Restore
+
+- 일자: 2026-09-15
+- 종료 단계/분야: PostgreSQL backup scheduler, client-side encryption, off-server ObjectStorage retention, failure detection 및 disposable restore drill 구현·검증
+- 작성 모델/추론 수준: GPT-5 Codex / 시스템 설정(추론 수준 미노출)
+- 관련 WBS Task: P6-06, P1-05, P1-12, P1-13, P6-02, P6-03, P6-04, P6-07, P6-10
+- 검토 범위와 근거: AGENTS.md, 개발 운영 구성 지침, P6-06 WBS acceptance/test 및 초기 RPO 24h/RTO 4h·26h 감지·7 daily/4 weekly/3 monthly 기준, DEC-20260915-005의 `_FILE`/최소 mount/backup allowlist, 기존 ObjectStorage port/R2 adapter, production/public-staging Compose, PostgreSQL 18.6 `pg_dump`/`pg_restore` 실제 disposable 실행 결과
+- 상태: ACCEPTED
+- supersedes: DEC-20260915-005의 “P6-06 자동 backup/암호화/restore 미구현” 상태만 대체한다. P6-02의 secret/profile 제외, P6-04 private R2, P6-05 artifact retention, P6-10 native-domain/remote CI 미검증 상태는 유지한다.
+
+### 확정 결정
+
+- 전용 backup service는 UID 1000, read-only rootfs, cap_drop ALL, no-new-privileges, `/tmp` tmpfs, internal DB network와 R2 egress만 사용한다. `database_url`, R2 key pair, 별도 32-byte backup encryption key만 read-only `_FILE` secret으로 받으며 Browser profile, proxy/admin secret, host rootfs는 마운트하지 않는다.
+- DB payload는 `pg_dump --format=custom --compress=zstd:6 --no-owner --no-privileges --no-password` 출력만 allowlist한다. password는 owner-only 임시 `.pgpass`에만 기록하고 argv/environment/log에 넣지 않는다. session advisory lock으로 동시 backup을 거부한다.
+- dump는 업로드 전에 AES-256-GCM으로 client-side 암호화한다. `BROSDB01` format header 전체를 AAD로 인증하고 UUIDv4 backup ID, UTC 생성 시각, algorithm/version, 비밀이 아닌 key ID를 기록한다. ciphertext+tag 전체 SHA-256과 크기를 업로드 후 다시 읽어 확인한 뒤에만 manifest를 게시한다.
+- complete generation은 정확한 `.dump.enc`/`.manifest.json` pair다. UTC 7 daily, 4 ISO-weekly, 3 monthly bucket의 합집합을 보존하고 나머지 complete pair를 삭제한다. 26시간을 넘긴 incomplete pair만 삭제하며 다른 ObjectStorage prefix는 건드리지 않는다. R2/Local adapter에 bounded prefix listing을 추가한다.
+- scheduler는 03:41 UTC 다음 정시와 마지막 성공 후 24시간 RPO deadline 중 이른 시각에 실행하고 실패하면 15분 뒤 재시도한다. 상태 파일은 private atomic rename으로 갱신하고 비밀이 없는 최신 상태를 ObjectStorage에도 기록한다. 마지막 성공이 26시간을 넘거나 state가 FAILURE면 healthcheck가 nonzero다. 실제 notification 수신은 P6-03 소유다.
+- restore는 `RESTORE_CONFIRM_DISPOSABLE=YES`, `bros_restore_` prefix의 별도 빈 DB, 정확한 manifest key를 모두 요구한다. object key/manifest pair, SHA-256/size, AES-GCM tag/header, backup ID/생성 시각, 복호화 plaintext SHA-256을 확인하고 `pg_restore --exit-on-error --no-owner --no-privileges`로 표준입력 복구한다. 원본 DB in-place restore는 도구 수준에서 허용하지 않는다.
+- backup key는 root-only provisioning bundle의 `backupEncryptionKey`로 받고 UID 1000/mode 0400의 새 generation 파일을 만든다. 키 교체 시 보존 중인 이전 backup에 맞는 이전 key generation을 escrow한다. key loss를 DB backup 자체로 복구할 수 있다고 간주하지 않는다.
+- P6-07 전체 복구 훈련을 선점하지 않는다. 이번 P6-06은 disposable clean-DB restore와 row/hash/RTO 측정까지 제공하며 운영 재해 시나리오·정기 drill 증거는 P6-07에서 확장한다. DB schema/migration은 변경하지 않았다.
+
+### 기각한 선택지와 이유
+
+- 평문 `pg_dump`를 R2에 업로드하거나 server-side encryption만 신뢰: storage credential/운영자 경계 침해 시 평문 노출을 줄이지 못해 client-side authenticated encryption을 택했다.
+- encryption key 또는 DB password를 Compose environment/argv에 주입: Docker metadata와 process inspection에 남으므로 `_FILE` 및 임시 owner-only `.pgpass`를 사용한다.
+- DB와 같은 server filesystem에만 backup: server failure 복구 목표를 충족하지 못하므로 production은 private R2 ObjectStorage를 필수로 한다. Local volume은 disposable contract test 대역일 뿐 운영 off-server 판정 근거가 아니다.
+- host rootfs/profile/secret directory 전체 archive: credential과 Browser session을 backup에 포함할 수 있어 DB logical dump allowlist만 사용한다.
+- 원본 DB에 자동 restore: 잘못된 generation/credential로 정상 데이터를 덮을 위험이 있어 이름 제한된 disposable DB만 허용한다.
+- 마지막 성공 age만으로 scheduler 실행 판단: 오후 catch-up 뒤 다음 03:41을 건너뛰어 RPO가 24시간을 넘을 수 있어 다음 정시와 24시간 deadline의 최소값을 사용한다.
+- object와 manifest를 독립 보존·삭제: 복구 불가능한 반쪽 generation을 만들 수 있어 pair 단위 보존을 사용한다.
+
+### 변경 파일
+
+- `compose.production.yml`
+- `compose.public-staging.yml`
+- `docs/DECISIONS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/P6_02_HARDENING.md`
+- `docs/P6_06_DB_BACKUP.md`
+- `docs/RUNBOOK.md`
+- `docs/TEST_REPORT.md`
+- `ops/Dockerfile`
+- `package.json`
+- `pnpm-lock.yaml`
+- `packages/backup/package.json`
+- `packages/backup/tsconfig.json`
+- `packages/backup/src/crypto.ts`
+- `packages/backup/src/index.ts`
+- `packages/backup/src/policy.ts`
+- `packages/backup/src/service.ts`
+- `packages/backup/test/backup.test.mjs`
+- `packages/storage/src/local.ts`
+- `packages/storage/src/port.ts`
+- `packages/storage/src/r2.ts`
+- `packages/storage/test/storage.test.mjs`
+- `packages/storage/test/storage.typecheck.ts`
+- `scripts/check-database-backup-health.mjs`
+- `scripts/database-backup-once.mjs`
+- `scripts/database-backup-runtime.mjs`
+- `scripts/database-restore-drill.mjs`
+- `scripts/provision-production-secrets.mjs`
+- `scripts/run-database-backup-scheduler.mjs`
+- `scripts/verify-database-backup.mjs`
+- `scripts/verify-production-hardening.mjs`
+- `tests/integration/database-backup.integration.test.mjs`
+- `tests/integration/production-hardening.integration.test.mjs`
+- `tests/ops/database-backup-fixture.mjs`
+- `tests/ops/production-hardening-fixture.mjs`
+
+### 검증 증거
+
+- `node scripts/verify-database-backup.mjs`: disposable PostgreSQL 18.6 migration/seed, custom dump, AES-256-GCM object+manifest, 분리 Local ObjectStorage volume, 빈 `bros_restore_` DB restore와 row/hash 대조 PASS. 최종 `P606_BACKUP_ENCRYPT_RESTORE_PASS rto_ms=984`, wrong key/DB credential/26h stale detection PASS, fixture container/network/volume/image cleanup PASS.
+- encrypted object는 `BROSDB01` header와 manifest SHA-256/size pair를 만족했고 synthetic DB password, encryption key, sentinel 평문을 포함하지 않았다. wrong encryption key restore와 wrong database credential backup은 nonzero였고 failure status healthcheck도 nonzero였다.
+- `node scripts/verify-production-hardening.mjs`: backup key provisioning 추가 후 P602_PROVISION, FILE_MIGRATION, 두 secret generation API/Worker/Caddy metadata, Linux permission/profile/unit, backup exclusion, Browser/retention regression, HARDENING 및 CLEANUP PASS.
+- `pnpm lint`, `pnpm typecheck` PASS. Admin 13개 PASS; 전체 Node unit 119개 중 117 PASS/0 FAIL/Linux-only 2 skip. P6-06/P6-02/P6-10 대상 integration 3파일/10개 PASS. 최종 암호화 header/stream 오류와 scheduler deadline 보강 후 `@bros/backup` build/unit 5개 및 해당 lint를 재실행해 PASS했다.
+- production Compose `config --no-interpolate`, public-staging Compose `config --no-interpolate --quiet`, 변경 파일 format과 `git diff --check`를 확인했다. 실제 private R2 P6-06 경로, 운영 host 24시간 scheduler, P6-03 notification, 전체 integration suite와 remote CI는 실행하지 않았다.
+
+### 미해결 사항 및 Blocker
+
+- P6-06 상태는 `IMPLEMENTED_NOT_VALIDATED`다. 실제 private R2에서 backup prefix의 put/list/pair retention/delete와 동일 artifact의 disposable restore를 재검증하고, 실제 Linux staging host에서 scheduler 재시작·24시간 경계 및 26시간 alert receiver를 관찰해야 한다.
+- P6-03은 health failure를 실제 notification destination으로 전달해야 한다. 현재 Docker healthcheck와 안정된 failure code는 탐지 신호이며 알림 전달 완료 증거가 아니다.
+- encryption key escrow/KMS, multi-key 자동 선택/재암호화, 실제 대용량 DB의 RTO와 R2 비용/throughput은 운영 정책·인프라 권한이 필요하다. 현재 restore는 operator가 선택한 generation에 맞는 key file을 명시적으로 마운트한다.
+- 전체 integration suite, required remote CI, P6-10 native custom-domain Linux host/TLS/firewall 및 P6-07 정기 restore drill은 NOT_RUN이다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: 우선 scoped private R2 staging credential과 disposable PostgreSQL로 P6-06 live object pair/retention/restore를 검증하거나, 외부 권한이 없으면 P6-03 alert receiver를 Docker health/failure 상태에 연결한다.
+- 금지 변경: 평문 DB dump/secret 환경변수, public bucket, Browser profile/cookie backup, 원본 DB 자동 restore, exact prefix 밖 object 삭제, 검증 artifact/token 잔존, 기존 P6-05 hold 우회, 승인 없는 영구 인프라 변경.
+- 완료 조건: 실제 R2 complete pair 생성·hash/size·암호화 평문 부재·restore data 일치·정확한 retention 삭제·wrong credential/26h notification을 증명하고 credential/fixture를 정리하거나, P6-03 수신기에서 같은 failure 신호의 전달·재시도·중복 억제를 증명한다.
+- 재검토가 필요한 조건: RPO/RTO, schedule timezone, retention 수량, DB 규모/HA topology, R2 account/bucket, KMS/secret manager, backup DB role, key rotation/escrow 정책이 변경될 때.

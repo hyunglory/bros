@@ -36,6 +36,7 @@ try {
     !/^[a-z][a-z0-9_]{0,30}$/.test(bundle.database?.name ?? "") ||
     !plain(bundle.r2?.accessKeyId) ||
     !plain(bundle.r2?.secretAccessKey) ||
+    !/^[0-9a-f]{64}$/i.test(bundle.backupEncryptionKey ?? "") ||
     !/^[A-Za-z0-9_-]{32,256}$/.test(bundle.proxyToken ?? "") ||
     !/^[a-zA-Z0-9_-]{1,64}$/.test(bundle.admin?.username ?? "") ||
     !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(bundle.admin?.passwordHash ?? "")
@@ -51,6 +52,7 @@ try {
     ["proxy_token", [bundle.proxyToken, 1000]],
     ["r2_access_key", [bundle.r2.accessKeyId, 1000]],
     ["r2_secret_key", [bundle.r2.secretAccessKey, 1000]],
+    ["backup_encryption_key", [bundle.backupEncryptionKey, 1000]],
     ["caddy_auth", [`${bundle.admin.username} ${bundle.admin.passwordHash}\n`, 1000]],
     ["caddy_proxy", [`header_up X-BROS-Proxy-Token "${bundle.proxyToken}"\n`, 1000]],
   ]);

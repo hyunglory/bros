@@ -125,6 +125,24 @@ test("delete is idempotent and missing reads have a stable safe error", async (c
   });
 });
 
+test("lists only portable objects under a bounded prefix", async (context) => {
+  const { storage } = await createFixture(context);
+  await storage.putObject({ body: new Uint8Array([1]), key: "database-backup/2026/one.enc" });
+  await storage.putObject({ body: new Uint8Array([1, 2]), key: "database-backup/2026/two.json" });
+  await storage.putObject({ body: new Uint8Array([3]), key: "automation/unrelated.json" });
+  assert.deepEqual(
+    (await storage.listObjects("database-backup")).map(({ objectKey, size }) => ({
+      objectKey,
+      size,
+    })),
+    [
+      { objectKey: "database-backup/2026/one.enc", size: 1 },
+      { objectKey: "database-backup/2026/two.json", size: 2 },
+    ],
+  );
+  assert.deepEqual(await storage.listObjects("missing-prefix"), []);
+});
+
 test("rejects an ancestor symlink instead of escaping the storage root", async (context) => {
   const { root, storage } = await createFixture(context);
   const outside = await mkdtemp(join(tmpdir(), "bros-storage-outside-"));
@@ -256,6 +274,19 @@ test("uses the R2 S3 contract with retries, private metadata, and expiring signe
             return { response: { body: Readable.from([]), headers: {}, statusCode: 503 } };
           return { response: { body: Readable.from([]), headers: {}, statusCode: 200 } };
         }
+        if (request.method === "GET" && request.query?.["list-type"] === "2") {
+          return {
+            response: {
+              body: Readable.from([
+                Buffer.from(
+                  '<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>database-backup/2026/item.enc</Key><LastModified>2026-09-15T00:00:00.000Z</LastModified><Size>9</Size></Contents></ListBucketResult>',
+                ),
+              ]),
+              headers: { "content-type": "application/xml" },
+              statusCode: 200,
+            },
+          };
+        }
         if (request.method === "GET") {
           return {
             response: {
@@ -298,6 +329,13 @@ test("uses the R2 S3 contract with retries, private metadata, and expiring signe
   );
   await storage.deleteObject("automation/2026/09/14/run-id/result.json");
   assert.equal(requests.at(-1).method, "DELETE");
+  assert.deepEqual(
+    (await storage.listObjects("database-backup")).map(({ objectKey, size }) => ({
+      objectKey,
+      size,
+    })),
+    [{ objectKey: "database-backup/2026/item.enc", size: 9 }],
+  );
 
   const signedUrl = new URL(
     await storage.getSignedUrl("automation/2026/09/14/run-id/result.json", 300),

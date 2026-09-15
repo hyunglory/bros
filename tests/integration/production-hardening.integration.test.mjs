@@ -10,11 +10,15 @@ test("P6-02 production and staging declare only secret paths and per-service mou
     const compose = await read(path);
     assert.doesNotMatch(
       compose,
-      /^\s+(?:DATABASE_URL|POSTGRES_PASSWORD|API_PROXY_AUTH_TOKEN|BROS_PROXY_AUTH_TOKEN|BROS_ADMIN_PASSWORD_HASH|BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID|BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY):/m,
+      /^\s+(?:DATABASE_URL|POSTGRES_PASSWORD|BACKUP_ENCRYPTION_KEY|API_PROXY_AUTH_TOKEN|BROS_PROXY_AUTH_TOKEN|BROS_ADMIN_PASSWORD_HASH|BROS_SECRET_STORAGE_R2_ACCESS_KEY_ID|BROS_SECRET_STORAGE_R2_SECRET_ACCESS_KEY):/m,
     );
     assert.match(compose, /POSTGRES_PASSWORD_FILE: \/run\/secrets\/postgres_password/);
     assert.match(compose, /secrets: \[database_url, proxy_token, r2_access_key, r2_secret_key\]/);
     assert.match(compose, /secrets: \[database_url, r2_access_key, r2_secret_key\]/);
+    assert.match(
+      compose,
+      /secrets: \[database_url, r2_access_key, r2_secret_key, backup_encryption_key\]/,
+    );
     assert.match(compose, /secrets: \[caddy_auth, caddy_proxy\]/);
     const migrate = compose.match(/\n {2}migrate:[\s\S]*?\n {2}api:/)?.[0];
     assert.ok(migrate);

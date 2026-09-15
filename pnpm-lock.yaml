@@ -124,6 +124,12 @@ importers:
         specifier: 0.29.5
         version: 0.29.5
 
+  packages/backup:
+    dependencies:
+      '@bros/storage':
+        specifier: workspace:*
+        version: link:../storage
+
   packages/browser:
     dependencies:
       '@bros/core':

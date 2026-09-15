@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -114,6 +115,44 @@ class R2ObjectStorageAdapter implements ObjectStorage {
       );
     } catch (error) {
       throw asR2StorageError(error, "Unable to sign object URL");
+    }
+  }
+
+  async listObjects(prefixInput: string) {
+    const prefix = validateObjectKey(prefixInput);
+    const objects = [];
+    let continuationToken: string | undefined;
+    try {
+      do {
+        const response = await this.#client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            ContinuationToken: continuationToken,
+            Prefix: `${prefix}/`,
+          }),
+        );
+        for (const object of response.Contents ?? []) {
+          if (
+            typeof object.Key !== "string" ||
+            typeof object.Size !== "number" ||
+            !(object.LastModified instanceof Date)
+          )
+            continue;
+          objects.push({
+            lastModified: new Date(object.LastModified),
+            objectKey: validateObjectKey(object.Key),
+            size: object.Size,
+          });
+          if (objects.length > 10_000)
+            throw new StorageError("STORAGE_IO_ERROR", "Object listing exceeds safety limit");
+        }
+        continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+        if (response.IsTruncated && !continuationToken)
+          throw new StorageError("STORAGE_IO_ERROR", "Object listing pagination is invalid");
+      } while (continuationToken);
+      return objects;
+    } catch (error) {
+      throw asR2StorageError(error, "Unable to list objects");
     }
   }
 }
