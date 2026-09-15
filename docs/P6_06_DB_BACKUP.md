@@ -70,3 +70,15 @@ pnpm run verify:db-backup
 ```
 
 이 검증은 PostgreSQL migration/seed, custom dump, AES-256-GCM object, manifest pair, 빈 DB restore와 row 대조, wrong key 거부, wrong DB credential 실패 상태, 26시간 stale health 실패, 내부 disposable HTTP receiver의 failure 1회 전달·중복 억제·recovery 1회 전달, 임시 Docker 자원 정리를 확인한다. Local ObjectStorage volume과 internal receiver는 disposable 계약 대역이며 실제 private R2/운영 host scheduler/live external receiver 증거를 대신하지 않는다.
+
+## Actual private R2 staging 검증 (2026-09-15)
+
+`pnpm run verify:db-backup:r2-staging`은 전용 24시간·단일 버킷·Object Read/Write R2 token을 메모리에서만 사용해 실제 private bucket에서 실행했다. credential 값은 명령행, 환경 덤프, 로그, 상태 파일과 이 문서에 기록하지 않았다. 검증 뒤 token 목록에서 `bros-p606-live-backup-24h`가 조회되지 않음을 확인해 노출 가능성이 있던 검증 token을 폐기했다.
+
+- backup stream은 R2가 지원하지 않는 AWS Streaming SigV4 전송을 사용하지 않는다. 5 MiB bounded multipart part로 전환하고, 작은 stream은 일반 put으로 전송한다. 전체 dump를 메모리에 적재하지 않는다.
+- 실제 PostgreSQL 18.6 custom dump의 AES-256-GCM object와 manifest complete pair를 만들고, private R2에서 object SHA-256/size와 `BROSDB01` header를 대조했다. DB password, encryption key, synthetic sentinel 평문이 ciphertext에 없음을 확인했다.
+- 15개 UTC fixture generation을 이용해 7 daily/4 ISO-weekly/3 monthly 합집합 retention에서 적어도 한 complete pair가 pair 단위로 삭제되는 것을 확인했다. 현재 generation은 보존했다.
+- 별도 `bros_restore_` disposable DB에 실제 R2 object를 복구해 seed row와 업무 hash가 일치했다. 측정 RTO는 1,318 ms였다. 잘못된 R2 credential은 `STORAGE_AUTH_FAILED`로 거부됐다.
+- preflight는 `database-backup/` prefix가 비어 있을 때만 허용하며 verifier가 만든 정확한 key와 status만 정리한다. 완료 뒤 bucket은 0 B이고 Public Access Disabled 상태임을 UI에서 확인했다.
+
+실행 결과는 `P606_R2_ENCRYPT_RESTORE_PASS rto_ms=1318`, `P606_R2_RETENTION_PAIR_DELETE_PASS`, `P606_R2_WRONG_CREDENTIAL_PASS`, `P606_R2_CLEANUP_FINISHED`였다. 이 결과는 실제 R2 object 경로 증거이지만, 운영 host의 24시간 scheduler, operator-owned external alert receiver, remote CI와 대용량 DB RTO는 별도 검증으로 남는다.

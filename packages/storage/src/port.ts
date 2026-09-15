@@ -5,6 +5,7 @@ export type ObjectBody = Uint8Array | ReadableStream<Uint8Array>;
 
 export interface PutObjectInput {
   body: ObjectBody;
+  contentLength?: number;
   contentHash?: string;
   contentType?: string;
   key: string;

@@ -473,3 +473,12 @@
 - `node scripts/verify-database-backup.mjs` Docker end-to-end PASS: `P606_BACKUP_ENCRYPT_RESTORE_PASS rto_ms=1129`, wrong-key/wrong-credential/26h stale detection PASS, `P603_BACKUP_ALERT_DELIVERY_DEDUP_RECOVERY_PASS`, cleanup PASS. 내부 disposable Node HTTP receiver가 failure와 recovery 두 POST를 실제 수신했고 duplicate는 수신하지 않았다.
 - `node scripts/verify-production-hardening.mjs`도 webhook secret provisioning 추가 후 P602_PROVISION, FILE_MIGRATION, generation/API·Worker·Caddy, permission/profile/unit, exclusion/regression, HARDENING/CLEANUP PASS로 회귀가 없었다.
 - 이는 P6-03 전체 Dashboard 완료가 아니다. correlation logs, queue lag/worker heartbeat/provider metrics, dashboard UI와 실제 운영 HTTPS receiver/account routing/on-call delivery, private R2 live backup은 NOT_RUN이다. 따라서 P6-03 전체 상태는 `IN_PROGRESS`다.
+
+## 2026-09-15 — P6-06 actual private R2 encrypted backup / restore
+
+- 실행: `pnpm run verify:db-backup:r2-staging`를 scoped 24시간 single-bucket R2 credential과 disposable PostgreSQL 18.6으로 실행했다. credential 값은 메모리/UID 1000 secret file 경계에서만 사용했고 명령행·로그·문서에 남기지 않았다.
+- 결과: `P606_R2_ENCRYPT_RESTORE_PASS rto_ms=1318`, `P606_R2_RETENTION_PAIR_DELETE_PASS`, `P606_R2_WRONG_CREDENTIAL_PASS`, `P606_R2_CLEANUP_FINISHED` PASS.
+- 실제 private R2에서 encrypted custom dump/manifest complete pair의 SHA-256·size와 `BROSDB01` header를 확인했다. database password, encryption key, synthetic sentinel의 평문은 ciphertext에 없었다. empty disposable `bros_restore_` DB restore 후 row/hash가 source와 일치했다.
+- 15개 fixture generation으로 7 daily/4 ISO-weekly/3 monthly union retention의 complete pair 삭제를 확인했고, verifier가 생성한 key와 status만 정리했다. R2 adapter는 R2의 Streaming SigV4 비지원에 맞춰 bounded 5 MiB multipart stream upload를 사용한다.
+- wrong R2 credential은 `STORAGE_AUTH_FAILED`로 거부됐다. 검증 후 bucket은 0 B 및 Public Access Disabled였고, `bros-p606-live-backup-24h` token이 Cloudflare 목록에 더 이상 없음을 확인했다.
+- 운영 host 24시간 scheduler, operator-owned external HTTPS alert receiver, remote CI 및 대용량 DB RTO는 NOT_RUN이므로 P6-06 상태는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.

@@ -50,6 +50,10 @@ if (mode === "prepare") {
   await privateFile("/fixture/postgres/postgres_password", request.databasePassword, 999);
   await privateFile("/fixture/backup/database_url", url.toString(), 1000);
   await privateFile("/fixture/backup/backup_encryption_key", request.encryptionKey, 1000);
+  if (typeof request.r2AccessKeyId === "string" && typeof request.r2SecretAccessKey === "string") {
+    await privateFile("/fixture/backup/r2_access_key", request.r2AccessKeyId, 1000);
+    await privateFile("/fixture/backup/r2_secret_key", request.r2SecretAccessKey, 1000);
+  }
   await privateFile(
     "/fixture/backup/backup_alert_webhook_url",
     "http://alert-receiver:8787/alerts",
@@ -112,6 +116,14 @@ if (mode === "prepare") {
   assert.equal(manifest.object.key, status.backupObjectKey);
   assert.equal(status.manifestKey.endsWith(".manifest.json"), true);
   process.stdout.write(`${JSON.stringify({ manifestKey: status.manifestKey })}\n`);
+} else if (mode === "read-status") {
+  const status = JSON.parse(await readFile("/status/status.json", "utf8"));
+  assert.equal(status.state, "SUCCESS");
+  assert.equal(typeof status.backupObjectKey, "string");
+  assert.equal(typeof status.manifestKey, "string");
+  process.stdout.write(
+    `${JSON.stringify({ backupObjectKey: status.backupObjectKey, manifestKey: status.manifestKey })}\n`,
+  );
 } else if (mode === "stale-status") {
   await writeFile(
     "/status/status.json",

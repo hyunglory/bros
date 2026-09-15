@@ -61,6 +61,7 @@ export async function createEncryptedDatabaseBackup(options: {
     await options.completion;
     await options.storage.putObject({
       body: Readable.toWeb(createReadStream(options.temporaryPath)),
+      contentLength: encrypted.size,
       contentHash: encrypted.objectSha256,
       contentType: "application/octet-stream",
       key: dataKey,

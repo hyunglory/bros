@@ -2450,3 +2450,59 @@
 - 금지 변경: webhook/DB/R2/key를 평문 환경변수·argv·log·payload에 넣기, receiver public unauthenticated exposure, profile/cookie backup, status volume write mount, P6-03 전체 완료 오표기, unrelated worktree 변경, 승인 없는 외부 alert 계정/route 생성.
 - 완료 조건: 지정 receiver에 failure·retry·duplicate suppression·recovery가 안전한 payload로 전달된 실제 증거를 남기고 test secret/fixture를 정리하거나, P6-03 전체 acceptance를 별도 검증한다.
 - 재검토가 필요한 조건: alert receiver authentication method, webhook signing/KMS, delivery SLO/escalation policy, retention/audit law, RPO/RTO/26시간 threshold, queue/worker metric ownership이 변경될 때.
+
+## DEC-20260915-008 — P6-06 Actual Private R2 Encrypted Backup Verification
+
+- 일자: 2026-09-15
+- 종료 단계/분야: P6-06 실제 private R2 encrypted backup pair·retention·disposable restore 검증 및 임시 검증 token 폐기
+- 작성 모델/추론 수준: GPT-5 Codex / high
+- 관련 WBS Task: P6-06, P6-04, P6-02, P6-03, P6-10
+- 검토 범위와 근거: AGENTS.md, `docs/P6_06_DB_BACKUP.md`, `docs/TEST_REPORT.md`, DEC-20260915-006/007, `scripts/verify-database-backup-r2-staging.mjs`, 실제 private R2 bucket의 object/token 목록과 Public Access Disabled 상태
+- 상태: ACCEPTED
+- supersedes: 없음. DEC-20260915-006의 local ObjectStorage/Docker 검증을 실제 R2 object path 증거로 보완하며 운영 scheduler/alert의 미검증 상태는 대체하지 않는다.
+
+### 확정 결정
+
+- R2 stream upload는 AWS Streaming SigV4 전송에 의존하지 않는다. stream은 5 MiB bounded multipart part로 전송하고 작은 stream은 일반 put으로 처리한다. 이는 전체 backup을 메모리에 적재하지 않으면서 실제 R2 호환성을 보장한다.
+- live verifier는 `database-backup/` prefix가 비어 있는 경우에만 시작하고, 생성한 정확한 object/status key만 삭제한다. 기존 object, 다른 prefix, held artifact를 넓게 삭제하지 않는다.
+- R2 credential은 짧은 TTL의 단일 bucket 권한으로 만들고 memory→UID 1000 secret file 경계로만 전달한다. 검증 종료 후 `bros-p606-live-backup-24h` token이 목록에서 사라진 것을 확인했다. credential 값은 기록하지 않는다.
+- 실제 private R2에서 PostgreSQL 18.6 encrypted complete pair/hash/header/plaintext 부재, 15 generation 기반 7/4/3 retention pair delete, disposable restore row/hash 일치와 wrong credential `STORAGE_AUTH_FAILED`를 확인했다. measured restore RTO는 1,318 ms였다.
+
+### 기각한 선택지와 이유
+
+- 모든 backup stream을 완전히 buffer해 일반 put: 대용량 backup의 메모리 사용량이 무제한으로 증가하므로 기각한다.
+- prefix 전체 또는 기존 object를 cleanup: 사용자 artifact를 지울 수 있어 preflight+exact generated-key cleanup을 사용한다.
+- 하나의 오래된 pair만으로 retention delete를 기대: daily/weekly/monthly 합집합 보존 정책상 삭제 보장이 없어 15 generation fixture를 사용한다.
+- local S3/R2 mock만 실제 R2 호환 증거로 간주: Streaming SigV4 차이를 탐지하지 못했으므로 실제 private R2 검증이 필요하다.
+
+### 변경 파일
+
+- `docs/DECISIONS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/P6_06_DB_BACKUP.md`
+- `docs/TEST_REPORT.md`
+- `package.json`
+- `packages/backup/src/service.ts`
+- `packages/storage/src/port.ts`
+- `packages/storage/src/r2.ts`
+- `scripts/verify-database-backup-r2-staging.mjs`
+- `tests/ops/database-backup-fixture.mjs`
+
+### 검증 증거
+
+- `pnpm run verify:db-backup:r2-staging` PASS: `P606_R2_ENCRYPT_RESTORE_PASS rto_ms=1318`, `P606_R2_RETENTION_PAIR_DELETE_PASS`, `P606_R2_WRONG_CREDENTIAL_PASS`, `P606_R2_CLEANUP_FINISHED`.
+- Cloudflare UI 수동 확인: scoped token은 검증 전 Active였고 폐기 후 목록에서 조회되지 않았다. 대상 bucket은 0 B, Public Access Disabled였다.
+- 실제 R2에서 object SHA-256/size/`BROSDB01` header와 manifest pair를 대조했고 database password, encryption key, synthetic sentinel 평문 부재를 확인했다. empty disposable `bros_restore_` DB의 row/hash가 source와 일치했다.
+- 결과: PASS — actual private R2 object path 검증과 token cleanup 완료. 운영 host 24시간 scheduler, external receiver, remote CI 및 대용량 RTO는 이 PASS에 포함하지 않는다.
+
+### 미해결 사항 및 Blocker
+
+- P6-06은 `IMPLEMENTED_NOT_VALIDATED`를 유지한다. 실제 Linux production/staging host의 24시간 scheduler 재시작·deadline, operator-owned HTTPS alert receiver, remote CI, 대용량 DB RTO/throughput이 남아 있다.
+- P6-03 전체 observability/Dashboard, KMS/escrow/key rotation 운영 정책과 P6-10 custom-domain Linux host TLS/DNS/firewall은 별도 범위다.
+
+### 다음 작업 인수 조건
+
+- 작업 범위: production-like Linux host에서 scheduler 24시간 경계와 P6-03 external HTTPS failure/retry/recovery 수신을 검증하고 remote CI를 연결한다.
+- 금지 변경: 폐기한 token 재사용, 평문 credential/DB dump/key의 환경변수·argv·로그 기록, public bucket 전환, exact verifier key 밖 cleanup, 원본 DB restore, P6-06을 운영 검증 PASS로 오표기.
+- 완료 조건: 새 short-lived least-privilege credential으로 scheduler/alert/CI의 실제 증거를 남기고 credential과 disposable artifact를 정리한다.
+- 재검토가 필요한 조건: RPO/RTO, schedule timezone, retention count, bucket/account, KMS/secret manager, DB 규모/HA topology, alert authentication/on-call policy가 바뀔 때.

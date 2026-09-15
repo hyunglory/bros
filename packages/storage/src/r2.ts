@@ -1,9 +1,13 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -16,6 +20,7 @@ import type { ObjectStorage, PutObjectInput, StoredObject } from "./port.js";
 
 const R2_PROVIDER = "R2" as const;
 const MAX_SIGNED_URL_EXPIRY_SECONDS = 604_800;
+const MULTIPART_PART_BYTES = 5 * 1024 * 1024;
 
 export interface R2ObjectStorageOptions {
   bucket: string;
@@ -50,18 +55,28 @@ class R2ObjectStorageAdapter implements ObjectStorage {
 
   async putObject(input: PutObjectInput): Promise<StoredObject> {
     const key = validateObjectKey(input.key);
-    const tracked = trackBody(input.body);
+    if (
+      input.contentLength !== undefined &&
+      (!Number.isSafeInteger(input.contentLength) || input.contentLength < 0)
+    )
+      throw new StorageError("STORAGE_IO_ERROR", "Object content length is invalid");
     try {
+      if (!(input.body instanceof Uint8Array))
+        return await this.#putStreamObject(key, input as PutObjectInput & { body: ReadableStream<Uint8Array> });
+      const tracked = trackBody(input.body);
       await this.#client.send(
         new PutObjectCommand({
           Body: tracked.body,
           Bucket: this.bucket,
+          ContentLength: input.contentLength,
           ContentType: input.contentType,
           Key: key,
           Metadata:
             input.contentHash === undefined ? undefined : { "content-sha256": input.contentHash },
         }),
       );
+      if (input.contentLength !== undefined && tracked.size() !== input.contentLength)
+        throw new StorageError("STORAGE_IO_ERROR", "Object content length does not match body");
       return {
         bucket: this.bucket,
         objectKey: key,
@@ -153,6 +168,99 @@ class R2ObjectStorageAdapter implements ObjectStorage {
       return objects;
     } catch (error) {
       throw asR2StorageError(error, "Unable to list objects");
+    }
+  }
+
+  async #putStreamObject(
+    key: string,
+    input: PutObjectInput & { body: ReadableStream<Uint8Array> },
+  ): Promise<StoredObject> {
+    const source = Readable.fromWeb(input.body);
+    const pending: Buffer[] = [];
+    let pendingBytes = 0;
+    let totalBytes = 0;
+    let uploadId: string | undefined;
+    const parts: { ETag: string; PartNumber: number }[] = [];
+    const take = (size: number) => {
+      const combined = Buffer.concat(pending, pendingBytes);
+      pending.length = 0;
+      const remainder = combined.subarray(size);
+      if (remainder.byteLength > 0) pending.push(remainder);
+      pendingBytes = remainder.byteLength;
+      return combined.subarray(0, size);
+    };
+    const start = async () => {
+      if (uploadId) return;
+      const created = await this.#client.send(
+        new CreateMultipartUploadCommand({
+          Bucket: this.bucket,
+          ContentType: input.contentType,
+          Key: key,
+          Metadata:
+            input.contentHash === undefined ? undefined : { "content-sha256": input.contentHash },
+        }),
+      );
+      if (!created.UploadId) throw new Error();
+      uploadId = created.UploadId;
+    };
+    const upload = async (body: Buffer) => {
+      await start();
+      const partNumber = parts.length + 1;
+      if (partNumber > 10_000) throw new Error();
+      const response = await this.#client.send(
+        new UploadPartCommand({
+          Body: body,
+          Bucket: this.bucket,
+          ContentLength: body.byteLength,
+          Key: key,
+          PartNumber: partNumber,
+          UploadId: uploadId,
+        }),
+      );
+      if (!response.ETag) throw new Error();
+      parts.push({ ETag: response.ETag, PartNumber: partNumber });
+    };
+    try {
+      for await (const chunk of source) {
+        const bytes = Buffer.from(chunk);
+        pending.push(bytes);
+        pendingBytes += bytes.byteLength;
+        totalBytes += bytes.byteLength;
+        while (pendingBytes >= MULTIPART_PART_BYTES) await upload(take(MULTIPART_PART_BYTES));
+      }
+      if (!uploadId) {
+        const body = take(pendingBytes);
+        await this.#client.send(
+          new PutObjectCommand({
+            Body: body,
+            Bucket: this.bucket,
+            ContentLength: body.byteLength,
+            ContentType: input.contentType,
+            Key: key,
+            Metadata:
+              input.contentHash === undefined ? undefined : { "content-sha256": input.contentHash },
+          }),
+        );
+      } else {
+        if (pendingBytes > 0) await upload(take(pendingBytes));
+        await this.#client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: this.bucket,
+            Key: key,
+            MultipartUpload: { Parts: parts },
+            UploadId: uploadId,
+          }),
+        );
+      }
+      if (input.contentLength !== undefined && totalBytes !== input.contentLength)
+        throw new StorageError("STORAGE_IO_ERROR", "Object content length does not match body");
+      return { bucket: this.bucket, objectKey: key, provider: this.provider, size: totalBytes };
+    } catch (error) {
+      if (uploadId)
+        await this.#client
+          .send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }))
+          .catch(() => undefined);
+      throw asR2StorageError(error, "Unable to store object");
     }
   }
 }
