@@ -635,3 +635,9 @@
 - `scripts/run-tests.mjs`는 통합 테스트 파일마다 별도 Node 프로세스를 순차 실행하도록 바꿨다. 파일 안의 동시성은 유지하며, CI에서 지연 파일과 진행 상태를 식별할 수 있다. timeout 확대, skip 추가, 테스트 완화는 하지 않았다.
 - 전용 PostgreSQL `bros-p3-ci-retry-test`(postgres:18.6-bookworm, loopback 55447)에서 새 runner로 전체 30개 통합 파일과 191개 테스트가 PASS(fail/skip/cancel 0)했다. `pnpm lint`, `pnpm format:check`, `pnpm build`, `git diff --check`, publication worktree 검사도 PASS했고 테스트 DB 잔존은 0개다. 전용 컨테이너와 volume은 정리했다.
 - 이 기록 시점의 수정 commit/push와 새 SHA 원격 CI는 NOT_RUN이다. 실제 운영 DB·Provider·자동승격·P3-14 실제 정답/capture 검수는 실행하지 않았다.
+
+## 2026-09-16 — Phase 3 원격 CI 재실행 결과 (DEC-20260916-003)
+
+- SHA `7265dcddc425bba2e13e24f7276e7e352d973e31`를 `codex/p1-foundation`에 일반 push했다. [workflow 35039591619](https://github.com/hyunglory/bros/actions/runs/35039591619), job 104616259592가 4분 10초에 SUCCESS로 완료됐다.
+- 같은 job에서 install, publication path check, lint, typecheck, unit and integration tests, format check, build가 모두 성공했다. GitHub check run 이름 `install / lint / typecheck / test / build`와 SHA가 일치한다.
+- PR #1은 같은 head SHA, `MERGEABLE`, `CLEAN`이며 required check SUCCESS를 반환했다. 이 성공은 CI/공개 경로 검증 증거이며 Phase 3 Gate PASS, 운영 배포, Provider live, 자동승격, P3-14 실제 검수 완료를 뜻하지 않는다.

@@ -20,7 +20,7 @@ BROS foundation, catalog import, and identifier resolution/review
 ### 검증
 
 - Phase 1/2의 이전 원격 CI 증거와 Phase 3 로컬 검증 기록은 `docs/TEST_REPORT.md`에 구분해 기록했습니다.
-- 최신 로컬 실행은 2026-09-16 기록을 따릅니다. SHA `70e05bd`의 첫 원격 실행은 install/publication path/lint/typecheck/unit을 통과했지만, 단일 process 통합 실행이 취소돼 format/build가 skip됐습니다. 수정 commit의 원격 CI URL과 정확한 SHA는 실행 완료 후 이 항목에 추가해야 합니다.
+- 최신 로컬 실행은 2026-09-16 기록을 따릅니다. SHA `70e05bd`의 첫 원격 실행은 install/publication path/lint/typecheck/unit을 통과했지만, 단일 process 통합 실행이 취소돼 format/build가 skip됐습니다. 수정 SHA `7265dcddc425bba2e13e24f7276e7e352d973e31`의 [원격 CI](https://github.com/hyunglory/bros/actions/runs/35039591619)는 4분 10초에 install부터 build까지 성공했습니다.
 - 로컬 단위 163개·Admin 35개·통합 191개 PASS. 통합 runner는 파일별 별도 Node process를 순차 실행하도록 바꿔 CI 진행 상태를 식별 가능하게 했습니다. frozen lockfile install, publication 경로 검사, lint/typecheck, 포맷과 build를 확인했습니다.
 
 ### 배포·제한

@@ -3427,3 +3427,35 @@
 - 작업 범위: 이 결정의 파일만 명시적으로 stage/commit하고 일반 push한 뒤, 새 SHA의 `install / lint / typecheck / test / build` 결과를 확인한다.
 - 금지 변경: force push, 테스트 완화, 원본 XLSX/raw/capture/비밀값 공개, live Provider/운영 migration/자동승격 실행, P3-14 실제 정답 입력 요구.
 - 완료 조건: 새 head SHA의 workflow와 required check/protection 상태가 일치하며, 취소된 이전 SHA와 혼동하지 않는 증거를 남긴다.
+
+## DEC-20260916-003 — Phase 3 원격 CI 재실행 성공 확인
+
+- 일자: 2026-09-16
+- 종료한 작업 분야 또는 단계: Phase 3 변경 묶음의 push 및 원격 CI 검증
+- 작업에 사용한 모델과 추론 수준: Codex (GPT-5 기반), 세션 추론 수준은 식별 불가
+- 검토 범위와 근거 문서: `AGENTS.md`, DEC-20260916-001/002, `docs/TEST_REPORT.md`, `docs/PHASE3_RELEASE_PREP.md`, GitHub workflow 35039591619/job 104616259592, PR #1 check/protection 상태
+
+### 확정 결정
+- SHA `7265dcddc425bba2e13e24f7276e7e352d973e31`의 CI를 Phase 3 변경과 CI runner 보정의 원격 검증 증거로 채택한다.
+- job `install / lint / typecheck / test / build`는 4분 10초에 SUCCESS로 완료됐고, PR #1은 같은 SHA에서 `MERGEABLE`/`CLEAN`이다.
+- 이 성공은 Phase 3 Gate PASS나 운영 활성화를 뜻하지 않는다. BLK-005 운영 입력, BLK-007/P3-14 보류, 자동승격 OFF를 유지한다.
+
+### 기각한 선택지와 이유
+- 취소된 SHA `70e05bd`의 부분 성공을 최종 증거로 사용: 통합/format/build 결과가 없어서 새 revision 검증 조건을 충족하지 않는다.
+- CI 성공만으로 Gate 또는 live Provider를 활성화: 실제 운영 계약·계정·키·정답/capture 검수가 아직 없다.
+
+### 변경 파일
+- `docs/TEST_REPORT.md`, `docs/PHASE3_RELEASE_PREP.md`, `docs/PHASE3_PR.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+- workflow 35039591619/job 104616259592: install, publication path check, lint, typecheck, unit and integration tests, format check, build SUCCESS; 4m10s.
+- GitHub check run 이름과 SHA 일치, PR #1 head `7265dcd`, required check SUCCESS, `MERGEABLE`/`CLEAN` 확인.
+
+### 미해결 사항 및 Blocker
+- 이번 결과 기록을 포함하는 후속 docs-only commit의 CI는 아직 실행하지 않았다.
+- BLK-005 운영 입력/연결 OPEN, BLK-007/P3-14 사용자 보류, Phase 3 Gate BLOCKED, 자동승격 OFF를 유지한다.
+
+### 다음 작업 인수 조건
+- 작업 범위: 이 결과 기록을 별도 commit/push하고 최종 head의 required CI를 확인한다. 그 다음 범위는 BLK-005 운영 계약/한도/계정·키 및 실제 P3-14 정답/capture 확보 시 재개다.
+- 금지 변경: force push, live Provider/운영 migration/자동승격 실행, P3-14 실제 정답 입력 요구, 취소된 CI를 성공으로 재기록.
+- 완료 조건: 최종 head SHA의 CI가 success이며, CI 성공과 Phase 3 Gate/운영 상태를 분리해 보고한다.
