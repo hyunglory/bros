@@ -1,0 +1,28 @@
+{
+  "name": "@bros/importer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bros/contracts": "workspace:*",
+    "@bros/db": "workspace:*",
+    "@bros/queue": "workspace:*",
+    "@e965/xlsx": "0.20.3",
+    "kysely": "0.29.5"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "bros",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "publication:check": "node scripts/check-publication.mjs",
+    "resolver:capture:export": "pnpm build:packages && node --env-file-if-exists=.env scripts/export-resolver-capture.mjs",
+    "resolver:evaluate": "pnpm build:packages && node scripts/evaluate-resolver.mjs",
+    "api:start": "pnpm build && node --env-file-if-exists=.env apps/api/dist/main.js",
+    "admin:dev": "pnpm --filter @bros/admin run dev",
+    "admin:preview": "pnpm --filter @bros/admin run preview",
+    "worker:start": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/main.js",
+    "worker:test": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-system-test.js",
+    "worker:import": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-product-import.js",
+    "worker:resolve": "pnpm build && node --env-file-if-exists=.env apps/worker/dist/send-identifier-resolve.js",
+    "build": "pnpm -r --if-present run build",
+    "build:packages": "pnpm --filter \"./packages/**\" -r --if-present run build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && pnpm build",
+    "db:logs": "docker compose logs -f postgres",
+    "db:migrate": "pnpm run build:packages && node --env-file-if-exists=.env scripts/migrate.mjs",
+    "db:stop": "docker compose stop postgres",
+    "db:up": "docker compose up -d postgres",
+    "format": "prettier --write \"*.{json,js,mjs,cjs,yaml,yml,md}\" .prettierrc.json .github apps packages scripts tests",
+    "format:check": "prettier --check \"*.{json,js,mjs,cjs,yaml,yml,md}\" .prettierrc.json .github apps packages scripts tests",
+    "lint": "eslint apps packages scripts tests eslint.config.js --max-warnings 0",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:integration": "pnpm build && node scripts/run-tests.mjs integration",
+    "test:unit": "pnpm run build:packages && pnpm --filter @bros/admin run test && node scripts/run-tests.mjs unit",
+    "typecheck": "pnpm run build:packages && pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.4",
+    "eslint": "10.10.0",
+    "pg": "8.23.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0"
+  }
+}

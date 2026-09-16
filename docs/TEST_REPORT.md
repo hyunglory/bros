@@ -6,3 +6,638 @@
 - 실행 명령: 없음
 - 결과: NOT_RUN
 - 비고: workspace 구현 전이므로 설치·빌드·타입 검사 결과가 없다.
+
+## 2026-09-12 — P1-01 Monorepo / pnpm Workspace
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `3eeec09`
+- 실행 명령: `pnpm install --frozen-lockfile`
+- 결과: PASS — 11개 workspace project(root 포함) 인식, lockfile 변경 없음
+- 실행 명령: 앱·패키지의 `dist`를 제거한 뒤 `pnpm typecheck`
+- 결과: PASS — 공통 패키지 7개 선행 build 후 10개 workspace typecheck 성공
+- 실행 명령: `pnpm build`
+- 결과: PASS — 의존관계 순서로 10개 workspace build 성공
+- 실행 명령: `pnpm list -r --depth -1 --json`
+- 결과: PASS — 앱 3개와 공통 패키지 7개 확인
+- 실행 명령: 빌드된 `apps/api/dist/index.js`, `apps/worker/dist/index.js`를 Node.js ESM으로 import
+- 결과: PASS — `@bros/*` workspace 의존성을 컴파일 산출물에서 해석
+- 실행 명령: `git check-ignore -v --no-index storage/runtime.db`, `git check-ignore -v --no-index packages/storage/src/index.ts`
+- 결과: PASS — 루트 `/storage/`는 제외되고 `packages/storage`는 추적 가능
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm build`, Node.js ESM import
+- 결과: PASS — 기존 `node_modules`와 `dist` 없이 전체 Acceptance Criteria 재현
+- 비고: 첫 C: 임시 복제에서 샌드박스 네트워크 접근이 차단되었고, D: 임시 fresh clone에서 동일 lockfile을 사용해 설치 및 검증을 완료했다. 제품 결함으로 분류하지 않는다.
+
+## 2026-09-12 — P1-02 공통 TypeScript / 품질 설정
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `102c0a7`
+- 실행 명령: `pnpm check`
+- 결과: PASS — ESLint, strict typecheck, Prettier 검사, 전체 build 성공
+- 실행 명령: `packages/core/src/index.ts`에 문자열 변수로 숫자를 대입한 뒤 `pnpm typecheck`
+- 결과: PASS — TypeScript TS2322와 종료 코드 1을 확인하고 즉시 원복
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 97개 패키지를 lockfile로 설치하고 전체 품질 게이트 재현
+- 회귀 확인: `.gitattributes` 적용 전 fresh clone의 CRLF가 Prettier에서 탐지됨
+- 조치 및 결과: JS/JSON/TS/YAML을 LF로 고정한 뒤 같은 fresh clone 시나리오 PASS
+
+## 2026-09-12 — P1-03 환경변수 / Config Loader
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `9a43876`, 줄바꿈 보완 `15e82cb`
+- 실행 명령: `pnpm check`
+- 결과: PASS — lint, typecheck, config unit test, format check, build 성공
+- 실행 명령: `node --test packages/core/test/config.test.mjs` (`pnpm test`에서 선행 build 후 실행)
+- 결과: PASS — development valid, required value missing, production missing, production valid, invalid 값 비노출의 5개 case 통과
+- 실행 명령: `rg -n "process\.env" -- apps packages`
+- 결과: PASS — `packages/core/src/config/index.ts`의 명시적 process adapter 한 곳만 확인
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 기존 환경 파일·산출물 없이 전체 검증 재현
+- 회귀 확인: 첫 fresh clone에서 `.mjs`만 CRLF로 변환되어 format check 실패
+- 조치 및 결과: `.gitattributes`에 MJS/CJS를 추가한 뒤 같은 시나리오 PASS
+
+## 2026-09-12 — P1-08 API Contract / TypeBox
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `8035fa8`, 오류 details 보완 `94c7b65`
+- 실행 명령: `pnpm check`
+- 결과: PASS — 10개 unit test, lint, typecheck, format check, build 성공
+- 계약 검증: UUIDv7 publicId 허용, BIGINT/UUIDv4 거절, invalid request를 공통 400 envelope로 변환
+- 응답 검증: 202 `{publicId,status,statusUrl}`와 `{error:{code,message,requestId,details?}}` schema 확인
+- 경계 검증: error details의 비허용 key와 raw secret 형태를 schema가 거절
+- 페이지 검증: 기본 limit 50 정규화, 최대 100 허용, 101 거절
+- 소비 검증: Admin은 Static type을, API는 같은 runtime schema를 `@bros/contracts`에서 import해 build 성공
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`
+- 결과: PASS — 최종 allowlist 보완을 포함한 전체 검증 재현
+
+## 2026-09-12 — P1-13 SecretProvider / Sensitive Data Redaction Baseline
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, Pino 10.3.1
+- 대상 커밋: `d983030`
+- 실행 명령: `pnpm check`
+- 결과: PASS — 14개 unit test, lint, typecheck, format check, build 성공
+- secret 검증: key→environment 이름 변환, browser profile key validation, EnvSecretProvider lookup, missing secret 오류 확인
+- text masking 검증: Bearer, password, cookie, DB URL userinfo, signed query 값 비노출
+- Pino 검증: root/nested token, request cookie/URL, database URL, Error message/stack을 실제 JSON line으로 직렬화하고 원문 secret 부재 확인
+- 회귀 확인: Pino가 serializer 처리 전 `err.message`를 최상위 `msg`로 복사해 token을 재노출하는 실패 탐지
+- 조치 및 결과: logger hook에서 문자열과 자동 Error message를 선행 마스킹하고 재실행 PASS
+- 실행 명령: `rg -n "process\.env" -- apps packages`
+- 결과: PASS — config process adapter 한 곳 외 직접 접근 없음
+- 실행 명령: 임시 fresh clone에서 `pnpm install --frozen-lockfile`, `pnpm check`, `process.env` 경계 검색
+- 결과: PASS — 전체 보안 baseline 재현
+
+## 2026-09-12 — P1-14 Test Harness / CI Baseline
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0
+- 대상 커밋: `fc3269c`
+- 실행 명령: `pnpm check`
+- 결과: PASS — unit 14개, workspace integration 1개, lint, typecheck, format check, build 성공
+- discovery 검증: `scripts/run-tests.mjs`가 unit 3개 파일과 integration 1개 파일을 분리 발견하며 대상이 0개면 실패하도록 구성
+- 의도적 lint 실패: unused variable 주입 → ESLint 종료 코드 1 확인 → 원복
+- 의도적 type 실패: string에 number 대입 → TS2322와 종료 코드 1 확인 → 원복
+- 의도적 test 실패: secret과 무관한 boolean assertion 반전 → Node test runner 종료 코드 1 확인 → 원복
+- lockfile 검증: fresh clone에서 `pnpm install --frozen-lockfile` 성공
+- clean pipeline 검증: fresh clone에서 install → lint → typecheck → unit/integration → format check → build 순서 PASS
+- CI 정적 검증: workflow YAML을 Prettier parser로 확인하고 action release tag의 공식 commit SHA를 조회해 고정
+- PostgreSQL lifecycle: GitHub Actions service에 PostgreSQL 18 healthcheck와 test 전용 DSN 구성
+- 원격 GitHub Actions 실행: NOT_RUN — GitHub remote/repository가 없어 BLK-001로 기록
+- merge/release required check 검증: NOT_RUN — branch protection 입력이 없어 BLK-001로 기록
+
+## 2026-09-12 — P1-04 PostgreSQL 18 개발환경
+
+- 환경: Windows, Docker Engine 29.7.2, Docker Compose v5.3.1, PostgreSQL 18.6
+- 대상 커밋: `bc8c419`
+- Compose 정적 검증: test 전용 `POSTGRES_PASSWORD`와 `POSTGRES_PORT=55432`를 process environment로 주입한 `docker compose config --quiet` PASS
+- 포트 안전성: 호스트 5432가 `mygoal-postgres`에 이미 할당된 사실을 확인하고 기존 서비스를 변경하지 않은 채 BROS만 55432로 기동
+- 실행 명령: `docker compose up -d postgres`, health 상태 poll, `docker compose ps postgres`
+- 결과: PASS — `bros-postgres-1`이 `healthy`, host 55432 → container 5432 TCP 연결 성공
+- DB 검증: `current_setting('server_version')`이 `18.6 (Debian 18.6-1.pgdg12+2)`, data directory가 `/var/lib/postgresql/18/docker`, `uuidv7()` 호출 성공
+- 영속성 검증: probe row 생성 → `docker compose restart postgres` → healthy 대기 → 같은 row 조회 성공 → probe table 제거
+- 정리: `docker compose stop postgres`로 service만 중지하고 `bros_postgres_data` named volume은 보존
+- 회귀 검증: `pnpm check` PASS — unit 14개, integration 1개, lint, typecheck, format check, build 성공
+- 이미지 재현성: `postgres:18.6-bookworm` multi-architecture digest `sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af`를 Compose와 CI에 동일하게 고정
+
+## 2026-09-12 — P1-05 명세 및 구현 초안
+
+- 대상: 아직 확정하지 않은 P1-05 working tree. BLK-002 정책 답변 대기.
+- 환경: Node.js v24.14.1, pnpm 11.19.0, Kysely 0.29.5, pg 8.23.0, @types/pg 8.23.1.
+- 명세 대조: 설계서 11·12장 + 보완 명세 2장/3.2에서 18개 테이블, 256개 컬럼, 26개 FK를 목록화했다.
+- 정적 검사: `node --check`로 migration CLI와 DB fixture/schema test 문법 PASS. `pnpm lint` PASS.
+- TypeScript: 최초 명시적 실행 차단 함수의 never 반환으로 unreachable 타입 오류 발생 → 반환 선언을 void로 바꾼 뒤 `pnpm --filter @bros/db build` PASS.
+- 미실행: 실제 DB migration, rollback/forward, metadata 대조, constraint negative test, 전체 `pnpm check`는 NOT_RUN. 정책 미확정 baseline의 up은 명시적 오류로 차단되어 있다.
+- 남은 테스트: 코드 정책 결정 후 MASTER/SKU 복합 FK, Identifier scope/primary, Import 최종 집계, Thumbnail 성공/검수 순번 사례를 추가하고 전체 DB 시나리오를 실행한다.
+
+## 2026-09-12 — P1-05 구현 및 DB 검증 완료
+
+- 대상 커밋: `6e3cd03` — DEC-20260912-010의 코드 정책을 반영한 baseline.
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, PostgreSQL 18.6, Kysely 0.29.5, pg 8.23.0, @types/pg 8.23.1.
+- 실행 명령: `TEST_DATABASE_URL`을 개발 PostgreSQL 55432로 process 주입한 뒤 `pnpm check`.
+- 결과: PASS — lint, typecheck, unit 14개, integration 22개(Node runner의 부모 test 포함), format check, build. Skip 0개.
+- schema metadata: 18개 테이블 256개 컬럼의 타입·NULL·기본값·identity를 작성한 DB_MIGRATION_SPEC과 대조. 모든 테이블 PK/public UUID UNIQUE, 26개 FK의 RESTRICT/조회 B-tree, 문서 컬럼 CHECK 존재, 상품명 pg_trgm GIN과 raw GIN 부재 확인.
+- migration: 빈 `template0` 기반 DB에서 실행; DDL 중간 충돌 시 앞선 생성도 rollback; 충돌 제거 후 재적용; 동시 재실행의 no-op; disposable DB에서 down→forward 성공. seed 4개 재현.
+- ID/수치: UUIDv7 기본 생성, UUID 중복/NULL 및 임의 identity 입력 차단; BIGINT `9007199254740993`과 NUMERIC 소수의 string 정밀도 보존.
+- 관계/유일성: global/platform alias 범위, MASTER/SKU 복합 FK, Identifier 범위·primary UNIQUE, 서로 다른 MASTER의 동일 식별자 허용, Source 외부 ID·옵션 key, 참조 중인 부모 삭제 차단.
+- 이미지: 미매칭 Source 등록 허용, metadata 일부만 입력/미저장 STORED/비정상 hash·revision 거절, 원본 revision 구분, 같은 생성 hash의 동시 INSERT 중 하나만 성공.
+- Import/후보: raw JSON null·배열·스칼라 보존과 SQL NULL 차단, 실패 원본·중복 외부 ID 행 보존, 행 번호 유일성, 종료 집계·상태 정합성, candidate rank/version/score와 evidence/conflict 배열 제약.
+- Thumbnail/자동화: recipe 버전 유일성, 성공 hash/processing version 필수, 성공과 검수 분리, 동시 검수 순번 충돌; browser profile/IANA timezone, queue provider/job ID 쌍, 실행 request key 유일성 및 시간 순서 검증.
+- 열린 코드 정책: 다섯 필드에 새로운 코드 값 허용, NULL·빈 문자열·공백/탭/개행만 있는 값·65자 입력 거절.
+- CLI: 정상 migration 성공과 잘못된 설정의 exit 1 확인. 오류에 입력 연결정보나 민감 marker가 노출되지 않음.
+- 초기 테스트 수정: 표 머리글을 컬럼으로 센 parser 수정, RESTRICT 삭제의 SQLSTATE `23001`과 FK 입력의 `23503` 구분, pg metadata의 `name[]`를 `text[]`로 변환. 수정 후 전체 PASS.
+- 최종 명세 대조 보완: automation_run.trigger_type을 VARCHAR(16)으로 수정, 문자열 공백 검증에 탭/개행 포함, Import 종료 상태와 failed_count의 관계 CHECK 추가. 모두 최종 테스트에 반영.
+- clean clone: `tmp/p105-clean-9e2c6343e8c14adda4a3157bf2a607b7`에 `6e3cd03`을 `git clone --no-local`로 복제 → `pnpm install --frozen-lockfile` → `pnpm check` PASS. 기존 node_modules/dist/.env 없이 재현, clone의 Git 변경 0건.
+- 개발 DB: 적용 전 bros DB의 app/bros_migrations 업무 테이블 0개 확인 → `pnpm db:migrate` PASS → 업무 테이블 18개, 이력 001-baseline, platform seed 4개 확인. 잔여 `bros_test_` DB 0개.
+- 종료 상태: `docker compose stop postgres` 실행. 개발 DB volume에 적용 결과 보존; 기존 다른 프로젝트 PostgreSQL은 변경하지 않음.
+- 미검증 범위: P1-06 런타임 repository/transaction API, P2/P3/P4/P5 업무 상태 전이·승인·매핑 잠금, P1-14 원격 GitHub CI/required check(BLK-001). P1-05 결과와 구분한다.
+
+## 2026-09-12 — P1-06 완료
+
+- 결과: PASS. Node 24.14.1, pnpm 11.19.0, PostgreSQL 18.6 개발환경 사용.
+- 실행: `node --test tests/integration/database-client.integration.test.mjs` 9개 PASS 후 `pnpm check` 전체 PASS. unit 15개, integration 31개(Node parent 포함), fail/skip 0개; lint/typecheck/format/build PASS.
+- 최초 전체 검사에서 JsonObject index signature 표기가 lint에 실패했다. Record로 수정 후 전체 검사를 통과했다.
+- API/Worker의 별도 pool이 동일 packages/db repository로 seed를 조회하고 내부 id를 projection에 노출하지 않음을 확인했다. 실제 BIGINT string, timestamp Date, JSON object 반환을 확인했다.
+- transaction commit 전후 별도 연결의 가시성, callback 및 DB CHECK 실패 시 전체 rollback·연결 반환, callback 자동 재시도 없음, 중첩 transaction 차단을 검증했다.
+- pool max=1 포화 대기 timeout, SQL statement timeout(SQLSTATE 57014) 이후 query 복구, 중복 close·종료 후 query 거절·미사용 pool 종료를 검증했다.
+- 컴파일 검증은 잘못된 column/table/state, number BIGINT, identity 입력, public_id 수정, 미직렬화 JSON array 쓰기를 거절한다. 기존 18개 테이블·256개 컬럼 metadata 및 DB 제약 테스트도 통과했다.
+- 종료 전 잔여 bros_test_ DB 0개, 기존 app 테이블 18개 확인. BROS postgres만 중지하고 volume 보존. baseline migration 변경 없음.
+- P1-06 fresh clone 검사는 별도 실행하지 않았다. 이번 변경에는 dependency/lockfile 변경이 없다. P1-05 clean clone 증거를 P1-06의 실행 결과로 간주하지 않는다.
+- 미검증: HTTP signal/drain은 P1-07, Worker bootstrap은 P1-10, 업무 CAS/잠금은 후속 업무 service. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-12 — P1-07 완료
+
+- 결과: PASS(로컬). Node 24.14.1, pnpm 11.19.0, Fastify 5.12.4, PostgreSQL 18.6.
+- 실행: `pnpm check` 전체 PASS — unit 16개, integration 35개(Node parent 포함), fail/skip 0개, lint/typecheck/format/build 통과. `pnpm install --frozen-lockfile` PASS. 새 clean clone 검사는 별도 실행하지 않았다.
+- HTTP: /health가 DB 연결 생성 없이 200, schema 기반 UUID 입력 거절 400, JSON 파싱 오류 400, body limit 413, 404/500 공통 envelope, 응답 serializer의 내부 필드 제거, 서버 requestId 및 오류·로그 민감정보 미노출 검증.
+- DB: disposable DB 앞 TCP proxy에서 기존 소켓 단절 및 신규 연결 거절 → /ready 503, /health 200 → 연결 허용 후 /ready 200. 다른 DB/컨테이너를 중지하지 않고 실제 네트워크 장애를 주입했다.
+- timeout: pool 1개를 transaction이 점유한 상태에서 8개 readiness 요청이 제한 시간에 503을 반환하고 DB 대기는 1개만 유지하며 연결 반환 후 200으로 복구했다.
+- HTTP drain: 실제 TCP 요청이 transaction 안에서 대기하는 중 close 시작, 요청을 해제하면 Connection: close와 정상 body를 수신하고 pool 0개·listen 종료·이후 연결 거절 확인.
+- 프로세스: 별도 Node child의 등록 SIGTERM handler, pool 정리 후 exit 0, 점유 transaction 미완료 시 종료 deadline으로 exit 1, CLI 설정 오류 시 안전한 출력과 exit 1을 검증했다. Windows에서는 IPC로 SIGTERM 이벤트를 dispatch했다. 실제 POSIX 신호 전달은 Linux CI 분기로 구현했지만 이번 환경에서는 실행하지 않았다.
+- 발견·수정: checked-out pg Client의 별도 error 이벤트가 uncaughtException을 발생시키던 경로를 고정 메시지 listener로 처리했다. drain 중 keep-alive 연결이 종료를 지연시키던 경로는 응답 Connection: close로 해결했다. 타입·lint 및 초기 payload fixture 오류를 수정한 후 전체 검사를 다시 통과했다.
+- 종료: 디버깅 강제 종료로 남은 두 고유 fixture DB는 소유자 bros·연결 0·업무 테이블 0을 확인하고 명시적인 이름으로 정리했다. 최종 잔여 bros_test_ DB 0개, 기존 app 테이블 18개. BROS postgres 중지, volume 보존.
+- 미검증: Linux 실제 SIGTERM·원격 CI/required check(BLK-001), 운영 배포 환경, 후속 인증·업무 API·Queue/Worker. 테스트용 contract/failure/held route는 배포 app에 등록하지 않는다.
+- 최종 정리 보완: 프로세스 테스트 실패 시에도 자식 종료를 DB 삭제보다 먼저 수행하도록 hook 순서를 보완했다. 해당 프로세스 테스트 2개 재실행 PASS, DB 재중지 완료.
+
+## 2026-09-13 — P1-09 완료
+
+- 결과: PASS. pg-boss 12.31.0을 정확히 고정했다. 기존 Node 24.14.1 / pnpm 11.19.0 / PostgreSQL 18.6 환경 사용.
+- `pnpm check`: unit 18개, integration 43개(Node parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. `pnpm install --frozen-lockfile` PASS. 이번 단계의 fresh clone은 별도 실행하지 않았다.
+- 큐 단독 통합 검증 8개 PASS: 5개 이름·payload/ID 경계, browser 재시도 0, 업무+enqueue commit/rollback 가시성, 생산자 종료 후 보존, 두 소비자의 provider ID별 선점, retry/backoff/최종 실패·원문 예외 미보관, handler 완료를 기다리는 정상 stop.
+- 실제 별도 프로세스를 SIGKILL로 종료했다. enqueue 직전 및 enqueue 후 commit 전의 crash에서 미커밋 업무·큐 row가 남지 않았다. active job의 소비자 crash 후 expiration/retry를 통해 새 소비자가 attempt 2로 완료했다. 업무의 exactly-once 보장을 의미하지 않는다.
+- 타입 metadata generic 및 lint의 void 표기 문제를 수정한 후 전체 검사에 통과했다. timeout/옵션 범위와 미시작 adapter의 멱등 stop도 unit에서 검증했다.
+- 종료 전 잔여 bros_test_ DB 0개, 개발 app 테이블 18개, 개발 bros_queue 테이블 0개 확인. 테스트 대상은 disposable DB이며 기존 개발 DB에 queue 설치는 하지 않았다. BROS postgres 중지, volume 보존.
+- 미검증: stop deadline 초과 시 소유 Worker 프로세스 종료는 P1-10에서 검증한다. 업무 request_key/CAS/외부 부작용·스케줄은 후속 service 범위다. 원격 CI 및 P1-07 POSIX 실신호는 BLK-001 유지.
+
+## 2026-09-13 — P1-10 완료
+
+- 결과: PASS(로컬). `pnpm check` unit 18개·integration 52개(Node parent 포함), fail/skip 0, lint/typecheck/format/build PASS. 새 의존성 및 baseline 변경 없음.
+- 실제 별도 Worker 프로세스: 미실행 상태 enqueue 후 SUCCESS 및 platformCount "4", 동시 동일 request_key의 동일 receipt, retry 시 RETRY_WAIT 후 attempt 2 SUCCESS, 끝까지 실패 시 attempt 3 FAILED, 원문 오류 미노출 검증.
+- 프로세스 crash: RUNNING 중 SIGKILL → 새 Worker가 큐 만료/재시도 후 attempt 2로 성공. 종료 검증: 진행 작업 완료 후 정상 exit 0, 응답하지 않는 handler에서 1000ms 종료 deadline 후 exit 1.
+- 경쟁·자원 경계: SUCCESS 재전달 시 action 재실행 없음, 오래된 attempt가 새로운 SUCCESS를 덮어쓰지 못함, 등록 실패 시 queue/DB 정리, queue stop 실패 시 소유자가 종료하기 전 DB를 유지, 미시작 Worker의 중복 stop 및 재시작 차단을 검증했다.
+- 초기 enqueue에서 job_code UNIQUE를 잘못 가정한 쿼리가 실패했다. baseline 실제 제약을 확인하고 전용 transaction advisory lock과 모호한 정의 거절로 수정했다. 추가 회귀 테스트의 scope/lint 문제도 수정 후 전체 PASS.
+- Windows에서는 SIGTERM handler를 IPC로 호출하고 crash는 실제 자식 프로세스 강제 종료를 사용했다. POSIX 실제 SIGTERM 분기는 Linux CI에서 확인해야 한다(BLK-001).
+- 개발 DB smoke: send-system-test CLI 접수 → 실제 startWorker 실행 → publicId `01a09846-0c34-7e6d-bf7a-abd8dad5dac5`, provider ID `eb1d0f5f-b3f5-4950-84d9-dd14b99df537`, SUCCESS/attempt 1/result {platformCount:"4"} → WORKER_STOPPED 및 exit 0 확인. bros_queue 및 INTERNAL smoke 정의/성공 이력을 개발 DB에 보존했다.
+- 최종 잔여 bros_test_ DB 0개, app 테이블 18개 유지, BROS postgres 중지 및 volume 보존. 새 clean clone 검사는 별도 실행하지 않았다.
+- 미검증: P5 업무 자동화·Browser handler·schedule reconciliation, P6 운영 heartbeat/권한/배포, 원격 CI/required check. Phase 1 전체 완료로 간주하지 않는다.
+
+## 2026-09-13 — P1-11 완료
+
+- 결과: PASS(로컬). React 19.3.0, React Router 7.18.3, Vite 8.3.0, Vitest 5.0.0을 정확히 고정했다.
+- `pnpm check`: Admin Vitest 6개, Node unit 19개, integration 53개, fail/skip 0개 및 lint/typecheck/format/build PASS. Admin production build는 JS 318.35 kB(gzip 98.35 kB), CSS 5.94 kB(gzip 2.05 kB)다.
+- UI: `/` Dashboard, 공통 layout, 미등록 route 404 화면, `/health` 초기 loading·정상·안전한 오류·수동 retry를 렌더링 테스트로 확인했다. API client는 3초 timeout, 비정상 HTTP, 연결 실패, 공용 TypeBox 계약과 다른 200 응답을 구분한다.
+- 개발 서버: 실제 Vite server와 로컬 health server를 함께 띄워 HTML 및 변환된 React entry 접근, same-origin `/health` 프록시 응답을 통합 테스트했다.
+- 브라우저: `http://127.0.0.1:5173/`에서 실제 렌더링과 `정상 운영 중` 전환을 확인했고 console warning/error는 0건이었다. 확인 후 브라우저 탭과 3000/5173 개발 프로세스를 종료했다.
+- 의존성: `CI=true pnpm install --frozen-lockfile` PASS. 최초 비대화형 실행은 pnpm의 modules purge 확인 정책으로 중단됐으며 CI 모드에서 lockfile 불일치 없이 재실행했다.
+- DB 회귀: 기존 P1-05~10 통합 검사를 위해 BROS PostgreSQL만 기동했고 전체 PASS 후 중지했다. 개발 volume과 기존 업무 데이터는 보존했다.
+- 미검증: 프로덕션 reverse proxy/정적 호스팅, Admin 인증·인가 및 업무 API는 후속 P6/업무 단계 범위다. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-13 — P1-12 완료
+
+- 결과: PASS(로컬). 새 외부 의존성이나 migration 변경 없이 `@bros/storage`의 ObjectStorage Port, Local adapter, object key validator/builder를 구현했다.
+- `pnpm check`: Admin Vitest 6개, Node unit 28개, integration 53개, fail/skip 0개 및 lint/typecheck/format/build PASS.
+- storage 단독 테스트 9개 PASS: portable key와 traversal 변형 차단, buffer/stream put 및 교체, get, 멱등 delete, missing 오류, ancestor junction 탈출 차단, signed URL 정상/변조/만료, provider-neutral Worker 소비, stream 실패 시 기존 target 보존·임시 파일 정리, 8개 동시 디렉터리 생성.
+- 타입 검증: `ObjectStorage`만 받는 Worker artifact 함수가 put/get을 사용하도록 별도 typecheck를 추가했고 Local/R2 분기나 filesystem 경로 없이 컴파일됨을 확인했다.
+- 저장 경계: 파일은 target과 같은 디렉터리의 exclusive 임시 파일에 쓰고 sync 후 rename한다. 반환 metadata와 signed URL에는 logical bucket/object key만 포함한다. 오류 메시지는 입력 key, root 절대경로, 원문 I/O/stream 오류를 포함하지 않는다.
+- Local signed URL은 HMAC과 1~86400초 만료를 적용하고 같은 adapter instance에서 검증·조회한다. 임시 signing key이므로 프로세스 재시작 후 URL 지속성은 보장하지 않는다.
+- 전체 회귀를 위해 BROS PostgreSQL만 기동했고 PASS 후 중지했다. 개발 volume은 보존했고 실제 `./storage`에는 파일을 생성하지 않았으며 테스트별 OS temp root를 정리했다.
+- 미검증: POSIX mode 0700/0600과 symlink 동작은 Windows 환경에서 직접 검증하지 않았다. R2/S3, HTTP preview route, 인증·보존 정책, 이미지 다운로드 크기/MIME/decode 검사는 P2/P4/P5/P6 범위다. 원격 CI/required check는 BLK-001 유지.
+
+## 2026-09-13 — Phase 1 Gate 재판정 / BLK-001 재확인
+
+- 환경: Windows, Node.js v24.14.1, pnpm 11.19.0, PostgreSQL 18.6(BROS 전용 Compose)
+- 대상: branch `codex/p1-foundation`, commit `b8bed87`
+- 실행 명령: PostgreSQL healthy 확인 후 `CI=true`, `TEST_DATABASE_URL`을 테스트 DSN으로 설정하고 `pnpm check` 실행
+- 결과: PASS — lint, typecheck, Admin Vitest 6개, Node unit 28개, integration, format check, build가 모두 성공했다. 테스트 종료 후 BROS PostgreSQL 컨테이너를 중지했고 volume은 보존했다.
+- P1-14 원격 GitHub Actions: NOT_RUN — `git remote -v`가 비어 있으며 GitHub CLI 기본 계정 토큰이 무효여서 대상 repository와 인증 권한을 확인할 수 없다.
+- required check 및 의도적 실패 PR merge 차단: NOT_RUN — branch protection 대상 repository·권한이 없다.
+- Gate 판정: BLOCKED — WBS P1-14 Acceptance Criteria의 실제 CI failure/merge 차단 증거가 없으므로, 로컬 pipeline PASS를 Phase 1 Gate PASS로 전환하지 않는다. BLK-001을 유지한다.
+
+## 2026-09-13 — P1-14 원격 CI / BLK-001 해소 / Phase 1 Gate 완료
+
+- 원격: `https://github.com/hyunglory/bros`, 기본 브랜치 `main`, 검증 브랜치 `codex/p1-foundation`, 정상 PR #1.
+- 최초 원격 CI: Actions run 34746278320이 Bash에서 인용되지 않은 `./packages/**` glob을 확장해 typecheck 단계에서 FAIL했다. `package.json`의 pnpm filter 패턴을 인용한 commit `5175a58`로 수정했다.
+- 수정 후 로컬 회귀: BROS PostgreSQL 18.6을 기동하고 `CI=true`, 테스트 DSN으로 `pnpm check` PASS. Admin Vitest 6개, Node unit 28개, integration 53개, fail/skip 0개와 lint/typecheck/format/build가 성공했다. 이후 컨테이너를 중지하고 volume을 보존했다.
+- 정상 원격 CI: PR #1 commit `5175a58`, Ubuntu 24.04, PostgreSQL 18.6에서 Actions run 34746426348의 `install / lint / typecheck / test / build`가 2분 37초에 SUCCESS. GitHub API는 PR #1을 `mergeStateStatus=CLEAN`으로 반환했다.
+- 보호 규칙: repository ruleset `main required quality` ID 23149676, target branch `~DEFAULT_BRANCH`, enforcement `active`, strict required status check `install / lint / typecheck / test / build`, bypass actor 없음.
+- 실패 차단: 임시 PR #2 commit `dc048c5`에 `@typescript-eslint/no-unused-vars` 오류를 의도적으로 추가했다. 로컬 lint FAIL 및 Actions run 34747040147 FAILURE를 확인했고, GitHub API는 `mergeable=MERGEABLE`이지만 `mergeStateStatus=BLOCKED`를 반환했다. 이는 충돌이 아니라 required check가 merge를 차단한 증거다.
+- 정리: PR #2는 merge 없이 CLOSED하고 임시 원격·로컬 branch `ci/verify-required-check`를 삭제했다. 실패 PR과 Actions 기록은 GitHub에 유지된다. PR #1은 OPEN/CLEAN 상태다.
+- 공개 범위 결정: GitHub Free private repository의 protection/ruleset API가 403을 반환해 사용자 승인 후 repository를 PUBLIC으로 전환했다.
+- Gate 판정: PASS — P1-14 원격 CI와 실패 차단을 포함해 P1-01~P1-14 Acceptance 증거가 충족됐다. BLK-001은 RESOLVED다.
+
+## 2026-09-13 — P2-01 Discovery 입력 감사
+
+- 대상: WBS P2-01, 설계서 14장, 보완 명세 5장 입력 의존성, 현재 저장소 파일 목록과 DB 물리 계약.
+- 저장소 검색: 실제 상품 샘플, 원본 데이터 위치, Source fixture, Browser 대상 URL은 발견되지 않았다.
+- 문서 대조: `SourceProductInput`의 기존 필드와 DB `source_product`/`source_sku`/`product_image` 경계를 매핑했다. 수집 시각·상품 재고 입력과 옵션/이미지 하위 타입이 P2-02에서 확정돼야 하는 계약 공백임을 확인했다.
+- mapping dry-run: NOT_RUN — 실제 샘플 20건이 없다.
+- 결과: BLOCKED_EXTERNAL_INPUT — Source Mapping Spec 골격은 작성했으나 P2-01 Acceptance Criteria는 미충족. BLK-003으로 추적한다.
+
+## 2026-09-13 — P2-01 실제 샘플 20건 Mapping Dry-run
+
+- 입력: `examples/더망고_상품정보_20260913.xlsx`, 5,002,588 bytes, SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`.
+- 원본 보호: workbook은 `read_only=True`, `data_only=True`로 열었으며 셀을 수정하거나 다시 저장하지 않았다. 재배포 가능 여부가 확인되지 않아 Git stage 대상에서도 제외했다.
+- inventory: `상품 목록` 26,375건, MUSINSA 16,133건, OLIVEYOUNG 10,242건. 옵션 상품 3,722건, 재고상품 24,707건, 품절상품 1,668건.
+- 표본: 원본 행 순서 기준 10개 변형 조건에서 각 2건을 선택해 정확히 20건을 mapping했다. source locator와 선정 규칙은 Source Mapping Spec 4~5장에 기록했다.
+- mapping 결과: MAPPED 8건, MAPPED_WITH_REVIEW 8건, REJECTED 4건. REJECTED는 두 플랫폼에서 `externalProductId`가 비어 있는 의도된 필수값 실패다.
+- identity 검증: 유효 `(platformCode, externalProductId)` 16건, 중복 0건. legacy `고유값`은 누락 ID 대체값으로 사용하지 않았다.
+- 옵션/이미지 검증: 표본 옵션 20개에서 옵션명 20개와 옵션이미지 20개의 순서 pairing이 일치했다. mismatch 0건, 대표이미지 20/20건 존재.
+- 가격 검증: 원본 0은 실제 가격이 아닌 export 한계이므로 `normalPrice`/`currentPrice`는 20/20건 null로 mapping했다. 통화도 추정하지 않았다.
+- 보안 검사: 선택 20행의 field name/value에서 password, authorization, cookie, API key, token 의심값 0건. 이미지 URL query는 변환 파라미터이며 자격증명 파라미터는 확인되지 않았다.
+- 미실행: 추정 상품 URL의 live 접속, 이미지 다운로드, DB insert, Adapter 코드 실행은 P2-01 범위가 아니므로 수행하지 않았다.
+- 결과: PASS — 실제 필드표와 20건 row-level 결과가 작성돼 P2-01 Acceptance Criteria를 충족했다. P2-02 계약 결정은 별도 후속 작업이다.
+
+## 2026-09-14 — P2-02 SourceProductInput 표준 계약
+
+- 대상: `packages/contracts/src/source-product.ts`, public export, `packages/contracts/test/source-product.test.mjs`.
+- 계약 검증: full 입력, partial 입력, 필수값·미정 필드, malformed URL, decimal 범위·통화 의존성, option/image/identifier 중복, raw JSON·민감정보, import timestamp의 8개 테스트 PASS.
+- 보안 경계: raw의 비 JSON 값·cycle·secret key, URL userinfo와 credential/signature query를 거절하며 validation 결과에는 원본값 없이 issue code와 JSON pointer path만 반환함을 확인했다.
+- 시간·금액 경계: 실제 달력 날짜와 RFC 3339 offset을 검사하고 `+14:00` 초과 offset을 거절한다. 금액은 DB `numeric(20,4)` 범위의 비음수 canonical decimal string이며 가격 존재 시 통화가 필수다.
+- 실행 명령: contracts build/typecheck, 대상 Node test, 루트 `pnpm lint`, 기존 BROS PostgreSQL에 test DSN을 process 주입한 `pnpm check`.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 36개, integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+- 원격 결과: PR #1의 GitHub Actions run 34779705905에서 required check `install / lint / typecheck / test / build` PASS, 실행 시간 1분 39초.
+- 입력 보호: `examples/더망고_상품정보_20260913.xlsx`는 읽거나 수정·stage하지 않았고 원본 Excel은 Git 외부에 유지했다.
+
+## 2026-09-14 — P2-03 XlsxImportAdapter
+
+- 대상: `@bros/importer` workspace의 `XlsxImportAdapter`, 비식별 XLSX fixture mapping test.
+- adapter 경계: workbook buffer만 입력으로 받고 `상품 목록` 시트와 5행 header를 검증한다. 25MB와 100,000 data row 상한, formula/비 JSON cell 거절, platform host allowlist, option count/pairing, safe issue code를 적용한다.
+- fixture 검증: full product/option/image/raw 변환, partial 입력, legacy ID fallback 거절, 20행 대표 집계(16 mapped/4 rejected), option·URL·price·formula 오류, sheet/header/size 경계를 검사한다.
+- 실제 원본 read-only 실행: SHA-256 `1C3D35AF15093510E613CF9504FAFD28E264B1D15AABB95B215DC564AC8E2FDE`의 26,375행을 `MAPPED` 25,945행, `REJECTED` 430행으로 변환했다. 외부 ID 결측 issue 407회, option 이름 수 불일치 5회, option 이미지 수 불일치 24회다.
+- 20행 재현: P2-01의 실제 locator 20개는 `MAPPED` 16행, `REJECTED` 4행이며 거절은 모두 외부 ID 결측이다. 원본 품질 상태는 raw에 보존하고 adapter의 accept/reject 결과와 혼합하지 않는다.
+- 의존성 선택: 실제 원본을 해석하지 못한 `exceljs 4.4.0`은 제거했다. 공개 Apache-2.0 repository와 integrity가 확인된 `@e965/xlsx 0.20.3`을 고정했다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 41개(신규 adapter 5개 포함), integration 53개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-04 Import Validation / Raw 보존
+
+- 대상: `createImportValidationService`, `import_batch`·`import_item`에 대한 mapped/rejected row 이력화와 raw secret 재검증.
+- 수용 경계: `platformCode`, `externalProductId`, `productName`만 필수다. 브랜드·식별자·가격·이미지 결측이 있는 valid input은 `PENDING` item으로 보존하고, P2-06 전에는 `source_product`를 만들지 않는다.
+- 거절 경계: Adapter 거절, 재검증 계약 실패, batch platform mismatch는 `FAILED` item과 안전한 code/path로 남긴다. raw에서 secret성 key가 나오면 `raw: null`을 저장하고 원문 secret·URL은 item/error message에 넣지 않는다.
+- 통합 검증: 일회용 PostgreSQL DB에서 mapped/rejected row의 locator·context·raw·issue 보존, platform mismatch 거절, secret raw 미보존, source_product 0건을 확인했다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 55개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-06 Source Product Upsert
+
+- 대상: `createSourceProductUpsertService`의 PENDING item 소비, `(platform_id, external_product_id)` idempotency, source freshness와 batch terminal aggregate.
+- identity 검증: 첫 batch의 두 identity는 `CREATED`되고, 같은 identity의 새 `collectedAt` title·price·currency는 `UPDATED`된다. 같은 identity의 과거 입력은 최신 source 값을 보존하고 `MATCHED`된다.
+- batch 검증: mapped/rejected mixed batch는 valid row를 `SUCCEEDED`, 기존 rejected row를 `FAILED`로 유지하고 `PARTIAL_FAILED` 및 count 합계·finished_at을 기록한다.
+- 전체 결과: PASS — Admin Vitest 6개, Node unit 42개, integration 57개, fail/skip 0개. lint, typecheck, format check, 전체 build 성공.
+
+## 2026-09-14 — P2-05 Brand Normalizer
+
+- 대상: `normalizeBrandAliasName`, `createBrandNormalizer`의 승인 alias exact lookup과 platform/global 우선순위.
+- 정규화 경계: Unicode NFKC, trim, 연속 공백 통합, 대소문자만 정규화한다. 구두점 삭제·부분일치·유사도 매칭은 승인하지 않은 alias를 표준 brand에 연결할 위험이 있으므로 수행하지 않는다.
+- 전용 PostgreSQL 통합 검증: platform alias가 동일 normalized alias의 global alias보다 우선함, active brand의 한글 alias가 전역으로 연결됨, unknown/blank/unknown platform/inactive brand가 `UNRESOLVED`이며 brand를 생성하지 않음을 확인했다.
+- 실행 결과: unit 44개 PASS, P2-05 전용 integration 1개 PASS, lint·typecheck·format check·production build PASS.
+- 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check`의 종료 증거와 원격 CI는 아직 PASS가 아니다. P2-06 원격 run `34795563889`는 `cancelled`로 종료되어 성공 근거로 사용하지 않는다.
+
+## 2026-09-14 — P2-07 Embedded Identifier Extractor
+
+- 대상: `extractEmbeddedIdentifiers`의 explicit `identifiers[]`와 nested raw JSON allowlist key 후보화.
+- 추출 경계: `MODEL_NO`, `STYLE_CODE`, `PRODUCT_NO`, `MPN`, `GTIN`, `EAN`, `UPC`, `BARCODE`, `BRAND_CODE`의 승인 raw key만 후보화한다. 임의 문자열/상품명/숫자 raw 값의 regex 추정은 하지 않는다.
+- provenance: source field JSON pointer 또는 raw JSON pointer를 후보별로 모두 보존한다. 같은 type·normalized value는 하나의 후보로 합치며 provenance만 누적한다.
+- 안전 경계: identifier value는 NFKC·trim·공백 통합·대문자 norm을 사용하고, traversal depth/node/candidate 상한에 걸리면 `truncated: true`로 이후 단계의 자동 확정을 막을 수 있게 한다.
+- 실행 결과: nested raw JSON, 중복 provenance, unknown/numeric non-inference, traversal determinism/boundary를 포함한 Node unit 47개 PASS. importer build PASS.
+- 전체 결과: IMPLEMENTED_NOT_VALIDATED — 전체 `pnpm check` 종료 증거와 원격 CI PASS는 P2-05와 함께 아직 없다.
+
+## 2026-09-14 — P2-08 MASTER Matcher v1
+
+- 대상: `matchMasterCandidates`, `createProductMatcher`의 existing MASTER 후보 조회와 결정적 evidence/conflict 평가. DB mutation과 MASTER 생성·source 연결은 범위에서 제외했다.
+- 후보/강한 근거: `BRAND_CODE` 제외 identifier exact와 resolved-brand pg_trgm 후보를 합친다. verified GTIN/EAN/UPC 계열 exact, verified same-type model exact, resolved brand + same-type identifier exact만 강한 근거가 된다. title similarity는 조회·검수 근거일 뿐 자동 match 근거가 아니다.
+- 차단 경계: strong 후보 복수, brand/GTIN/model/variant/inactive conflict, P2-07 truncation은 `REVIEW_REQUIRED`이며 selected MASTER를 반환하지 않는다. 기존 후보가 없을 때도 resolved brand와 상품 identifier가 함께 있어야 `NEW_MASTER_CANDIDATE`이며, identity 근거가 없으면 review다.
+- unit: unique verified GTIN exact, ambiguous exact, exact+GTIN conflict, exact+model conflict, similar title/different variant, truncated extraction, new candidate, insufficient evidence의 8개 matcher 시나리오 PASS.
+- PostgreSQL integration: 실제 baseline/pg_trgm에서 source GTIN과 verified EAN의 계열 exact 후보를 찾고 provenance·public identifier evidence를 반환하며 `source_product`를 쓰지 않음을 확인했다.
+- 전체 결과: 최종 근거 규칙 직전 로컬 `pnpm check` PASS — Admin Vitest 6개, Node unit 54개, integration 59개, fail/skip 0개. 최종 변경 후 전체 unit을 다시 실행해 Admin 6개·Node 55개 PASS했고 importer lint/typecheck/build도 PASS했다. 원격 CI는 이번 공개 전송 미승인으로 NOT_RUN이므로 구현 상태는 `IMPLEMENTED_NOT_VALIDATED`를 유지한다.
+
+## 2026-09-14 — P2-09 MASTER Creator / Race Control
+
+- 대상: `createMasterService.process(itemPublicId)`의 READ COMMITTED transaction, identity advisory lock, lock 후 P2-08 재조회, atomic MASTER/identifier/source/item/batch 쓰기.
+- 단위 검증: GTIN/EAN/UPC lock 동등성, model type 분리, BRAND_CODE 제외, 입력 순서 무관 lock 순서, 옵션 범위·public UUID 입력 거절 2개 PASS.
+- 실제 PostgreSQL 18.6 통합 12개 시나리오 PASS(부모 test 포함 13개): 별도 batch 4개 동시 요청의 MASTER 1개 수렴/GTIN label 교차, 같은 item 4회 동시 replay, 역순 복수 identifier lock, 기존 링크 보존, 같은 시각·다른 explicit identifier 검수, identifier 없는 유사상품 검수/집계, SKU 전 옵션 충돌/브랜드 충돌, ambiguous master/truncation/복수 identity 검수, stale source skip, item update 강제 실패의 전체 rollback/재실행, lock 재시도 소진과 재호출, 실제 서로 다른 transaction의 lock 대기를 관찰한 뒤 해제하는 자동 retry.
+- source 입력은 synthetic fixture만 사용했다. 신규 identifier는 미검증 상태이며 provenance, public ID, 원본 mappedInput 및 처리 이력을 확인했다. 운영 DB·실제 XLSX를 변경하지 않았다.
+- 전체 `pnpm check` 최종 exit 0: Admin Vitest 6개, Node unit 57개, integration 72개, fail/skip 0개; lint/typecheck/format/build PASS.
+- 초기 실패: 별도 `.worktrees/p5-browser`가 생성되어 루트 Prettier가 다른 checkout의 11개 파일을 검사했다. `.gitignore`와 `.prettierignore`에 `.worktrees/`를 추가한 뒤 해결했다. 다른 checkout의 코드는 수정하지 않았다.
+- 중간 재실행에서 기존 API readiness 초기 50ms probe가 503을 반환해 1개 실패했다. 해당 API test 단독 2개 PASS 및 최종 전체 재실행 PASS; 타이밍 민감 가능성을 남기며 API/test 코드는 변경하지 않았다.
+- 원격 push/CI: NOT_RUN. 구현 상태는 기존 기록 방식대로 `IMPLEMENTED_NOT_VALIDATED`이며 로컬 통과와 구분한다. 실데이터 recall/대량 처리 성능·임의 SQL writer와의 동시성은 이번 검증 범위 밖이다.
+
+## 2026-09-14 — P2-10 SKU Normalizer / Mapper
+
+- 대상: `createSkuMapper.process(itemPublicId)`와 P2-08의 SKU 후 variant 비교 경계.
+- 단위: NFKC/공백/대소문자 결정성, 구두점·토큰 순서 보존, advisory lock key 결정성, 옵션·UUID/재시도 예산 입력 거절 2개 PASS.
+- PostgreSQL 18.6 일회용 DB 통합: P2-04→P2-06→P2-09→P2-10 흐름에서 두 옵션을 생성하고, 같은 source의 더 새 수집본이 NFKC 동등 option을 제공해도 canonical SKU public ID 2개를 재사용하며 price·stock·raw provenance를 source SKU에 갱신함을 확인했다. 같은 normalized option 중복은 partial write 없이 `REVIEW_REQUIRED`이고, MASTER 미연결/option 없음은 안전하게 skip한다.
+- 실행: importer build/typecheck, P2-10 unit 2개, 전용 integration 5개(parent 포함) PASS. 최종 `TEST_DATABASE_URL`을 일회용 PostgreSQL 18.6에 주입한 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 59개, integration 77개(parent 포함), lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-11 Source Image Registrar
+
+- 대상: `createImageRegistrar.process(itemPublicId)`의 source product/option image metadata 등록, immutable revision과 ownership 보강. 실제 URL fetch·ObjectStorage write·이미지 생성은 범위에서 제외했다.
+- 단위: MAIN/DETAIL/option occurrence와 raw provenance, option key 연결, URL 보존, Registrar option/public UUID 경계 2개 PASS.
+- PostgreSQL 18.6 전용 통합 8개(parent 포함) PASS: 상품+SKU 이미지 등록과 same-item replay, 동일 URL 재import reuse, URL 변경의 새 revision과 기존 row 보존, 같은 URL을 공유하는 두 option의 별도 SKU ownership, 미매칭 source 등록 후 MASTER ownership 보강, missing/equal-time conflict 처리, concurrent import 단일 row 수렴, 두 이미지 중 강제 실패 시 전체 rollback과 replay 복구를 확인했다.
+- 모든 신규 row는 `REGISTERED`이며 storage provider/bucket/key, content hash, MIME, width/height/file size가 NULL임을 확인했다. 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 61개, integration 85개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-12 Import Batch / Item Tracking
+
+- 대상: `createImportResultRecorder.record(itemPublicId)`와 `recordFailure(...)`의 item terminal 결과, batch pipeline 완료·집계, 오류 경계와 replay.
+- 단위 5개 PASS: 선택 입력 부재의 성공 유지, review/skip 우선순위, validation 거절의 독립 종료, 하위 단계 누락·변조 거절, option/public UUID/failure stage/error code 런타임 경계를 확인했다.
+- PostgreSQL 18.6 전용 통합 4개(parent 포함) PASS: 한 batch의 성공·검토·stale skip·validation 실패를 동시에 기록해 각각 1건과 `PARTIAL_FAILED`를 얻었고, P2-04와 P2-09~11 evidence 보존, P2-06 `finished_at` 보존, P2-12 완료 시각 고정, 동시 호출 직렬화와 replay 집계 불변을 확인했다.
+- 명시적 P2-10 실패는 해당 item transaction만 `FAILED`로 끝나고 batch가 정확히 `FAILED`가 되며 raw exception 없이 안정된 code/message와 failure stage만 남는다. 승인 item에 P2-09~11 중 하나라도 없으면 `PIPELINE_STAGE_INCOMPLETE`로 전체 write가 rollback된다.
+- 최종 `pnpm check` exit 0 — Admin Vitest 6개, Node unit 66개, integration 89개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. 실제 상품 원본이나 운영 DB는 변경하지 않았고 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-13 Product Import Queue / Chunk Processor
+
+- 대상: `createImportChunkProcessor`, Worker `product.import` 등록·접수·receipt/attempt 기록, chunk/concurrency/admission 설정, source item별 commit, P2-12 중간 집계 CHECK 보완과 확정 item 보호.
+- 단위: chunk/concurrency 범위·UUID 경계와 환경변수 설정·안전한 오류 검사 추가. 최종 전체 Admin 6개·Node unit 68개 PASS.
+- PostgreSQL 18.6 전용 통합 7개 시나리오(parent 포함 8개) PASS: 동시 접수 4개의 동일 receipt 수렴, UUID-only queue payload, 접수 상한·트랜잭션 enqueue 롤백, source/image 강제 실패와 마지막 시도 실패 격리, 중간 새 실패의 정확한 status/count, 실제 PG 동시 작업 2개 관측·chunk 완료 대기·같은 batch 잠금 거절, 성공 형제 item의 raw/timestamp 보존과 명시적 resume의 기존 receipt 차단, 1k actual Worker 처리, 실제 SIGKILL 뒤 새 Worker의 pg-boss 재전달 복구를 확인했다.
+- 1k synthetic batch: 100건은 필수 ID 결측, 900건은 동일 MASTER/옵션의 서로 다른 source다. 최종 성공 900·실패 100, pipeline recorded 1000·completed=true, pipeline 10 chunks, source/source SKU/image 각각 900개다. 반복 접수·완료 replay 후 동일 건수이며 첫 실행 측정 52,470ms, 최종 전체 검증에서 55,568ms였다. 이 수치는 현재 Windows/Docker 로컬 환경 측정이며 P6의 4 vCPU/8GB·동시 Provider 부하·30분 성능 목표를 검증한 것은 아니다.
+- 실제 재시작: source insert에 짧은 지연을 주고 일부 행 commit을 관측한 뒤 Worker 자식 프로세스를 SIGKILL했다. 같은 queue job이 attempt 2 이상으로 재전달되어 30개 source와 pipeline item 30개를 중복 없이 완료했다. 정상 종료는 Windows IPC로 등록된 SIGTERM handler를 실행했다.
+- 최종 `pnpm check` exit 0: lint/typecheck/unit/integration/format/build PASS; integration 97개(parent 포함), fail/skip 0개. 일회용 PostgreSQL을 사용했으며 기존 `examples/`·운영 DB·별도 P5 worktree는 변경하지 않았다. 원격 push/CI NOT_RUN.
+- 환경 이슈: sandbox 안에서 pnpm 의존성 재구성이 장시간 멈춰 중단했고 승인된 offline install로 기존 캐시에서 복구했다. 설치 후 불필요한 자동 재설치를 막기 위해 검증 프로세스에만 `pnpm_config_verify_deps_before_run=false`를 설정했다. 신규 외부 dependency 버전은 없으며 기존 Kysely와 importer workspace link만 Worker에 추가했다.
+
+## 2026-09-14 — P2-14 Import 관리 UI/API
+
+- 대상: `GET /api/v1/import-batches`, `GET /api/v1/import-batches/:publicId`, `POST /api/v1/import-batches/:publicId/retry`, Admin `/imports`, P2-13 admission의 package 경계.
+- 계약/unit: Batch 업무 상태와 Queue 처리 상태를 별도 필드로 반환하고, cursor pagination 기본 50/최대 100과 status allowlist, strict 응답/요청, 공개 UUID를 검증했다. Admin은 목록·상세·실패 원인·filter·loading/empty/error/retry 상태를 검증했다.
+- PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond 안의 PostgreSQL 원본 timestamp 정밀도를 보존하는 생성시각+UUID cursor의 중복 없는 다음 page, batch/item 상태 filter, 안전한 detail projection, malformed cursor·404, 명시적 resume의 새 receipt, replay의 중복 publish 방지, 429 backpressure/retryAfter, 변경 header, business API disabled 경계를 확인했다. raw JSON, provider receipt와 내부 ID는 응답에 없음을 검사했다.
+- 인증 경계: 업무 API는 기본 disabled다. 비운영 loopback에서 `API_LOCAL_UNAUTHENTICATED=true`를 명시한 경우만 활성화하며, retry는 JSON과 `X-BROS-Operation: import-retry`를 요구한다. Caddy Basic Auth·actor·Origin/CSRF·직접 포트 차단의 운영 검증은 P6-01로 남겼다.
+- 최종 `pnpm check` exit 0: Admin Vitest 13개, Node unit 71개, integration 99개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-15 MASTER 상품관리 API/UI
+
+- 대상: `GET /api/v1/products`, `GET /api/v1/products/:publicId`, `PATCH /api/v1/products/:publicId`, Admin `/products`.
+- 계약/unit: 목록 기본 50/최대 100, `(created_at,public_id)` opaque cursor, MASTER/Identifier 상태와 브랜드·Source·상품명/품번 filter allowlist, strict request/response, UUIDv7 공개 관계를 검증했다. 수정은 `expectedVersion`, 변경 사유, 최소 한 개 허용 필드를 요구하고 내부 ID/raw/metadata/storage 위치 필드를 거절한다.
+- PostgreSQL 18.0 전용 API 통합 2개 PASS: 같은 millisecond의 cursor page, 5종 filter, MASTER→Brand/SKU/Identifier/Source/Source SKU/Image 공개 UUID 연결, 관계 없는 MASTER의 빈 배열, malformed UUID/cursor, 변경 header, 기본 disabled fence를 확인했다. 동일 version 동시 PATCH는 정확히 1건만 200이고 나머지는 409/actualVersion이며, 성공 건은 version 증가·정규화된 이름·필드별 전후값/사유를 보존한다.
+- Admin Vitest는 목록/검색 client, 상세 관계, 관계 없음, versioned edit, 409 후 최신 상세 reload를 검증했다. Source 이미지는 브라우저가 자동 요청하지 않도록 명시적 원본 링크로 제공한다.
+- 최종 `pnpm check` exit 0: Admin Vitest 20개, Node unit 73개, integration 101개(parent 포함), fail/skip 0개 및 lint/typecheck/format/build PASS. P2-13 1k import와 실제 Worker crash 복구도 회귀 통과했다. 감사 전후값 보강 뒤 P2-15 전용 PostgreSQL 통합 2개와 lint/typecheck/format/build를 다시 PASS했다. 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — P2-16 Brand Alias / Unresolved Brand Review
+
+- 대상: unresolved brand review domain, `GET /api/v1/brand-reviews`, `GET /api/v1/brands`, approve/reject API, Admin `/brand-reviews`, 기존 P2-05/P2-13 재사용 경계.
+- 계약/Admin: strict 공개 projection과 UUIDv7, 목록·active BRAND 검색, operation header, versioned approve/reject payload, 내부/raw 필드 거절을 확인했다. Admin은 기본 미결 목록, 검색/filter, 기존 BRAND·scope·사유 선택, 승인 후 재처리 batch 표시, 브랜드 선택 없는 거절, 409 새로고침을 검증했다. Admin Vitest 27개와 Node unit 76개가 PASS했다.
+- PostgreSQL 18 전용 통합 9개(parent 포함) PASS: 안전한 목록 projection과 기본 disabled fence, 승인 alias·결정 snapshot·Queue receipt·1건 재처리의 단일 transaction, 승인 후 exact resolution과 실제 Source→MASTER pipeline 완료, duplicate alias 재사용, 서로 다른 item의 동일 alias/다른 BRAND 경합 수렴, 비활성 platform 차단, platform alias의 global 우선, 거절의 무 alias/무 재처리, Queue 실패 전체 rollback을 확인했다.
+- 전체 통합 21개 파일을 Windows에서 순차 실행해 110개(parent 포함), fail/skip 0으로 PASS했다. P2-13 1,000건 실제 Worker import와 실제 프로세스 강제 종료 후 재전달, Queue crash/expiry, Worker 종료 회귀도 통과했다. lint/typecheck/format/build를 함께 재검증했으며 원격 CI는 NOT_RUN이다.
+
+## 2026-09-14 — Phase 2 Gate와 실제 XLSX 재import
+
+- 구현 기준 `646cb49`, 신규 `scripts/verify-phase2-sample.mjs`; 상세 입력 SHA·표본 행·5회 결과·재현 절차는 `docs/PHASE2_GATE.md`.
+- 실제 XLSX 전체 26,375행은 mapping inventory만 실행했다. 영속화는 기존 대표 20행으로 제한했다. 최종 실행 2026-09-14T13:10:30.351Z, PostgreSQL 18.6, 원본 SHA 전후 일치.
+- 실제 pg-boss와 독립 pool을 쓰는 Worker runtime 2개로 최초/동일 시각 재import/동시 2회/새 수집 시각 재import를 완료했다. 회차마다 유효 16행 REVIEW_REQUIRED, 필수 외부 ID 없는 4행 FAILED이며 Queue SUCCESS와 pipeline 완료를 확인했다. batch 업무 상태는 PARTIAL_FAILED다.
+- Source 16·이미지 메타데이터 35와 공개 UUID는 5회 모두 동일했다. raw/context/locator/mappedInput, 원본 이미지 URL·등록 metadata, 이전 완료 item 이력을 보존했고 새 수집 시각은 Source freshness에 반영됐다. 동일 batch 반복 enqueue는 동일 receipt를 반환했다.
+- 독립 실행 이력은 10 batches/100 items로 누적되고 미결 검수 80 items를 API cursor로 중복 없이 조회했다. BRAND/alias/MASTER/SKU/Source SKU는 0건이다. 승인 브랜드·명시 식별자가 없는 표본이므로 실제 양성 MASTER/SKU 연결 증거는 없으며 해당 관계는 합성 integration/API/Admin 증거로 구분했다. 이미지 다운로드/객체 저장/브라우저 XLSX 업로드는 NOT_RUN.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 각각 exit 0. Admin 27·Node unit 76, fail/skip 0. integration 21개 파일을 `node --test --test-concurrency=1`로 실행해 110개(parent 포함) PASS, fail/skip 0, 147,423ms. 합성 1k Worker 처리 53,892ms 및 실제 Worker crash/재전달 회귀도 PASS.
+- 당시 원격 현재 SHA check-runs 조회는 HTTP 422 No commit이었다. 이후 결과는 아래 BLK-004 해소 기록을 따른다.
+
+## 2026-09-14 — BLK-004 원격 CI / Phase 2 Gate 최종 확정
+
+- PR #1 branch `codex/p1-foundation`에 current SHA `cc605d0c6bd51173da32ab3e08a145158de6fddc`를 fast-forward push했다. `examples/` 원본 XLSX와 raw는 포함하지 않았다.
+- GitHub Actions [run 34849017954](https://github.com/hyunglory/bros/actions/runs/34849017954)는 pull request event에서 Ubuntu/PostgreSQL 18.6으로 `install / lint / typecheck / test / build`를 SUCCESS로 완료했다. job 시작 13:24:14Z, 완료 13:26:52Z.
+- PR #1 current head는 위 SHA, `mergeStateStatus=CLEAN`, required check conclusion SUCCESS다. active ruleset 23149676은 default branch에 strict 같은 check를 요구하며 bypass actor가 없다.
+- 결과: BLK-004 RESOLVED. P2-05·P2-07~16과 Phase 2 Gate는 PASS. 실제 XLSX 표본의 양성 MASTER/SKU 관계 부재와 전체 파일/이미지 download/P6 범위는 PASS 근거를 과장하지 않는 제한으로 유지한다.
+
+## 2026-09-15 — P3-01 Resolve Input / Run Model
+
+- 기준 HEAD `968dfa7`에 새 contracts/resolver 코드와 테스트를 추가했다. DB baseline migration은 변경하지 않았다. 실제 XLSX·기존 개발/운영 DB·별도 worktree는 변경하지 않았다.
+- `node --test packages/contracts/test/identifier-resolve.test.mjs`: 4개 PASS. UUID/version/timestamp, Import identity, candidate type/norm 중복·rank/decimal bounds·자동승인 입력 거부, secret-bearing raw/evidence/URL, cycle/depth/accessor/invalid JSON을 검증했다.
+- `TEST_DATABASE_URL`을 전용 PostgreSQL 18.6 컨테이너 `bros-p3-01-test`의 loopback 55438로 설정하고 `node --test tests/integration/identifier-resolve.integration.test.mjs`: 11개(parent 포함) PASS.
+- 통합 근거: 실제 Import validation/upsert 후 explicit identifiers/options/images provenance 보존, stale 및 newer reimport에서 과거 snapshot 불변, pool 종료/재생성 후 기존 run 재개, 실행 UUID 분리, null MASTER/direct-source, create/start/success/fail/cancel, NOT_FOUND, evidence/conflict/score 보존, terminal 불변, 중복·secret 후보 입력 거부, 후보 insert 이후 DB trigger 오류 rollback, 동시 시작·경합 종료의 단일 승자, secret Source 생성 rollback을 확인했다. Resolver가 identifier/MASTER를 생성하지 않음을 검증했다.
+- 최종 `pnpm check` exit 0: lint/typecheck/format/build PASS, Admin Vitest 27개, Node unit 80개, integration 121개(parent 포함), fail/skip 0. 통합 22개 파일 64,889.5708ms; 기존 1k Import·Queue·Worker crash/종료 회귀 포함. 최종 출력은 로컬 `tmp/p3-01-check.log`(Git 제외)에 있다.
+- 최초 전체 check의 lint는 non-null assertion 2곳을 거부했다. 두 곳을 제거한 뒤 위 전체 check를 재실행해 PASS했다. 기존 pnpm store 경로 불일치로 첫 offline install이 중단됐고 `pnpm install --offline --store-dir D:/.pnpm-store`로 기존 캐시를 사용해 완료했다. 새 registry dependency 버전 추가 없음. 검증 프로세스에만 `pnpm_config_verify_deps_before_run=false`를 사용했다.
+- `docker stop bros-p3-01-test` exit 0, `--rm` 컨테이너 정리 완료. 기존 두 컨테이너는 변경하지 않았다.
+- 범위: 로컬 구현·검증 PASS. 원격 push/CI·Provider/정확도 평가·P3 Queue/API/UI·수동검수는 NOT_RUN이며 `IMPLEMENTED_NOT_VALIDATED` 상태로 후속 Phase 3 Gate 검증을 남긴다.
+
+## 2026-09-15 — P3-02 Brand Pattern Registry
+
+- `@bros/contracts`에 versioned registry·pattern definition 계약을, `@bros/resolver`에 immutable compile/match registry를 추가했다. DB migration, 실제 브랜드 규칙, Provider/API/Queue/UI는 변경하지 않았다.
+- Registry는 brand key·RAW/URL/TITLE/OPTION source·identifier type·named `identifier` capture를 명시한다. match는 pattern ID·registry version·brand/source·원문 위치와 candidate value/type만 반환한다. decision status, score, evidence 평가 또는 MASTER/identifier write를 하지 않는다.
+- regex는 최대 512자, 입력은 16,384자이며 backreference, lookaround, 다중 named capture, nested/alternation quantifier를 등록 단계에서 거부한다. 후보 입력은 자르지 않고 빈 결과로 반환한다. registry definition은 clone 후 compile해 이후 설정 변경이 기존 registry에 영향을 주지 않는다.
+- P3-02 unit fixture 5개 PASS: positive brand/source/type mapping, brand/source/boundary/case/길이 negative, version/type/capture/중복 ID validation, unsafe regex, immutable version snapshot. fixture brand는 실제 브랜드 정책이 아닌 `fixture-brand`/`other-brand`다.
+- 최종 `pnpm check` exit 0: lint/typecheck/format/build PASS, Admin Vitest 27개, Node unit 85개, integration 121개(parent 포함), fail/skip 0. integration 22개 파일 61,580.6142ms. 상세 출력은 Git 제외 `tmp/p3-02-check.log`에 있다.
+- 첫 전체 check는 test의 `structuredClone` global ESLint 오류로 실패했다. JSON fixture 복제로 수정한 뒤 전체 check를 재실행해 PASS했다. 검증 시 `pnpm_config_verify_deps_before_run=false`와 loopback PostgreSQL 18.6 `TEST_DATABASE_URL`을 사용했다. `docker stop bros-p3-02-test` exit 0으로 전용 `--rm` 컨테이너를 정리했다.
+- 결과: 로컬 PASS. 원격 push/CI와 Pattern 기반 실제 resolver candidate 생성, 실제 브랜드 정답/정확도 평가는 NOT_RUN이다.
+
+## 2026-09-15 — P3-03 Raw / URL / Text Extractors
+
+- `@bros/resolver`에 P3-01 `IdentifierResolveInput`과 P3-02 immutable registry를 연결하는 extractor를 추가했다. 호출자는 확인된 canonical brand key를 전달하며, null/unknown key는 후보를 만들지 않는다. brand를 raw 이름으로 추측하거나 새로운 brand/alias를 만들지 않는다.
+- 추출 대상은 product title, product URL path/query value, raw JSON의 string leaf 및 Import provenance option name이다. 결과에는 candidate type/value와 source, JSON pointer/URL component locator, whole-regex matched text·offset, pattern ID/version만 있다. raw 전체 복사, candidate normalization/dedup, DB persistence, score/decision/MASTER write는 하지 않는다.
+- raw traversal은 key 정렬·array 순서로 결정적이며 depth 16/node 5,000/surface 1,000/candidate 200, text 16,384 경계를 둔다. 경계를 넘으면 입력을 자르지 않고 `truncated=true`를 반환한다. Source input validation을 먼저 재실행하여 secret-bearing field·URL, malformed payload를 evidence로 반환하지 않는다.
+- P3-03 fixture 4개 PASS: raw/URL path/query/title/option의 locator·matched evidence·pattern metadata, unknown brand/raw deterministic order, secret/malformed input과 malformed registry response, candidate/depth bounds와 truncation을 확인했다.
+- 최종 `pnpm check` exit 0: lint/typecheck/format/build PASS, Admin Vitest 27개, Node unit 89개, integration 121개(parent 포함), fail/skip 0. integration 22개 파일 59,198.7361ms. 상세 출력은 Git 제외 `tmp/p3-03-check.log`에 있다.
+- 첫 전체 check는 extractor 내부의 `Array<T>` ESLint 표기 오류로 실패했다. `T[]`로 수정한 뒤 전체 check를 재실행해 PASS했다. 검증에 loopback PostgreSQL 18.6 `TEST_DATABASE_URL`과 `pnpm_config_verify_deps_before_run=false`를 사용했고, `docker stop bros-p3-03-test` exit 0으로 작업 전용 `--rm` 컨테이너를 정리했다.
+- 결과: 로컬 PASS. 실제 brand pattern/정답 표본, candidate DB persistence·EvidenceCollector·Provider·scoring/decision·Queue/API/UI·원격 CI는 NOT_RUN이다.
+
+## 2026-09-15 — P3-04 Internal Catalog Provider
+
+- `@bros/contracts`에 closed internal catalog query 계약을, `@bros/resolver`에 read-only provider를 추가했다. query는 type별 이미 정규화된 identifier norm의 exact lookup 또는 canonical brand key·product name norm·선택적 option key의 exact lookup이다. type-specific normalization은 P3-07 책임으로 남겼다.
+- identifier 결과는 `ACTIVE` MASTER, `identifier_status=VERIFIED`, `product_identifier.is_verified=true`, active BRAND만 재사용한다. brand/name/variant도 active·VERIFIED MASTER와 active BRAND/SKU만 대상으로 한다. 결과는 `EXACT`/`AMBIGUOUS`/`MISS`, 최대 50 MASTER 및 `truncated`를 명시하며 write/승인/score/외부 호출을 하지 않는다.
+- P3-04 전용 PostgreSQL integration 6개 PASS: verified exact identifier와 SKU, cross-MASTER ambiguity, name-only/variant specificity, unverified/review/inactive/inactive-brand/type mismatch/miss, invalid query와 read-only count를 확인했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 모두 exit 0. Admin Vitest 27개, Node unit 89개, fail/skip 0이다.
+- 최초 `pnpm check`의 default parallel integration은 P2-13 1k Import/Worker 등 장시간 DB 부하와 동시에 실행된 기존 `database-client.integration`의 100ms statement timeout으로 4건 FAIL했다. P3-04 전용 test는 같은 run에서 PASS했고, 실패 직후 `database-client.integration` 단독 9/9 PASS로 재현되지 않았다. 코드/timeout 정책을 바꾸지 않았다.
+- `node --env-file-if-exists=.env --test --test-concurrency=1`로 integration 23개 파일을 순차 실행해 127개(parent 포함), fail/skip 0, 125,223.0558ms PASS했다. P3-04 전용은 437.6249ms였다. 상세 출력은 Git 제외 `tmp/p3-04-check.log`, `tmp/p3-04-integration-sequential.log`에 있다.
+- 검증에 loopback PostgreSQL 18.6 `TEST_DATABASE_URL`과 `pnpm_config_verify_deps_before_run=false`를 사용했고, `docker stop bros-p3-04-test` exit 0으로 작업 전용 `--rm` 컨테이너를 정리했다. DB migration, 실제 XLSX, 외부 Provider, 기존 timeout 정책은 변경하지 않았다.
+- 결과: 로컬 품질 명령 및 순차 통합 PASS. 원격 push/CI, P3-04를 run orchestration/candidate evidence로 연결, 실제 Catalog 정답/정확도 평가는 NOT_RUN이다.
+
+## 2026-09-15 — P3-05 External Candidate Provider Port + Brave
+
+- 공통 ExternalCandidateProvider와 Brave Web Search 어댑터를 추가했다. snapshot의 브랜드명/상품명만 외부 query로 투영하고 title/description/URL registry match를 SEARCH_RESULT/WEAK 후보로 반환한다. NOT_FOUND와 ERROR는 별도 결과이며 normalization/score/DB 저장은 없다.
+- 신규 unit 최종 20개 PASS: API/query/header·provenance, disabled/live 구성 차단, 비용/한도/secret guard, 입력/query 제한, 빈 검색, malformed/unsafe/oversized JSON, HTTP/throw 격리, request spacing, Retry-After/Brave quota windows, circuit 재차단/복구, 동시 호출·snapshot 격리, secret/budget/fetch/body timeout, timeout 이후 늦은 secret 완료, 다중 instance fixture budget·UTC 경계·실패 예약 유지, truncation, provider 독립성, 잘못된 query의 circuit 비가산과 boolean 예산 승인.
+- 신규 integration 6개(parent 포함) PASS: loopback HTTP server와 native fetch로 정상 후보, header/body timeout, circuit의 HTTP 억제 및 같은 프로세스 복구, 429 cooldown, malformed JSON, redirect 거부를 확인했다. 최종 재실행 1,162.3641ms. 실제 Provider는 호출하지 않았다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 각각 exit 0. 첫 lint는 신규 파일의 제어문자 regex/빈 함수 및 test Web API globals 선언으로 실패했으며 수정 후 PASS했다. 전용 단위 최초 19개에서 최종 보강 테스트 1개를 추가했다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1` 24 files, 133개(parent 포함), fail/skip 0, 152,776.2065ms. P3-04에서 관찰한 기존 100ms DB timeout의 병렬 실행 민감성을 피하기 위해 이번에는 처음부터 순차 실행했다. DB timeout/테스트 정책 코드는 변경하지 않았다.
+- 전체 integration 후 최종 query/예산 경계를 보강하고 packages 전체 build를 포함하는 `pnpm test:unit`을 다시 실행했다. Admin 27개, Node unit 109개, fail/skip 0. 영향을 받는 HTTP integration 6개와 lint/format도 다시 PASS했다. 최종 보강 후 전체 DB integration을 반복 실행하지 않았다.
+- 로그: Git 제외 `tmp/p3-05-{lint,typecheck,unit,format,build}.log`, `tmp/p3-05-integration-sequential.log`, `tmp/p3-05-{unit,http,format}-final.log`. 작업용 PostgreSQL 18.6 `bros-p3-05-test`를 stop하고 --rm으로 제거했다. 실제 XLSX와 기존 DB schema는 변경하지 않았다.
+- 제한: remote CI/push, 운영 Provider 계약·저장 권한·실제 과금·키·공유 예산 저장소·다중 Worker 계정 rate limit·live smoke는 NOT_RUN(BLK-005). fixture 메모리 예산을 운영 비용 통제의 증거로 해석하지 않는다. 새 EvidenceCollector/run orchestration 연결은 후속 작업이다.
+
+## 2026-09-15 — P3-06 Evidence Model / Collector
+
+- `IdentifierEvidence` v1 contract와 safe validator를 추가했다. type/source/strength/weight/provenance를 closed schema로 제한하고, capturedAt·match range·URL·secret-like metadata·JSON bound를 검증한다. public evidence는 raw/provider body를 보존하지 않는다.
+- `createEvidenceCollector()`는 P3-03 extracted candidate, P3-04 internal result, P3-05 external result를 합친다. 정확히 같은 type+원문 value만 merge하며 source별 evidence/provenance를 canonical order로 immutable output에 남긴다. formatting normalization, confidence/rank, score/conflict/decision 및 DB write는 하지 않는다.
+- 신규 단위 8개 PASS: evidence contract positive/negative, source/external/internal evidence merge, verified catalog provenance, brand-name ambiguity reference, provider failure 분리, deterministic 순서, 표기 variant 비병합, malformed/secret input의 partial output 방지, upstream/candidate evidence bound, 기존 candidate store validation 호환성을 확인했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` exit 0. Admin Vitest 27개, Node unit 117개, fail/skip 0. 최초 전체 단위 run은 test가 `validateResolveCandidates`를 resolver export로 잘못 import해 1개 fail했고, contracts 공개 export로 고친 뒤 최종 PASS했다. 구현 TS 오류가 아니라 test import 경로 오류였다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1` 24 files, 133개(parent 포함), fail/skip 0, 148,579.2003ms. P3-04의 기존 병렬 DB timeout 환경 민감성을 피하기 위해 순차 실행했다. DB schema/timeout 정책은 변경하지 않았다.
+- 작업용 PostgreSQL 18.6 `bros-p3-06-test`를 stop 후 `--rm`으로 정리했다. 상세 로그는 Git 제외 `tmp/p3-06-integration-sequential.log`에 있다.
+- 제한: 실제 Provider/계약·저장 권한·live, remote CI, Evidence를 candidate row에 쓰는 orchestration, normalization/dedup, score/conflict/decision은 NOT_RUN이다. BLK-005는 live Provider에 계속 적용된다.
+
+## 2026-09-15 — P3-07 Candidate Normalizer / Deduplicator
+
+- `createCandidateNormalizer()`와 `identifier-normalizer/v1`을 추가했다. 공통 NFKC/trim/en-US uppercase를 기준으로 MODEL_NO/STYLE_CODE/PRODUCT_NO/MPN의 안전한 separator만 제거하고, GTIN/EAN/UPC은 숫자·표준 길이를 추가 확인한다. BARCODE/BRAND_CODE는 issuer/brand format을 추측하지 않는다.
+- P3-06 candidate를 type+candidateNorm으로 merge하고 모든 original source value와 Evidence provenance를 immutable canonical order에 보존한다. display 원문값은 code-unit lexical 최소값으로 선택해 입력 순서에 의존하지 않는다. slash/dot 같은 비승인 구두점은 보존한다.
+- malformed GTIN/EAN/UPC 등은 `rejectedCandidates`/`INVALID_IDENTIFIER_FORMAT`으로 evidence와 함께 분리한다. catalog reference/provider failure/upstream truncation은 유지하며, score/rank/conflict/decision, catalog 재조회, run/DB write는 하지 않는다.
+- 신규 P3-07 unit 7개와 P3-06→07 연결 검증 1개 PASS: type matrix, same-norm merge/provenance/display determinism, invalid typed value 보존, context/truncation 보존, P3-01 candidate store payload compatibility, malformed input guard, merge evidence cap을 확인했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` exit 0. Admin Vitest 27개, Node unit 125개, fail/skip 0. 첫 전체 unit run은 catalog reference의 canonical sort 순서와 source collector 배열 순서를 동일하다고 가정한 test assertion 1개 FAIL이었고, 내용 보존을 order-independent assertion으로 수정한 뒤 PASS했다. source implementation 오류가 아니다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1` 24 files, 133개(parent 포함), fail/skip 0, 128,720.2182ms. DB schema/timeout 정책은 변경하지 않았다. 작업용 PostgreSQL 18.6 `bros-p3-07-test` stop/--rm 정리 완료, 상세 로그는 Git 제외 `tmp/p3-07-integration-sequential.log`.
+- 제한: 실제 brand-specific norm/legacy catalog compatibility, resolver orchestration 및 candidate DB write, scoring/conflict/decision, remote CI는 NOT_RUN이다. BLK-005 Provider live 조건은 변함없다.
+
+## 2026-09-15 — P3-08 Candidate Scorer
+
+- `@bros/resolver`에 `createCandidateScorer()`와 `identifier-scorer/v1`을 추가했다. SOURCE_FIELD 45, TITLE_MATCH 30, URL_MATCH 25, OPTION_MATCH 35, VERIFIED_INTERNAL_IDENTIFIER 100, EXTERNAL_CATALOG 15를 서로 다른 type별 한 번만 합산하고 100으로 제한한다. 반복 provenance는 evidence와 breakdown count에 남지만 score를 높이지 않는다.
+- Strong Evidence는 INTERNAL_CATALOG의 VERIFIED_INTERNAL_IDENTIFIER/VERIFIED 조합으로만 표시한다. WEAK evidence 합계가 100인 fixture도 `hasStrongEvidence=false`로 확인했다. 출력은 score 내림차순과 type+norm tie-breaker로 rank를 부여하며, score/rejected/reference/failure/truncation을 immutable하게 보존한다.
+- 신규 golden unit 5개 PASS: score matrix/cap, duplicate non-inflation, deterministic rank/context, P3-01 candidate payload compatibility, forged weight/weak verified/noncanonical/malformed input rejection을 확인했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 모두 exit 0. Admin 27개, Node unit 130개, fail/skip 0이다. 첫 format check는 신규 source/test의 Prettier formatting 2건만 FAIL했고 formatter 적용 후 format/build/scorer unit을 재실행해 PASS했다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1` 24 files, 133개(parent 포함), fail/skip 0, 130,888.4259ms PASS했다. 작업용 PostgreSQL 18.6 `bros-p3-08-test` stop/--rm 정리 완료. 상세 로그는 Git 제외 `tmp/p3-08-integration-sequential.log`이다.
+- 제한: remote CI, live Provider, actual resolver holdout/calibration, autoaccept enable, conflict/decision/run orchestration 및 candidate DB write는 NOT_RUN이다. `RESOLVER_AUTO_ACCEPT_ENABLED=false`를 유지한다.
+
+## 2026-09-15 — P3-09 Hard Conflict Detector
+
+- `@bros/resolver`에 `createHardConflictDetector()`와 `hard-conflict-detector/v1`을 추가했다. GTIN/EAN/UPC 및 MODEL_NO/MPN/STYLE_CODE family는 verified internal identifier evidence가 서로 다른 product public ID를 가리킬 때만 hard conflict가 된다. 여러 identifier value나 WEAK evidence만으로는 conflict를 추측하지 않는다.
+- BRAND/VARIANT/VOLUME/COLOR는 source와 candidate의 trusted canonical facts가 모두 제공되고 exact mismatch일 때만 검출한다. raw product name, 색상·용량 텍스트를 새로 parse하지 않으며 conflict output에는 code만 남긴다. `hasHardConflict`는 P3-10의 autoaccept guard 입력이고 decision/DB write는 수행하지 않는다.
+- 신규 detector unit 5개와 P3-06→09 handoff 1개 PASS: 네 explicit fact code, competing verified GTIN/model target, multi-value false-positive 방지, deterministic/no-decision output, malformed input rejection, provenance 보존을 확인했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 모두 exit 0. Admin 27개, Node unit 136개, fail/skip 0이다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1` 24 files, 133개(parent 포함), fail/skip 0, 127,295.5803ms PASS했다. 작업용 PostgreSQL 18.6 `bros-p3-09-test` stop/--rm 정리 완료, 상세 로그는 Git 제외 `tmp/p3-09-integration-sequential.log`이다.
+- 제한: remote CI, live Provider, actual canonical brand/variant/volume/color projection과 labeled conflict accuracy, Decision Engine/run orchestration/candidate DB write는 NOT_RUN이다. `RESOLVER_AUTO_ACCEPT_ENABLED=false`를 유지한다.
+
+## 2026-09-15 — P3-10 Decision Engine
+
+- `decision-engine/v1`을 추가했다. 95+ Strong+no conflict는 AUTO_ACCEPTED 권고, 80~~94와 weak 95+는 REVIEW_REQUIRED, 60~~79는 CANDIDATE, 60 미만은 NOT_FOUND다. conflict/truncation은 우선 REVIEW_REQUIRED이며 empty failure/rejected/truncated 결과도 NOT_FOUND로 숨기지 않는다.
+- AUTO_ACCEPTED는 pure recommendation이다. DB status/write, promotion, provider 호출, 실제 autoaccept 활성화는 수행하지 않으며 `RESOLVER_AUTO_ACCEPT_ENABLED=false`를 유지한다.
+- 신규 unit 5개와 P3-06→10 handoff 1개 PASS. `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` PASS; Admin 27개·Node unit 141개 PASS.
+- 순차 integration 24 files/133개 PASS, 138,451.3693ms. `bros-p3-10-test` stop/--rm 완료. remote CI/live Provider/holdout calibration/orchestration DB write는 NOT_RUN이다.
+
+## 2026-09-15 — P3-11 Identifier Promotion / Audit 검증 계속
+
+- 초기 구현의 동일 요청 replay 실패, SKU primary 변경 가능성, competing MASTER TOCTOU, 감사 근거 덮어쓰기, source 재연결 시 과거 후보 오승인 경계를 수정했다. 결정 근거는 DEC-20260915-019/020이다.
+- 전용 unit 4개 PASS: auto gate, malformed request, strict key/version/actor/accessor 검증, await 이전 입력 복사. 신규 테스트는 사용자 getter를 호출하지 않는지도 확인한다.
+- 실제 PostgreSQL 18.6 전용 integration 15개(parent 포함) PASS: 수동 승인 score/verified/public audit, 미승인 상태 무변경, 재접속·재수집 이후 같은 요청 replay, 다른 actor/version 거부, 기존 identifier evidence 보존, MASTER primary 교체와 같은 norm SKU 무변경, REVIEW_REQUIRED 수동 승인, terminal/conflict/비정규 norm/unsafe evidence/unlinked/remapped/stale/실패 run 거부를 확인했다.
+- 경합 증거: 동일 요청은 receipt 1개로 수렴, 다른 actor는 승자 1개, 서로 다른 MASTER의 같은 norm 및 GTIN/EAN family는 승자 1개, 같은 MASTER의 다른 값은 primary 1개를 유지했다. P2의 실제 masterIdentityLockKeys를 사용해 PostgreSQL advisory waiter를 관측하고 competing INSERT commit 후 P3 거부를 확인했다.
+- rollback 증거: identifier INSERT/UPDATE 두 경로에서 마지막 MASTER UPDATE에 trigger 실패를 주입했다. identifier/primary/candidate decision/evidence/version/master/run/source 전체 snapshot이 전후 동일했고 trigger 제거 후 같은 요청으로 승인 성공했다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 최종 exit 0. Admin 27개, Node unit 145개 PASS, fail/skip 0. 최초 lint는 신규 코드의 control regex/non-null assertion/getter return/timer import 4건 FAIL했으며 해당 항목 수정 후 전체 명령이 PASS했다.
+- 전체 순차 integration: `node --env-file-if-exists=.env --test --test-concurrency=1`로 25 files/148개(parent 포함), fail/skip 0, 131,013.2696ms PASS. 전체 병렬 `pnpm check`를 실행한 것으로 기록하지 않는다. 기존 DB timeout 정책은 유지했다.
+- 검증용 PostgreSQL `bros-p3-11-test`는 stop/--rm 정리 완료. 각 fixture의 disposable DB 생성/삭제도 완료됐다. 상세 로컬 로그는 Git 제외 `tmp/p3-11-unit.log`, `tmp/p3-11-build.log`, `tmp/p3-11-integration-sequential.log`이다.
+- 잔여 제한: remote CI/live Provider/holdout/auto promotion 활성화/P3-12 Worker orchestration/P3-13 API는 NOT_RUN. P2 `AB-123` ↔ P3 `AB123` 정규화 차이는 실제 함수 실행으로 확인했으며 BLK-006으로 기록했다. 이번 exact norm 경합 PASS를 legacy 표현 차이까지 검증한 것으로 확대하지 않는다.
+
+## 2026-09-15 — BLK-006 P2/P3 식별자 정규화·동시성 호환 검증
+
+- DEC-20260915-021의 비교 정책을 구현했다. P2/P3 저장 norm, 기존 scope unique, P3 candidate-normalizer/v1 정책을 유지한다. 코드/유효 GTIN의 비교 키만 공유하고 BARCODE/BRAND_CODE, slash/dot, invalid GTIN은 exact/유효성 경계를 유지한다.
+- 실제 데이터 조사: 기존 `bros-postgres-1`은 중지 상태였다. `bros_postgres_data`(108MB)를 읽기 전용 원본에서 전용 임시 volume으로 복사하고 원본 compose의 pinned PostgreSQL 이미지로 사본만 실행했다. `bros` product_master/product_identifier/identifier_candidate/source_product/import_item은 각각 0행; migration 이력은 001 한 건이다. 실제 002 migration 적용·실데이터 rewrite는 NOT_RUN. 원본 DB와 volume에 쓰지 않았다. 원본 이미지에서 collation 저장/현재 버전 2.36/2.36 확인. 다른 audit 이미지에서의 경고는 이미지 차이로 분리했다.
+- 신규 PostgreSQL 전용 integration 10개(parent 포함) PASS: P2 `AB-123`/P3 `AB123` 비교 및 ASCII/fullwidth/Unicode hyphen/NFKC 저장 norm과 SQL 비교식 parity, slash/dot/issuer code 비결합, verified legacy row P3 조회, P2의 P3 승격행 MASTER 재사용, 기존 legacy 행 public ID/evidence 유지 upsert, legacy/P3 실제 공유 advisory waiter와 경쟁 INSERT 후 거부, 실제 P2 import/P3 승인 동시 실행에서 의미상 식별자 1개, 기존 여러 MASTER AMBIGUOUS, 002 index/저장 norm 보존, invalid legacy GTIN exact 보존을 확인했다.
+- 초기 migration 회귀에서 기존 테스트가 migration 1건만 전제해 down 1회 후 18개 테이블 잔존을 FAIL로 표시했다. `002 → 001` 두 번 내려 원래 의도한 empty schema를 검증하도록 수정했고 동일 fixture 재실행 18개 PASS다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` 최종 PASS(exit 0). Admin 27개, Node unit 145개 PASS, fail/skip 0. 전체 PostgreSQL 순차 integration 26 files/158개(parent 포함), fail/skip 0, 133,651.777ms PASS. 기존 1,000행 import elapsed 40,282ms; 이전 P3-11 실행 40,098ms와 동급이다. 전체 병렬 `pnpm check` 또는 원격 CI를 PASS로 기록하지 않는다.
+- 임시 DB fixture는 모두 cleanup했다. 로컬 상세 로그는 Git 제외 `tmp/blk-006-build.log`, `tmp/blk-006-lint.log`, `tmp/blk-006-typecheck.log`, `tmp/blk-006-unit.log`, `tmp/blk-006-format.log`, `tmp/blk-006-build-full.log`, `tmp/blk-006-integration-sequential.log`이다.
+- 제한: current revision remote CI, live Provider, holdout/autoaccept, P3-12/13 운영 연결은 NOT_RUN. 현재 빈 실DB에서 future semantic duplicates는 확인되지 않았고, 이미 여러 MASTER에 중복 legacy 행이 있을 DB는 자동 병합하지 않는다.
+
+## 2026-09-15 — P3-12 Resolver Batch Worker / Orchestration
+
+- Migration 003으로 run의 admission_key/queue_json/result_json을 추가했다. PostgreSQL metadata 대조는 18개 테이블·259개 컬럼, migration 3건과 `003 → 002 → 001` down/forward를 검증했다. 기존 001 및 저장 norm은 유지했다.
+- 신규 resolver-batch integration 10개(parent 포함) PASS: chunk 경계·동시 요청 replay·누락 source 격리·publish 후 예외의 DB/Queue 동시 rollback·backpressure, P2 legacy norm→Evidence→추천/후보 저장, 명시적 import 식별자 전달, retry/마지막 부분 Provider 실패/정상 NOT_FOUND, stale attempt/취소/timeout/receipt·version fence, 후보 INSERT 실패 rollback, Brave fixture 동시 호출 간격/비용 상한, 실제 Worker 병렬 처리와 개별 실패, terminal/missing receipt reconciliation, 실제 프로세스 강제 종료 후 같은 run 복구.
+- 실제 Worker 관측 동시성 3(설정 상한 4), 성공 상품 5/격리 실패 1. Brave fixture 4개 동시 run에서 실제 transport 2회, 나머지 2개 BUDGET_EXCEEDED, 호출 시작 간격 최소 30ms 확인. 전역 RPS·운영 shared durable budget 검증이 아니다.
+- 신규 unit 3개 PASS: Resolver config 경계, 취소된 throttle 대기의 호출 차단/후속 실행, Provider abort 전파. 전체 Admin 27개/Node unit 148개 PASS, fail/skip 0.
+- 품질 검사: `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build`, `git diff --check` PASS. Admin build의 기존 contracts/node:crypto 외부화 경고는 남아 있으며 build 실패는 아니다.
+- 전체 순차 통합 검증: PowerShell에서 `rg --files tests/integration -g '*.integration.test.mjs'`로 27개 파일을 구해 `node --test --test-concurrency=1 @testFiles` 실행. 168개(parent 포함) PASS, fail/skip 0, 154,298.1648ms. 기존 1,000행 import elapsed 42,871ms. 기존 DB timeout 정책은 유지했다.
+- 초기 검증 실패는 새 process fixture의 필수 last_seen_at 누락, production config 기대값의 resolver 누락, 신규 테스트의 ESLint 4건이었다. fixture/기대값/테스트 문법 수정 후 전용 integration·전체 회귀·lint/unit PASS했다. pnpm은 기존 `D:\.pnpm-store`의 offline 설치로 workspace 의존성만 연결했다.
+- 운영 제한: 실제 BROS DB migration 002/003 적용, remote CI, live Provider, 승인된 실브랜드 registry·holdout, P3-13 UI/API는 NOT_RUN. 자동승격 OFF를 유지한다. 검증 DB는 실제 DB와 다른 컨테이너 `bros-p312-test` 및 fixture별 disposable DB다.
+- 정리: fixture DB 잔존 0개를 PostgreSQL에서 확인한 뒤 `bros-p312-test`와 해당 익명 volume을 삭제했다. 기존 `bros-postgres-1` 및 원본 volume은 변경하지 않았다.
+
+## 2026-09-15 — P3-13 품번 검수 UI/API
+
+- 전용 `identifier-review-api.integration.test.mjs` 8개(parent 포함) PASS. UUID 목록/커서/상세·후보 없는 실행, raw/secret/URL query 제외, 기본 닫힘/서버 인증 actor/클라이언트 actor 차단, operation/Origin, 승인·거절 경합/terminal/replay, 직접입력 정규화/GTIN 오류/MASTER version/다른 MASTER 충돌/재수집 replay, INSERT·승격 실패 전체 rollback, 재탐색 DB/Queue 원자 접수·actor audit·terminal replay를 검증했다.
+- 전체 순차 integration: 28 files/176개(parent 포함), fail/skip 0, 179,006.5791ms PASS. `rg --files tests/integration -g '*.integration.test.mjs'`로 파일을 구한 뒤 `node --test --test-concurrency=1 @testFiles` 실행. 기존 1,000행 Worker import 54,751ms. DB timeout은 변경하지 않았다.
+- 브라우저 문제 수정 후 영향 범위 재검증: BLK-006 compatibility + P3-11 promotion + P3-13 API 33개 PASS(5,877.6662ms), `admin-vite.integration.test.mjs` 1개 PASS. 전체 176개 실행은 모듈 분리/프록시 수정 전이며, 이후 이 영향 범위와 전체 unit/build/typecheck/lint를 다시 검증했다.
+- 최종 Node unit 31 files/148개, Admin 11 files/35개 PASS. Admin 신규 8개는 후보 결정/version/중복 클릭, 사유 필수, 직접입력 요청 ID 유지, 충돌 비활성/409, 재탐색 접수 표시, operation 헤더, strict 응답/고정 오류, UUIDv7을 검증한다.
+- `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build`, `git diff --check` PASS. pnpm은 기존 `D:\.pnpm-store`를 사용했고 신규 workspace resolver 연결만 offline 설치했다. 최종 Admin build 295 modules, JS 384.02kB/gzip 111.40kB, node:crypto 외부화 경고 없음.
+- 실제 Codex in-app Browser + Vite 5173 + 테스트 API 3313 + 일회용 PostgreSQL fixture로 확인: AB-123 승인/감사·버튼 비활성, AB-124 사유 거절/감사, 후보 0개 실행의 SH-777→SH777 직접입력/새 후보 승인·SUBMITTED/ACCEPTED 감사, 재탐색 새 QUEUED 실행/접수 표시. 데스크톱 화면에서 여백·목록/상세 정렬을 확인했다. 브라우저 단계는 재탐색 **접수**까지이며 Worker 완료는 별도 P3-12 통합 회귀 증거다.
+- 발견·수정: P2 MASTER 기본 REVIEW_REQUIRED를 직접입력에서 잘못 거절하던 ACTIVE 전용 조건을 수정했다. 기존 contracts barrel의 node:crypto export가 실제 Vite 화면을 비우는 문제는 `@bros/contracts/server` 진입점으로 분리했다. SHA-256/identity namespace/dual lock 규칙은 보존했다. Vite 문자열 proxy의 Host 변경으로 same-origin 저장이 403이 되는 문제는 `/api`의 `changeOrigin:false`와 실제 proxy 회귀 검사로 해결했다. UI page 여백 및 상세 padding을 기존 화면에 맞췄다. lint/format 초기 오류는 수정 후 PASS다.
+- 정리: API fixture 정상 cleanup, 포트 재시작 중 실패한 fixture DB도 정확한 생성 UUID로 정리해 테스트 DB 잔존 0개를 확인했다. 테스트 Vite/API를 종료하고 `bros-p313-test` 및 해당 익명 volume을 삭제했다. 원본 `bros-postgres-1`과 원본 volume은 변경하지 않았다.
+- NOT_RUN: 실제 DB migration 002/003, current revision remote CI, Caddy/운영 인증 연결, live Provider, labeled holdout/자동승격 활성화. BLK-005 OPEN, BLK-006 RESOLVED_LOCAL, 자동승격 OFF. 로컬 PASS를 Phase 3 Gate PASS로 확대하지 않는다.
+
+## 2026-09-15 — P3-14 Resolver Evaluation Harness / Synthetic Golden Regression
+
+- 평가 도구 범위: captured Collector Evidence → 실제 Normalizer/Scorer/HardConflict/Decision 실행. 독립 truth·autoAcceptForbidden과 비교하며 DB/Queue/Provider를 호출하지 않는다. upstream extraction/검색 및 실제 calibration 완료로 확대하지 않는다.
+- 신규 evaluation unit 8개 + OFF config unit 1개 PASS: hand-authored golden 결과, label 변경과 score 독립성, 오매칭/AI 단독/독립 금지 label 자동승인 실패, MASTER/SKU/image 누출/중복 ID/입력 점수/비밀 텍스트 거부, holdout seal/순서·내용 변경, 분모 0과 표본 부족, 200/100 경계 및 범위별 누락, 반복 SKU 표본 부풀리기 방지, CLI seal 재작성 차단/report/변경된 algorithm lock/비밀 오류 차단. REAL gate 경계 테스트의 생성 데이터는 test fixture이며 실제 label 평가가 아니다.
+- `pnpm test:unit`: Node 32 files/157개, Admin 11 files/35개 PASS(fail/skip 0). `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build` PASS. 이후 보고서 provenance 필드를 추가하고 Resolver build + 평가/config 19개, 최종 독립 금지 label 테스트 보강 후 평가 8개를 재실행해 PASS했다.
+- 전체 순차 integration: `TEST_DATABASE_URL`을 전용 `bros-p314-test`에 지정하고 `rg --files tests/integration -g '*.integration.test.mjs'`로 28개 파일을 구해 `node --test --test-concurrency=1 @testFiles` 실행. 176개(parent 포함), fail/skip 0, 155,523.6253ms PASS. P2 import/Worker crash recovery, BLK-006 identity 호환, P3-11 승인/P3-12 orchestration/P3-13 API를 포함한다. 기존 DB timeout은 유지했다.
+- 실제 CLI 실행: `node scripts/evaluate-resolver.mjs seal packages/resolver/test/fixtures/golden-v1.json docs/evaluations/p314-golden-v1.lock.json` → exit 0. `evaluate`에 같은 입력/lock과 `docs/evaluations/p314-golden-v1` 새 출력 경로 → exit 2(SYNTHETIC_ONLY 정상 구분), Markdown/JSON 생성.
+- 합성 dataset 11개(TUNING 1/HOLDOUT 10). holdout candidate 10, auto candidate/master 1, wrong/unsafe 0, precision 1, coverage 0.1, false-review 3/4, 비용 기록 9건/합계 0, 비용 미확인 1건. holdout replay 합계 7.5757ms/p95 3.5134ms. 합성 비용·메모리 처리시간이며 live 비용/성능/정확도 검증이 아니다.
+- 재현 식별값: dataset SHA-256 `829477c39da19c07c393518697eab8850ecf4fb8e47f51163b2acf9090088505`, holdout `fd7afbf12c21aea1d79fa6ca78ab590d570ab5fafd55eae93b6bd1d2a16672ad`, algorithm `fcb992c94d04614cf07dd42a9b648adc88f3baedf9aab363e29feec22dd05649`. 상세 per-case/근거/분모/버전은 `docs/evaluations/p314-golden-v1/report.json`.
+- 최초 테스트에서 일반 raw JSON 검증만으로 텍스트 안의 token 표기를 거부하지 못해 secret-text guard를 추가했다. 새 config 테스트의 필수 DB URL과 Node 테스트 globals/lint/format도 수정 후 PASS했다. false-review 분모에서 독립 자동승인 금지 정답을 제외하도록 정의하고 검증했다.
+- 상태: 개발 가능한 로컬 harness/회귀 PASS. P3-14 전체는 BLOCKED_EXTERNAL_INPUT(BLK-007). 실제 정답 데이터, fixed real holdout calibration, 자동승격 활성화/owner 결정, current revision remote CI/Phase 3 Gate, 실제 DB migration, live Provider는 NOT_RUN. UI는 변경하지 않았으며 새 브라우저 QA는 NOT_RUN.
+- 정리: fixture DB 잔존 0개를 PostgreSQL에서 확인한 뒤 `bros-p314-test`와 해당 익명 volume을 삭제했다. 원본 BROS DB와 원본 XLSX는 이번 작업에서 기동·수정하지 않았다.
+
+## 2026-09-15 — P3-14 실제 정답 검수 intake 준비
+
+- DEC-20260915-025. 실제 label/capture는 확인되지 않았다. 원본 XLSX 26,375행/내부 상품코드 비공란 0건 재확인. 플랫폼별 상위 5개 브랜드 × 20개 고유 원본 ID = 200행 검수 대기 XLSX 생성. 대표 범위/MASTER 수 충족은 미확정이다.
+- bundled Python `tmp/p314-intake/prepare.py`, `verify.py`, bundled Node `tmp/p314-intake/build.mjs` 실행 PASS. 원본과 200행 상품명/ID/카테고리/URL 일치, 원본 키 중복 없음, 정답 공란/PENDING 200/충족 0, 텍스트 ID/카테고리와 source hash 보존, 원본 셀 수식 없음 확인. `data/` Git 제외 확인.
+- 수식 오류 검색 0건. 상태만 입력 시 MISSING_FIELDS/집계 0, 필수 칸 충족 시 FIELDS_FILLED/집계 1, 원복 후 PENDING/집계 0 PASS. 최종 파일에 임시 TEST-ONLY label 없음. 두 탭 및 오른쪽 입력란 렌더 확인. 렌더의 긴 숫자 지수 표시는 내보낸 XLSX의 원문 문자열/텍스트 서식 검사와 구분한다.
+- 상세 선택 기준·산출물 경로/hash·검수 절차: [실제 검수 준비 기록](evaluations/p314-real-review-intake.md). 산출물 validation PASS는 실제 label 검수 또는 Calibration PASS가 아니다.
+- 변경 Markdown Prettier 검사 및 `git -c core.safecrlf=false diff --check` PASS. 애플리케이션 코드 변경 없이 산출물/문서만 작업했으므로 기존 전체 unit/integration은 재실행하지 않았다. 이전 157/35/176 PASS와 이번 검증을 구분한다.
+- 실제 정답 검수, live URL/Provider, Collector capture, REAL calibration, end-to-end/remote CI/운영 활성화, Excel 앱 직접 검증 NOT_RUN. P3-14 BLOCKED_EXTERNAL_INPUT, BLK-007 OPEN, 자동승격 OFF.
+
+## 2026-09-15 — P3-14 실제 정답·capture 인수 재확인
+
+- DEC-20260915-026. 기존 검수 워크북을 bundled Python openpyxl로 읽기 전용 검사: PENDING 200행, 정답 식별자/근거/검수자 비공란 각 0건. 파일 SHA-256은 DEC-025의 ed9f55aaf8d9a15f6347fb8177068d5b5e4a125d2abe02ec9ffa33313c95bbdc와 동일하다.
+- data/ 파일 목록과 저장소 관련 파일 검색에서 신규 실제 정답/capture를 확인하지 못했다. 실제 파일 경로를 요청했다. 기본 pipeline의 unconfigured/v1 빈 패턴을 운영 capture로 대체하지 않았다.
+- docs/DECISIONS.md 및 docs/TEST_REPORT.md Prettier 검사, `git -c core.safecrlf=false diff --check` PASS. 원본/검수 파일·앱 코드·DB 변경 없음. 실제 정답 검수/capture replay/calibration/threshold tuning/unit·integration 재실행 NOT_RUN.
+- 상태: 실제 평가 입력 부재로 P3-14 BLOCKED_EXTERNAL_INPUT, BLK-007 OPEN, 자동승격 OFF 유지. 이번 결과는 입력 상태 확인이며 품번 정확도 검증이 아니다.
+
+## 2026-09-15 — Phase 3 Gate 사전검수 / P3-14 보류
+
+- DEC-20260915-027. 사용자 요청에 따라 P3-14 실제 검수/calibration을 보류하고 다른 P3 보완을 우선한다. WBS Gate 조건과 구현·이전 회귀 증거를 대조해 docs/PHASE3_GATE.md에 판정/누락/후속 순서를 기록했다.
+- `pnpm build:packages` PASS. `rg --files packages/resolver/test -g '*.test.mjs'`의 11개 파일 및 packages/core/test/config.test.mjs, packages/contracts/test/{identifier-evidence,identifier-resolve}.test.mjs를 `node --test --test-reporter=dot`으로 실행해 14 files/90 tests PASS(exit 0).
+- 코드 검토: pipeline은 정규화 전 Collector 출력 대신 최종 DecisionEngineResult를 반환하고 Worker는 후보 Evidence/Conflict/Score와 최종 result_json을 저장한다. P3-14 입력의 원본 collection/conflictContext/수집 버전·비용을 보관·export하는 전용 경로가 없어 P3-12 후속 보완으로 기록했다. 미구현 export를 검증 PASS로 표시하지 않는다.
+- 기존 전체 Node 157/Admin 35/integration 176 PASS는 DEC-024 증거다. 이번 전체 integration/브라우저/운영 DB/remote CI/live Provider는 NOT_RUN. 실제 calibration/자동승격 활성화도 NOT_RUN.
+- 변경 Markdown Prettier 검사 및 `git -c core.safecrlf=false diff --check` PASS. 앱 코드·DB·원본/검수 데이터 변경 없음. 전체 Gate BLOCKED, BLK-005/007 OPEN, BLK-006 RESOLVED_LOCAL 유지.
+
+## 2026-09-15 — P3-12 실행 capture 저장·내보내기 보완
+
+- DEC-20260915-028. strict capture 계약, pipeline v2의 Collector 원본/판정 facts·입력/판정 hash·버전/출처·기록 비용, 기존 result_json의 run/source/attempt/payload digest 원자 저장, SUCCEEDED 전용 로컬 export 및 고정 오류를 추가했다.
+- capture unit 4개 PASS: 원본 보존/복사본, input/version/decision·replay 불일치, 비밀 텍스트/추가 truth/잘못된 비용, null 비용/UNCLASSIFIED, export 재현성과 tamper/legacy/missing/status 거절.
+- 전용 resolver-batch integration 13개 PASS(20,474.2153ms). 원본 AB-123과 정규화 AB123 구분, local fallback 생략 시 0/미상 외부 비용 null/기록 비용 0.000002, 출처/버전, 늦은 attempt 차단/재배달 불변, candidate INSERT 및 capture UPDATE 실패 원자 롤백, 잘못된/누락된 필수 capture terminal 실패, 평가 계약 연결과 CLI 동일 JSON/기존 파일 거절/비밀 출력 제외, 공개 run projection의 capture 비노출 검증.
+- Worker에 넘기는 input 복사본 보강 후 전체 순차 integration 28 files/179개 PASS, fail/skip 0, 145,558.4414ms. PostgreSQL 18.6-bookworm의 이번 전용 컨테이너/일회용 DB에서 실행했다. 기존 P2/P3 compatibility·수동 승격·검수 API·Queue/Worker crash 회귀도 포함한다.
+- 전체 Node unit 33 files/161개 PASS(7,521.3646ms), Admin 11 files/35개 PASS. pnpm build/typecheck/lint/format:check 및 git diff --check PASS. full build 후 마지막 TS 변경은 Worker 입력 structuredClone이며 typecheck의 packages build와 전체 integration에서 검증했다. UI 변경 없어 브라우저 신규 QA는 NOT_RUN.
+- docs/는 기존 .prettierignore 제외 대상이다. 별도 ignore override 검사에서 기존 문서와 신규 문서 9개에 스타일 경고를 확인했다. 새 RESOLVER_CAPTURE.md는 별도 포맷/검사 PASS로 정리했으며 기존 결정 기록과 문서는 append-only 이력·기존 스타일을 보존해 전면 재포맷하지 않았다. 필수 저장소 format:check 결과와 추가 문서 스타일 경고를 구분한다.
+- 최초 lint는 신규 mjs의 URL/structuredClone globals 선언 때문에 7건 실패했고, node:url import/globalThis 사용 후 PASS했다. 원본 알고리즘/threshold/identity lock/Provider live 설정은 변경하지 않았다.
+- 테스트 DB 잔존 0개 확인 후 bros-p312-capture-test 컨테이너/익명 volume 정리. 원본 bros-postgres-1 및 원본 데이터/검수 파일 변경 없음.
+- 제한: 완료된 attempt만 capture를 저장하며 이전 실패 시도의 비용을 합산하지 않는다. 현재 Brave 실측 비용은 미제공/null. actual label/capture calibration, 원격 current revision CI, 실제 DB migration/운영 활성화는 NOT_RUN. P3-14 보류/BLK-007 OPEN, BLK-005 OPEN, 자동승격 OFF.
+
+## 2026-09-15 — BLK-005 PostgreSQL 공유 예산·전역 호출 제한 (DEC-20260915-029)
+
+- 대상: `codex/p1-foundation`, HEAD `968dfa7` 위 기존 P3 미커밋 변경과 이번 보완. 기존 변경을 보존했으며 commit/push/원격 CI는 NOT_RUN이다.
+- 환경: Windows, Node 24/pnpm 11, 전용 `bros-blk005-test` PostgreSQL 18.6-bookworm, loopback 55445. 각 통합 테스트가 고유 일회용 DB를 생성·삭제했다. 원본 BROS DB/XLSX·검수 데이터와 다른 서비스는 사용하지 않았다.
+- 구현: migration 004의 bros_provider 계정/일별 예약/호출 장부, ProviderRequestQuota/PostgreSQL adapter와 Brave 연결. DB UTC·계정 행 잠금·완료 후 간격·공유 429·비용 보존·명시적 감사 복구. live에 기존 durable budget만 주입하는 구성은 차단한다.
+- 전용 unit 2개 및 최종 quota integration 10개(상위 test 포함) PASS. 독립 pool 경쟁 12건/동일 예산 상한, adapter 버전 교체 후 같은 계정 누계, DB UTC/전일 사용량/계정 격리, 예약 INSERT rollback/lock 대기 중 취소, 완료 UPDATE 실패의 ACTIVE·차감 보존, 429 공유, 실제 child SIGKILL/새 instance/복구 감사와 stale ID 거절, abort 무시 transport, timeout 뒤 늦은 429, migration down/up을 검증했다.
+- 최종 수정 후 `node --test --test-concurrency=1 packages/resolver/test/external-candidate-provider.test.mjs packages/resolver/test/provider-quota.test.mjs tests/integration/provider-quota.integration.test.mjs tests/integration/database-schema.integration.test.mjs`: 40 PASS, fail/skip 0, 6,199.1985ms. 여기에는 기존 Provider unit 20개와 DB 물리 계약 integration 8개가 포함된다.
+- `pnpm typecheck`, `pnpm test:unit`, `pnpm build` PASS. 전체 Node unit 34 files/163 PASS(7,969.8685ms), Admin 11 files/35 PASS. 이후 late-429 처리 순서 수정은 packages build·위 영향 범위 40개·최종 전체 integration으로 재검증했다. UI 신규 수정/브라우저 QA 없음.
+- 최종 전체 순차 integration: `TEST_DATABASE_URL`을 전용 서버에 설정하고 `rg --files tests/integration -g '*.integration.test.mjs' | Sort-Object`의 29 files를 `node --test --test-concurrency=1`로 실행. **189 PASS, fail/skip/cancel 0, 155,499.0184ms**, exit 0. 기존 P2/P3 호환·승격/검수 API·1k import·Queue/Worker 실제 crash/restart 회귀 포함.
+- 최초 lint 8건 실패(type/interface, empty callback, Response global)를 수정한 후 PASS. 첫 전체 integration은 down을 3회만 호출하던 기존 fixture에서 18개 app 테이블이 남아 186 PASS/2 FAIL(상위 포함, 157,710.6339ms)이었다. 004에 맞춰 4회로 수정한 후 전용 및 전체 검증이 통과했다. 실제 migration 장애로 해석하지 않는다.
+- 마지막 `pnpm lint`, `pnpm format:check`, 신규 문서 별도 `prettier --ignore-path .gitignore --check docs/PROVIDER_QUOTA.md`, `git -c core.safecrlf=false diff --check` PASS. 기존 docs는 .prettierignore 대상이며 과거 결정/보고서를 전면 재포맷하지 않았다.
+- 테스트 DB 잔존 0개 확인 후 전용 --rm 컨테이너/익명 volume 정리 완료. `bros-postgres-1`은 Exited, 다른 mygoal 서비스는 기존 실행 상태 유지. 실제 DB migration 002/003/004는 NOT_RUN이다.
+- 제한: 계정 공유는 동일 DB/providerKey/accountKey와 정책을 쓰는 호출에 적용된다. ACTIVE 자동 만료/불확실 호출 환불 없음. 실제 과금 장부/전체 run 비용 합계는 아니며 capture 비용 범위를 바꾸지 않았다. 운영 계약·키·가격/한도·계정 매핑·기본 Worker live 연결/배포·current revision CI는 미검증. BLK-005 운영 입력 OPEN, BLK-007 사용자 보류/auto OFF 유지.
+
+## 2026-09-16 — Phase 3 변경 묶음 및 원격 CI 준비 (DEC-20260916-001)
+
+- 기준: branch `codex/p1-foundation`, HEAD `968dfa7930c0ead33d89d47493091dd5aad04fc4` 위 미커밋 작업. 정확한 포함 목록은 docs/phase3-change-set.json의 123개 파일이다. 기존 P3 변경을 보존했다. stage/commit/push/PR 수정/dispatch/merge는 NOT_RUN이다.
+- 원격 읽기: GitHub API에서 public hyunglory/bros, PR #1 head가 같은 SHA이고 base main임을 확인했다. main `126490b9f60c0500c556e6a40f9f2d8b9747d623`은 로컬 HEAD의 ancestor이며 protected=true다. ruleset 23149676은 active/strict, required check `install / lint / typecheck / test / build`, bypass actor 없음. 기존 head check success URL은 PHASE3_RELEASE_PREP에 기록했다. Phase 3 신규 SHA 증거는 아니다.
+- 기본 sandbox의 GitHub 조회가 네트워크 권한으로 실패했고 read-only 확대 실행에서 성공했다. 인증정보를 출력하거나 원격 상태를 변경하지 않았다.
+- 공개 제외: /examples 추가, /data·/storage·환경별 .env 기존 제외 유지. 실제 원본/검수 XLSX 두 파일과 intake JSON의 git check-ignore PASS. index의 examples/data/storage 추적 파일 없음. 상품별 원본 파일은 읽기/변경/이동하지 않았다.
+- `node scripts/check-publication.mjs`: index 183개 PASS. `--worktree`: 272개 PASS. 신규 guard integration 2개 PASS: 합성 경로 허용/비공개 경로 차단, 별도 임시 Git 저장소의 ignored .env 강제 stage 탐지와 미추적 XLSX 탐지. 임시 파일은 합성 내용이며 검증 후 삭제했다.
+- 한정된 고정 패턴(private key header, 긴 GitHub/OpenAI token)의 파일명 검색에서 일치 없음. 공개 경로 guard는 전체 내용/secret 검증이 아니므로 staged diff 검토가 계속 필요하다.
+- `pnpm install --offline --frozen-lockfile`: 13 workspace, Already up to date, PASS. 기존 로컬 캐시를 사용한 lock 일치 확인이며 clean Ubuntu install 증거는 아니다.
+- 전용 PostgreSQL `bros-p3-ci-test`, postgres:18.6-bookworm, loopback 55446. APP_ENV=test와 해당 TEST_DATABASE_URL/DATABASE_URL로 `pnpm check` 실행. lint/typecheck, Node unit 163/Admin 35, 전체 순차 integration **30 files/191 PASS, fail/skip/cancel 0, 157,423.7449ms**. runner의 새 순차 경로를 실제 사용했고 각 테스트 내부 동시성/crash 회귀는 유지했다.
+- 최초 `pnpm check`는 테스트 이후 포맷 단계에서 다른 worktree의 접근 제한 하위 폴더를 순회하며 EPERM/exit 2로 중단됐다. 이 결과를 전체 command PASS로 기록하지 않는다. 비밀 폴더를 열거나 권한을 변경하지 않고 format/format:check를 root 설정·.github·apps·packages·scripts·tests로 제한했다. 수정 후 `pnpm format:check`, `pnpm build` 각각 PASS. 테스트 소스/업무 구현은 이 수정에서 변경하지 않았으며 전체 test를 반복하지 않았다.
+- 신규 문서 PHASE3_RELEASE_PREP/PHASE3_PR/phase3-change-set은 ignore override Prettier PASS, 전체 diff --check PASS. 기존 docs/decision 전체 재포맷 없음. manifest와 현재 변경 경로의 일치·중복 없음·파일 존재 및 금지 경로 부재를 최종 대조했다.
+- 테스트 DB 잔존 0개 확인 후 이번 전용 --rm 컨테이너/익명 volume 정리. 실제 BROS DB migration/운영 활성화, 원격 Phase 3 CI, 신규 UI 브라우저 QA는 NOT_RUN이다. P3-14 사용자 보류와 auto OFF, BLK-005 운영 OPEN/BLK-007 OPEN/Phase 3 Gate BLOCKED 유지.
+
+## 2026-09-16 — Phase 3 원격 CI 재실행 준비 (DEC-20260916-002)
+
+- 최초 원격 실행은 [workflow 35037290670](https://github.com/hyunglory/bros/actions/runs/35037290670), job 104609138288, SHA `70e05bdb876acc0ebe7a0f2993ee6444d36baa8a`에서 수행했다. install, publication path check, lint, typecheck, Node unit 163개와 Admin 35개는 성공했다. 통합 테스트를 한 Node 프로세스에 모아 실행한 뒤 개별 파일 완료 출력 없이 약 19분 후 job이 취소됐고, format/build는 실행되지 않았다. 이를 PASS로 해석하지 않는다.
+- `scripts/run-tests.mjs`는 통합 테스트 파일마다 별도 Node 프로세스를 순차 실행하도록 바꿨다. 파일 안의 동시성은 유지하며, CI에서 지연 파일과 진행 상태를 식별할 수 있다. timeout 확대, skip 추가, 테스트 완화는 하지 않았다.
+- 전용 PostgreSQL `bros-p3-ci-retry-test`(postgres:18.6-bookworm, loopback 55447)에서 새 runner로 전체 30개 통합 파일과 191개 테스트가 PASS(fail/skip/cancel 0)했다. `pnpm lint`, `pnpm format:check`, `pnpm build`, `git diff --check`, publication worktree 검사도 PASS했고 테스트 DB 잔존은 0개다. 전용 컨테이너와 volume은 정리했다.
+- 이 기록 시점의 수정 commit/push와 새 SHA 원격 CI는 NOT_RUN이다. 실제 운영 DB·Provider·자동승격·P3-14 실제 정답/capture 검수는 실행하지 않았다.
+
+## 2026-09-16 — Phase 3 원격 CI 재실행 결과 (DEC-20260916-003)
+
+- SHA `7265dcddc425bba2e13e24f7276e7e352d973e31`를 `codex/p1-foundation`에 일반 push했다. [workflow 35039591619](https://github.com/hyunglory/bros/actions/runs/35039591619), job 104616259592가 4분 10초에 SUCCESS로 완료됐다.
+- 같은 job에서 install, publication path check, lint, typecheck, unit and integration tests, format check, build가 모두 성공했다. GitHub check run 이름 `install / lint / typecheck / test / build`와 SHA가 일치한다.
+- PR #1은 같은 head SHA, `MERGEABLE`, `CLEAN`이며 required check SUCCESS를 반환했다. 이 성공은 CI/공개 경로 검증 증거이며 Phase 3 Gate PASS, 운영 배포, Provider live, 자동승격, P3-14 실제 검수 완료를 뜻하지 않는다.

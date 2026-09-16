@@ -1,0 +1,20 @@
+{
+  "name": "@bros/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bros/contracts": "workspace:*",
+    "@bros/core": "workspace:*",
+    "@bros/db": "workspace:*",
+    "@bros/importer": "workspace:*",
+    "@bros/queue": "workspace:*",
+    "@bros/resolver": "workspace:*",
+    "fastify": "5.12.4",
+    "kysely": "0.29.5"
+  }
+}
