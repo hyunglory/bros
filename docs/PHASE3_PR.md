@@ -20,8 +20,8 @@ BROS foundation, catalog import, and identifier resolution/review
 ### 검증
 
 - Phase 1/2의 이전 원격 CI 증거와 Phase 3 로컬 검증 기록은 `docs/TEST_REPORT.md`에 구분해 기록했습니다.
-- 최신 로컬 실행은 2026-09-16 기록을 따릅니다. 새 Phase 3 commit의 원격 CI URL과 정확한 SHA는 실행 완료 후 이 항목에 추가해야 합니다.
-- 로컬 단위 163개·Admin 35개·통합 191개 PASS. frozen lockfile install, publication 경로 검사, lint/typecheck, 포맷과 build를 확인했습니다. 최초 `pnpm check`의 포맷 단계가 다른 worktree의 접근 제한 폴더 때문에 실패해 대상 경로를 명시하고 해당 단계와 최종 build를 다시 통과시켰습니다.
+- 최신 로컬 실행은 2026-09-16 기록을 따릅니다. SHA `70e05bd`의 첫 원격 실행은 install/publication path/lint/typecheck/unit을 통과했지만, 단일 process 통합 실행이 취소돼 format/build가 skip됐습니다. 수정 commit의 원격 CI URL과 정확한 SHA는 실행 완료 후 이 항목에 추가해야 합니다.
+- 로컬 단위 163개·Admin 35개·통합 191개 PASS. 통합 runner는 파일별 별도 Node process를 순차 실행하도록 바꿔 CI 진행 상태를 식별 가능하게 했습니다. frozen lockfile install, publication 경로 검사, lint/typecheck, 포맷과 build를 확인했습니다.
 
 ### 배포·제한
 

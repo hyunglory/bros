@@ -501,7 +501,7 @@
 
 ## 2026-09-15 — P3-10 Decision Engine
 
-- `decision-engine/v1`을 추가했다. 95+ Strong+no conflict는 AUTO_ACCEPTED 권고, 80~94와 weak 95+는 REVIEW_REQUIRED, 60~79는 CANDIDATE, 60 미만은 NOT_FOUND다. conflict/truncation은 우선 REVIEW_REQUIRED이며 empty failure/rejected/truncated 결과도 NOT_FOUND로 숨기지 않는다.
+- `decision-engine/v1`을 추가했다. 95+ Strong+no conflict는 AUTO_ACCEPTED 권고, 80~~94와 weak 95+는 REVIEW_REQUIRED, 60~~79는 CANDIDATE, 60 미만은 NOT_FOUND다. conflict/truncation은 우선 REVIEW_REQUIRED이며 empty failure/rejected/truncated 결과도 NOT_FOUND로 숨기지 않는다.
 - AUTO_ACCEPTED는 pure recommendation이다. DB status/write, promotion, provider 호출, 실제 autoaccept 활성화는 수행하지 않으며 `RESOLVER_AUTO_ACCEPT_ENABLED=false`를 유지한다.
 - 신규 unit 5개와 P3-06→10 handoff 1개 PASS. `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm format:check`, `pnpm build` PASS; Admin 27개·Node unit 141개 PASS.
 - 순차 integration 24 files/133개 PASS, 138,451.3693ms. `bros-p3-10-test` stop/--rm 완료. remote CI/live Provider/holdout calibration/orchestration DB write는 NOT_RUN이다.
@@ -628,3 +628,10 @@
 - 최초 `pnpm check`는 테스트 이후 포맷 단계에서 다른 worktree의 접근 제한 하위 폴더를 순회하며 EPERM/exit 2로 중단됐다. 이 결과를 전체 command PASS로 기록하지 않는다. 비밀 폴더를 열거나 권한을 변경하지 않고 format/format:check를 root 설정·.github·apps·packages·scripts·tests로 제한했다. 수정 후 `pnpm format:check`, `pnpm build` 각각 PASS. 테스트 소스/업무 구현은 이 수정에서 변경하지 않았으며 전체 test를 반복하지 않았다.
 - 신규 문서 PHASE3_RELEASE_PREP/PHASE3_PR/phase3-change-set은 ignore override Prettier PASS, 전체 diff --check PASS. 기존 docs/decision 전체 재포맷 없음. manifest와 현재 변경 경로의 일치·중복 없음·파일 존재 및 금지 경로 부재를 최종 대조했다.
 - 테스트 DB 잔존 0개 확인 후 이번 전용 --rm 컨테이너/익명 volume 정리. 실제 BROS DB migration/운영 활성화, 원격 Phase 3 CI, 신규 UI 브라우저 QA는 NOT_RUN이다. P3-14 사용자 보류와 auto OFF, BLK-005 운영 OPEN/BLK-007 OPEN/Phase 3 Gate BLOCKED 유지.
+
+## 2026-09-16 — Phase 3 원격 CI 재실행 준비 (DEC-20260916-002)
+
+- 최초 원격 실행은 [workflow 35037290670](https://github.com/hyunglory/bros/actions/runs/35037290670), job 104609138288, SHA `70e05bdb876acc0ebe7a0f2993ee6444d36baa8a`에서 수행했다. install, publication path check, lint, typecheck, Node unit 163개와 Admin 35개는 성공했다. 통합 테스트를 한 Node 프로세스에 모아 실행한 뒤 개별 파일 완료 출력 없이 약 19분 후 job이 취소됐고, format/build는 실행되지 않았다. 이를 PASS로 해석하지 않는다.
+- `scripts/run-tests.mjs`는 통합 테스트 파일마다 별도 Node 프로세스를 순차 실행하도록 바꿨다. 파일 안의 동시성은 유지하며, CI에서 지연 파일과 진행 상태를 식별할 수 있다. timeout 확대, skip 추가, 테스트 완화는 하지 않았다.
+- 전용 PostgreSQL `bros-p3-ci-retry-test`(postgres:18.6-bookworm, loopback 55447)에서 새 runner로 전체 30개 통합 파일과 191개 테스트가 PASS(fail/skip/cancel 0)했다. `pnpm lint`, `pnpm format:check`, `pnpm build`, `git diff --check`, publication worktree 검사도 PASS했고 테스트 DB 잔존은 0개다. 전용 컨테이너와 volume은 정리했다.
+- 이 기록 시점의 수정 commit/push와 새 SHA 원격 CI는 NOT_RUN이다. 실제 운영 DB·Provider·자동승격·P3-14 실제 정답/capture 검수는 실행하지 않았다.

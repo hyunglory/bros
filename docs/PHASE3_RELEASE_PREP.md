@@ -85,7 +85,8 @@ git diff --cached
 
 ## 남은 상태
 
-- 원격 Phase 3 commit/CI/배포: NOT_RUN.
+- 최초 원격 Phase 3 CI는 SHA `70e05bdb876acc0ebe7a0f2993ee6444d36baa8a`에서 통합 테스트 master process가 개별 파일 결과 없이 취소됐다. install/publication path/lint/typecheck/unit은 성공했고 format/build는 skip됐다. 통합 테스트를 파일별 별도 Node process로 순차 실행하도록 수정하고, 새 PostgreSQL에서 30 files/191 PASS로 재검증했다. 수정 commit의 원격 CI는 NOT_RUN이다.
+- 원격 Phase 3 배포: NOT_RUN.
 - BLK-005: 공유 quota RESOLVED_LOCAL, 운영 입력/연결 OPEN.
 - BLK-006: RESOLVED_LOCAL; 원래 norm/identity 결정을 유지.
 - BLK-007/P3-14: 사용자 보류. 실제 정답·capture 확보 또는 재개 요청 시 이어간다.

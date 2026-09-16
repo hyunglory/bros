@@ -53,20 +53,20 @@ console.log(
     .join(", ")}`,
 );
 
-// PostgreSQL integration files share one server. Preserve concurrency inside each
-// test while avoiding unrelated suites competing for short lock/timeout budgets.
-const concurrency = testKind === "integration" ? ["--test-concurrency=1"] : [];
-const result = spawnSync(
-  process.execPath,
-  ["--env-file-if-exists=.env", "--test", ...concurrency, ...testFiles],
-  {
+const run = (files) => {
+  const result = spawnSync(process.execPath, ["--env-file-if-exists=.env", "--test", ...files], {
     cwd: repositoryRoot,
     stdio: "inherit",
-  },
-);
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+};
 
-if (result.error) {
-  throw result.error;
-}
-
-process.exit(result.status ?? 1);
+if (testKind === "integration") {
+  // PostgreSQL suites share one server. A process per file preserves each suite's
+  // own concurrency while making a stalled CI file visible and isolated.
+  for (const file of testFiles) {
+    console.log(`Running integration test file: ${relative(repositoryRoot, file)}`);
+    run([file]);
+  }
+} else run(testFiles);

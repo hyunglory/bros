@@ -3392,3 +3392,38 @@
 - 금지 변경: force push/기존 변경 삭제, 원본·검수 XLSX/raw/capture/비밀값 공개, old head의 CI를 새 revision 증거로 사용, live/자동승격/운영 migration 임의 실행, P3-14 반복 입력 요청.
 - 완료 조건: 새 SHA와 해당 원격 workflow 결과·required check/protection 상태가 일치하고 제외 자료가 commit에 없음을 확인한다. CI 성공과 운영/Phase 3 Gate 상태는 별도 기록한다.
 - 재검토가 필요한 조건: main/PR head 또는 working tree 변경, manifest 외 파일 추가, CI 실패, migration/identity 잠금 정책 변경, 실제 운영 입력·정답/capture 확보 또는 재개 요청.
+
+## DEC-20260916-002 — Phase 3 원격 CI 통합 테스트 실행 방식 보정
+
+- 일자: 2026-09-16
+- 종료한 작업 분야 또는 단계: Phase 3 원격 CI 취소 진단과 재실행 준비
+- 작업에 사용한 모델과 추론 수준: Codex (GPT-5 기반), 세션 추론 수준은 식별 불가
+- 검토 범위와 근거 문서: `AGENTS.md`, `docs/DECISIONS.md`의 DEC-20260916-001, `docs/TEST_REPORT.md`, `docs/PHASE3_RELEASE_PREP.md`, `.github/workflows/ci.yml`, `scripts/run-tests.mjs`, GitHub workflow 35037290670/job 104609138288 로그
+
+### 확정 결정
+- 통합 테스트는 파일마다 별도 Node process를 순차 실행한다. 각 파일의 내부 동시성은 유지하고, CI 로그에는 시작 파일을 표시한다.
+- SHA `70e05bd`의 최초 원격 실행은 취소 결과다. 통합/format/build 성공 증거로 사용하지 않는다.
+- retry 전에 새 PostgreSQL에서 같은 runner로 전체 통합 테스트를 다시 실행한다. timeout 확대, skip 추가, live 연결, 자동승격 변경은 하지 않는다.
+- 이 결정은 DEC-20260916-001의 `--test-concurrency=1` 단일 Node master 실행 방식만 대체한다. Phase 3 공개 제외, 배포 경계, BLK 상태와 P3-14 보류는 대체하지 않는다.
+
+### 기각한 선택지와 이유
+- job timeout만 늘리기: 어느 파일이 지연됐는지 알 수 없고 취소 원인을 격리하지 못한다.
+- 파일 전체 병렬 실행으로 되돌리기: PostgreSQL을 공유하는 통합 suite의 자원 경합을 다시 넓힌다.
+- 수정 없이 수동 재실행하기: 같은 관찰 불가능한 실행 패턴을 반복할 수 있다.
+
+### 변경 파일
+- `scripts/run-tests.mjs`
+- `docs/TEST_REPORT.md`, `docs/PHASE3_RELEASE_PREP.md`, `docs/PHASE3_PR.md`, `docs/DECISIONS.md`
+
+### 검증 증거
+- 최초 workflow 35037290670은 install, publication path, lint, typecheck, Node unit 163개, Admin 35개 SUCCESS 뒤 통합 master process에서 취소됐다. format/build는 skip됐다.
+- 전용 `bros-p3-ci-retry-test` PostgreSQL에서 새 runner로 integration 30 files/191 PASS(fail/skip/cancel 0). `pnpm lint`, `pnpm format:check`, `pnpm build`, publication worktree 검사와 `git diff --check` PASS. 테스트 DB 잔존 0개 확인 후 컨테이너/volume 정리.
+
+### 미해결 사항 및 Blocker
+- 수정 commit의 push와 해당 정확한 SHA 원격 CI는 NOT_RUN이다.
+- BLK-005 운영 입력/연결 OPEN, BLK-007/P3-14 사용자 보류, Phase 3 Gate BLOCKED, 자동승격 OFF를 유지한다.
+
+### 다음 작업 인수 조건
+- 작업 범위: 이 결정의 파일만 명시적으로 stage/commit하고 일반 push한 뒤, 새 SHA의 `install / lint / typecheck / test / build` 결과를 확인한다.
+- 금지 변경: force push, 테스트 완화, 원본 XLSX/raw/capture/비밀값 공개, live Provider/운영 migration/자동승격 실행, P3-14 실제 정답 입력 요구.
+- 완료 조건: 새 head SHA의 workflow와 required check/protection 상태가 일치하며, 취소된 이전 SHA와 혼동하지 않는 증거를 남긴다.
